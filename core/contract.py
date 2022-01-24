@@ -203,7 +203,7 @@ def con42_NO(A,B,method='jit',comp=False,state=[]):
     A : array
         Input matrix.
     B : array
-        Input matrix.
+        Input matrix.:
     method : string, optional
         Defines which contraction method to use.
         Method choices are 'einsum', 'tensordot', 'jit' and 'vec'.
@@ -334,9 +334,7 @@ def con_jit_anti_comp(A,B):
         for j in prange(i,m):
             for k in prange(m):
                 C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-            print('*** DOUBLE CHECK CON_JIT_ANTI_COMP**')
-            print('Looks like it does two conjugations for some reason - why?')
-            C[j,i] = -np.conj(C[i,j]).conjugate
+            C[j,i] = -np.conj(C[i,j])
 
     return C
 
