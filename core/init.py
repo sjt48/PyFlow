@@ -56,7 +56,7 @@ def Hinit(n,d,J,dis_type,x=0):
     elif dis_type == 'linear':
         for i in range(n):
             # Initialise Hamiltonian with linearly increasing on-site terms
-            H0[i,i] = d
+            H0[i,i] = d*i
     elif dis_type == 'curved':
         for i in range(n):
             # Initialise Hamiltonian with linearly increasing on-site terms, plus some small curvature
