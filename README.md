@@ -14,11 +14,17 @@ Codebase for the Tensor Flow Equation method, used for computing local integrals
 
 # To do 
 
-* Update non-equilibrium dynamics code to match syntax used for static functions. ((**Current version will throw an error!**))
+* Update non-equilibrium dynamics code to match syntax used for static functions. (**Current version will throw an error!**)
 * Write more tests for non-interacting systems.
+* For non-interacting systems, compute LIOMs with ED as a comparison/test? 
 * Add long-range couplings from earlier code versions.
 * Figure out better solution for filenames for various models.
 * Implement model classes?
 * Merge with spinful fermion (Hubbard model) code.
 * Add bosons: comes down to changing a few minus signs in contract.py.
 * Merge GPU code (via CuPy/PyTorch) into main.
+* Benchmark against ED and tensor networks for finding ground state energy, non-equilibrium dynamics?
+* Test code for normal ordering?
+* Add Floquet functionality?
+* Possibility to study dissipative systems by using non-Hermitian Hamiltonians?
+* Add Majorana functionality.
