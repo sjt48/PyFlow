@@ -39,6 +39,7 @@ from numba import jit,prange
 import gc
 from .contract import contract,contractNO
 from scipy.integrate import ode
+import matplotlib.pyplot as plt
 
 #------------------------------------------------------------------------------ 
 def CUT(params,H0,V0,Hint,Vint,num,num_int):
@@ -363,16 +364,17 @@ def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=False):
 
 
     """
+
     array=array.astype(np.float32)
     if Hflow == True:
         # Extract various components of the Hamiltonian from the input array 'y'
-        H2 = array[0:n**2]                   # Define quadratic part of Hamiltonian
-        H2 = H2.reshape(n,n)              # Reshape into matrix
-        H0 = np.diag(np.diag(H))        # Define diagonal quadratic part H0
-        V0 = H2 - H0                     # Define off-diagonal quadratic part B
+        H2 = array[0:n**2]                  # Define quadratic part of Hamiltonian
+        H2 = H2.reshape(n,n)                # Reshape into matrix
+        H0 = np.diag(np.diag(H2))            # Define diagonal quadratic part H0
+        V0 = H2 - H0                        # Define off-diagonal quadratic part B
 
         if len(array)>n**2:
-            Hint = array[n**2::]                # Define quartic part of Hamiltonian
+            Hint = array[n**2::]            # Define quartic part of Hamiltonian
             Hint = Hint.reshape(n,n,n,n)    # Reshape into rank-4 tensor
             Hint0 = np.zeros((n,n,n,n))     # Define diagonal quartic part 
             for i in range(n):              # Load Hint0 with values
@@ -656,7 +658,7 @@ def flow_static_int(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',precision
     k0=1
     if Hflow == True:
         while n_int.successful() and k0 < k-1:
-            n_int.set_f_params(n,flow_list[k0],method)
+            n_int.set_f_params(n,flow_list[k0],method,False,Hflow)
             n_int.integrate(dl_list[k0])
             liom = n_int.y
             k0 += 1
@@ -666,7 +668,7 @@ def flow_static_int(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',precision
             # due to SciPy being unable to add interpolation steps and the 
             # generator being essentially zero at the 'start' of this reverse flow
             if n_int.successful() == True:
-                n_int.set_f_params(n,flow_list[k0],method)
+                n_int.set_f_params(n,flow_list[k0],method,False,Hflow)
                 n_int.integrate(dl_list[k0])
             else:
                 n_int.set_initial_value(init_liom,dl_list[k0])
@@ -676,6 +678,14 @@ def flow_static_int(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',precision
     # Free up some memory
     del flow_list
     gc.collect()
+
+    liom_all = np.sum([j**2 for j in liom])
+    f2 = np.sum([j**2 for j in liom[0:n**2]])/liom_all
+    f4 = np.sum([j**2 for j in liom[n**2::]])/liom_all
+    print('LIOM',f2,f4)
+    plt.plot(liom)
+    plt.show()
+    plt.close()
 
     print(np.max(np.abs(Hint2)))
 
