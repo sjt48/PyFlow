@@ -27,4 +27,7 @@ Codebase for the Tensor Flow Equation method, used for computing local integrals
 * Test code for normal ordering?
 * Add Floquet functionality?
 * Possibility to study dissipative systems by using non-Hermitian Hamiltonians?
-* Add Majorana functionality.
+* Add Majorana functionality. (Done in different codebase...)
+* Timing tests for einsum/tensordot/jit and MKL/BLAS?
+* Add Cython as a method? Not good for GPUs, but useful for CPUs.
+* Add old version of writing differential equations explicitly? Useful for systems not easily encoded as tensors.
