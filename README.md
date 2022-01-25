@@ -31,3 +31,5 @@ Codebase for the Tensor Flow Equation method, used for computing local integrals
 * Timing tests for einsum/tensordot/jit and MKL/BLAS?
 * Add Cython as a method? Not good for GPUs, but useful for CPUs.
 * Add old version of writing differential equations explicitly? Useful for systems not easily encoded as tensors.
+* Add momentum space flow, for translationally invariant systems or systems deep in delocalized phase.
+* Try to add spins? Their commutation relations are not friendly, but there must be some way to automate it.
