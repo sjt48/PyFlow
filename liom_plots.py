@@ -23,7 +23,7 @@ color = plt.cm.viridis(np.linspace(0, 1,nc))
 mpl.rcParams['axes.prop_cycle'] = cycler.cycler('color', color)
 #------------------------------------------------------------------------------  
 # Parameters
-n = 12                           # System size
+n = 12                          # System size
 delta = 0.1                     # Nearest-neighbour interaction strength
 J = 1.0                         # Nearest-neighbour hopping
 cutoff = J*10**(-6)             # Cutoff for the off-diagonal elements to be considered zero
