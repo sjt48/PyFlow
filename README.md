@@ -25,7 +25,7 @@ Codebase for the Tensor Flow Equation method, used for computing local integrals
 * Merge GPU code (via CuPy/PyTorch) into main.
 * Benchmark against ED and tensor networks for finding ground state energy, non-equilibrium dynamics?
 * Test code for normal ordering?
-* Add Floquet functionality?
+* Add Floquet functionality? (Following https://www.scipost.org/SciPostPhys.11.2.028.)
 * Possibility to study dissipative systems by using non-Hermitian Hamiltonians?
 * Add Majorana functionality. (Done in different codebase...)
 * Timing tests for einsum/tensordot/jit and MKL/BLAS?
