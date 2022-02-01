@@ -39,7 +39,8 @@ from numba import jit,prange
 import gc
 from .contract import contract,contractNO
 from scipy.integrate import ode
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
+# import h5py
 
 #------------------------------------------------------------------------------ 
 def CUT(params,H0,V0,Hint,Vint,num,num_int):
@@ -58,6 +59,8 @@ def CUT(params,H0,V0,Hint,Vint,num,num_int):
     precision = params["precision"]
     norm = params["norm"]
     Hflow = params["Hflow"]
+    LIOM = params["LIOM"]
+    store_flow = params["store_flow"]
 
     if logflow == False:
         dl = np.linspace(0,lmax,qmax,endpoint=True)
@@ -74,11 +77,12 @@ def CUT(params,H0,V0,Hint,Vint,num,num_int):
             flow = flow_dyn(n,H0,V0,num,dl,qmax,cutoff,tlist,method=method)
     elif dyn == False:
         if intr == True:
-            flow = flow_static_int(n,H0,V0,Hint,Vint,dl,qmax,cutoff,method=method,precision=precision,norm=norm,Hflow=Hflow)
+            if LIOM == 'bck':
+                flow = flow_static_int(n,H0,V0,Hint,Vint,dl,qmax,cutoff,method=method,precision=precision,norm=norm,Hflow=Hflow,store_flow=store_flow)
+            elif LIOM == 'fwd':
+                flow = flow_static_int_fwd(n,H0,V0,Hint,Vint,dl,qmax,cutoff,method=method,precision=precision,norm=norm,Hflow=Hflow,store_flow=store_flow)
         elif intr == False:
             flow = flow_static(n,H0,V0,dl,qmax,cutoff,method=method)
-    else:
-        flow = flow_n_static(n,J,H0,V0,Hint,Vint,dl,qmax,method=method)
 
     return flow
 
@@ -323,7 +327,7 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=False):
 
         return sol0
 
-def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=False):
+def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=False,norm=False):
     """ Generate the flow equation for density operators of the interacting systems.
 
         e.g. compute the RHS of dn/dl = [\eta,n] which will be used later to integrate n(l) -> n(l + dl)
@@ -366,6 +370,7 @@ def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=False):
     """
 
     array=array.astype(np.float32)
+    state=nstate(n,'CDW')
     if Hflow == True:
         # Extract various components of the Hamiltonian from the input array 'y'
         H2 = array[0:n**2]                  # Define quadratic part of Hamiltonian
@@ -391,10 +396,18 @@ def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=False):
         if len(array) > n**2:
             eta4 = contract(Hint0,V0,method=method,comp=comp,eta=True) + contract(H0,Vint,method=method,comp=comp,eta=True)
 
+        # Add normal-ordering corrections into generator eta, if norm == True
+        # if norm == True:
+
+        #     eta_no2 = contractNO(Hint,V0,method=method,eta=True,state=state) + contractNO(H0,Vint,method=method,eta=True,state=state)
+        #     eta2 += eta_no2
+
+        #     eta_no4 = contractNO(Hint0,Vint,method=method,eta=True,state=state)
+        #     eta4 += eta_no4
+
     else:
         eta2 = (array[0:n**2]).reshape(n,n)
         eta4 = (array[n**2::]).reshape(n,n,n,n)
-
 
     # Extract components of the density operator from input array 'y'
     n2 = y[0:n**2]                  # Define quadratic part of density operator
@@ -412,14 +425,146 @@ def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=False):
     elif comp == True:
         sol0 = np.zeros(len(y),dtype=complex)
 
-    # Load quadratic part into output array
-    sol0[:n**2] = sol.reshape(n**2)
-    # Compute and load quartic terms into output array, if interacting system
+    # Compute quartic terms, if interacting system
     if len(y) > n**2:
         sol2 = contract(eta4,n2,method=method,comp=comp) + contract(eta2,n4,method=method,comp=comp)
+
+    # Add normal-ordering corrections into flow equation, if norm == True
+    if norm == True:
+        # sol_no = contractNO(eta4,n2,method=method,eta=False,state=state) + contractNO(eta2,n4,method=method,eta=False,state=state)
+        # sol+=sol_no
+        if len(y) > n**2:
+            sol4_no = contractNO(eta4,n4,method=method,eta=False,state=state)
+            sol2 += sol4_no
+
+    # Load solution into output array
+    sol0[:n**2] = sol.reshape(n**2)
+    if len(y)> n**2:
         sol0[n**2:] = sol2.reshape(n**4)
 
     return sol0
+
+def int_ode_fwd(l,y0,n,eta=[],method='jit',norm=False,Hflow=False,comp=False):
+        """ Generate the flow equation for the interacting systems.
+
+        e.g. compute the RHS of dH/dl = [\eta,H] which will be used later to integrate H(l) -> H(l + dl)
+
+        Note that with the parameter Hflow = True, the generator will be recomputed as required. Using Hflow=False,
+        the input array eta will be used to specify the generator at this flow time step. The latter option will result 
+        in a huge speed increase, at the potential cost of accuracy. This is because the SciPi routine used to 
+        integrate the ODEs will sometimes add intermediate steps: recomputing eta on the fly will result in these 
+        steps being computed accurately, while fixing eta will avoid having to recompute the generator every time an 
+        interpolation step is added (leading to a speed increase), however it will mean that the generator evaluated at 
+        these intermediate steps has errors of order <dl (where dl is the flow time step). For sufficiently small dl, 
+        the benefits from the speed increase likely outweigh the decrease in accuracy.
+
+        Parameters
+        ----------
+        l : float
+            The (fictitious) flow time l which parameterises the unitary transform.
+        y : array
+            Array of size n**2 + n**4 containing all coefficients of the running Hamiltonian at flow time l.
+        n : integer
+            Linear system size.
+        eta : array, optional
+            Provide a pre-computed generator, if desired.
+        method : string, optional
+            Specify which method to use to generate the RHS of the flow equations.
+            Method choices are 'einsum', 'tensordot', 'jit' and 'vectorize'.
+            The first two are built-in NumPy methods, while the latter two are custom coded for speed.
+        norm : bool, optional
+            Specify whether to use non-perturbative normal-ordering corrections (True) or not (False).
+            This may take a lot longer to run, but typically improves accuracy. Care must be taken to 
+            ensure that use of normal-ordering is warranted and that the contractions are computed with 
+            respect to an appropriate state.
+        Hflow : bool, optional
+            Choose whether to use pre-computed generator or re-compute eta on the fly.
+
+        Returns
+        -------
+        sol0 : RHS of the flow equation for interacting system.
+
+        """
+        y = y0[:n**2+n**4]
+        nlist = y0[n**2+n**4::]
+
+        # Extract various components of the Hamiltonian from the input array 'y'
+        H = y[0:n**2]                   # Define quadratic part of Hamiltonian
+        H = H.reshape(n,n)              # Reshape into matrix
+        H0 = np.diag(np.diag(H))        # Define diagonal quadratic part H0
+        V0 = H - H0                     # Define off-diagonal quadratic part B
+
+        Hint = y[n**2:]                 # Define quartic part of Hamiltonian
+        Hint = Hint.reshape(n,n,n,n)    # Reshape into rank-4 tensor
+        Hint0 = np.zeros((n,n,n,n))     # Define diagonal quartic part 
+        for i in range(n):              # Load Hint0 with values
+            for j in range(n):
+                if i != j:
+                    # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
+                    Hint0[i,i,j,j] = Hint[i,i,j,j]
+                    Hint0[i,j,j,i] = Hint[i,j,j,i]
+        Vint = Hint-Hint0
+
+        # Extract components of the density operator from input array 'y'
+        n2 = nlist[0:n**2]                  # Define quadratic part of density operator
+        n2 = n2.reshape(n,n)            # Reshape into matrix
+        if len(nlist)>n**2:                 # If interacting system...
+            n4 = nlist[n**2::]              #...then define quartic part of density operator
+            n4 = n4.reshape(n,n,n,n)    # Reshape into tensor
+        
+        if norm == True:
+            state=nstate(n,0.5)
+            # _,V1 = np.linalg.eigh(H)
+            # state = np.zeros(n)
+            # sites = np.array([i for i in range(n)])
+            # random = np.random.choice(sites,n//2)
+            # for i in random:
+            #     psi = V1[:,i]
+            #     state += np.array([v**2 for v in psi])
+            # state = np.round(state,decimals=3)
+            # # print(np.dot(state,state))
+
+        if Hflow == True:
+            # Compute the generator eta
+            eta0 = contract(H0,V0,method=method,eta=True)
+            eta_int = contract(Hint0,V0,method=method,eta=True) + contract(H0,Vint,method=method,eta=True)
+
+            # Add normal-ordering corrections into generator eta, if norm == True
+            if norm == True:
+
+                eta_no2 = contractNO(Hint,V0,method=method,eta=True,state=state) + contractNO(H0,Vint,method=method,eta=True,state=state)
+                eta0 += eta_no2
+
+                eta_no4 = contractNO(Hint0,Vint,method=method,eta=True,state=state)
+                eta_int += eta_no4
+        else:
+            eta0 = (eta[:n**2]).reshape(n,n)
+            eta_int = (eta[n**2:]).reshape(n,n,n,n)
+   
+        # Compute the RHS of the flow equation dH/dl = [\eta,H]
+        sol = contract(eta0,H0+V0,method=method)
+        sol2 = contract(eta_int,H0+V0,method=method) + contract(eta0,Hint,method=method)
+
+        nsol = contract(eta0,n2,method=method,comp=comp)
+        if len(y) > n**2:
+            nsol2 = contract(eta_int,n2,method=method,comp=comp) + contract(eta0,n4,method=method,comp=comp)
+
+
+        # Add normal-ordering corrections into flow equation, if norm == True
+        if norm == True:
+            sol_no = contractNO(eta_int,H0+V0,method=method,eta=False,state=state) + contractNO(eta0,Hint,method=method,eta=False,state=state)
+            sol4_no = contractNO(eta_int,Hint,method=method,eta=False,state=state)
+            sol+= sol_no
+            sol2 += sol4_no
+        
+        # Define and load output list sol0
+        sol0 = np.zeros(2*(n**2+n**4))
+        sol0[:n**2] = sol.reshape(n**2)
+        sol0[n**2:n**2+n**4] = sol2.reshape(n**4)
+        sol0[n**2+n**4:2*n**2+n**4] = nsol.reshape(n**2)
+        sol0[2*n**2+n**4:] = nsol2.reshape(n**4)
+
+        return sol0
 #------------------------------------------------------------------------------  
 
 def flow_static(n,H0,V0,dl_list,qmax,cutoff,method='jit'):
@@ -515,7 +660,7 @@ def proc(mat,n,cutoff):
             mat[i] = 0.
     return mat
 
-def flow_static_int(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',precision=np.float32,norm=True,Hflow=False):
+def flow_static_int(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',precision=np.float32,norm=True,Hflow=False,store_flow=False):
     """
     Diagonalise an initial interacting Hamiltonian and compute the integrals of motion.
 
@@ -653,14 +798,22 @@ def flow_static_int(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',precision
     n_int = ode(liom_ode).set_integrator('dopri5',nsteps=100,rtol=10**(-6),atol=10**(-6))
     n_int.set_initial_value(init_liom,dl_list[0])
 
+    if store_flow == True:
+        liom_list = np.zeros((k-1,n**2+n**4))
+        liom_list[0] = init_liom 
+
     # Numerically integrate the flow equations for the density operator 
     # Integral goes from l -> infinity to l=0 (i.e. from diagonal basis to original basis)
     k0=1
+    # norm = True
+    # print('*** SETTING LIOM NORMAL ORDERING TO TRUE ***')
     if Hflow == True:
         while n_int.successful() and k0 < k-1:
-            n_int.set_f_params(n,flow_list[k0],method,False,Hflow)
+            n_int.set_f_params(n,flow_list[k0],method,False,Hflow,norm)
             n_int.integrate(dl_list[k0])
             liom = n_int.y
+            if store_flow == True:
+                liom_list[k0] = liom
             k0 += 1
     else:
         while k0 < k-1:
@@ -668,31 +821,194 @@ def flow_static_int(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',precision
             # due to SciPy being unable to add interpolation steps and the 
             # generator being essentially zero at the 'start' of this reverse flow
             if n_int.successful() == True:
-                n_int.set_f_params(n,flow_list[k0],method,False,Hflow)
+                n_int.set_f_params(n,flow_list[k0],method,False,Hflow,norm)
                 n_int.integrate(dl_list[k0])
             else:
                 n_int.set_initial_value(init_liom,dl_list[k0])
             liom = n_int.y
+            if store_flow == True:
+                liom_list[k0] = liom
             k0 += 1
+
+    # liom_all = np.sum([j**2 for j in liom])
+    f2 = np.sum([j**2 for j in liom[0:n**2]])
+    f4 = np.sum([j**2 for j in liom[n**2::]])
+    print('LIOM',f2,f4)
+    print('Hint max',np.max(np.abs(Hint2)))
+
+    output = {"H0_diag":H0_diag, "Hint":Hint2,"LIOM Interactions":lbits,"LIOM":liom,"Invariant":inv2}
+    if store_flow == True:
+        flow_list2 = np.zeros((k-1,2*n**2+2*n**4))
+        flow_list2[::,0:n**2+n**4] = flow_list
+        flow_list2[::,n**2+n**4:] = liom_list
+        output["flow"] = flow_list2
+        output["dl_list"] = dl_list
 
     # Free up some memory
     del flow_list
     gc.collect()
 
-    liom_all = np.sum([j**2 for j in liom])
-    f2 = np.sum([j**2 for j in liom[0:n**2]])/liom_all
-    f4 = np.sum([j**2 for j in liom[n**2::]])/liom_all
-    print('LIOM',f2,f4)
-    plt.plot(liom)
-    plt.show()
-    plt.close()
-
-    print(np.max(np.abs(Hint2)))
-
-    output = {"H0_diag":H0_diag, "Hint":Hint2,"LIOM Interactions":lbits,"LIOM":liom,"Invariant":inv2}
-
     return output
     
+def flow_static_int_fwd(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',precision=np.float32,norm=True,Hflow=False,store_flow=False):
+    """
+    Diagonalise an initial interacting Hamiltonian and compute the integrals of motion.
+
+    Note: this function does not compute the LIOMs in the conventional way. Rather, it starts with a local 
+    operator in the initial basis and transforms it into the diagonal basis, essentially the inverse of 
+    the process used to produce LIOMs conventionally. This bypasses the requirement to store the full 
+    unitary transform in memory, meaning that only a single tensor of order O(L^4) needs to be stored at 
+    each flow time step, dramatically increasing the accessible system sizes. However, use this with care
+    as it is *not* a conventional LIOM, despite displaying essentially the same features, and should be 
+    understood as such.
+
+    Parameters
+        ----------
+        n : integer
+            Linear system size.
+        H0 : array, float
+            Diagonal component of Hamiltonian
+        V0 : array, float
+            Off-diagonal component of Hamiltonian.
+        Hint : array, float
+            Diagonal component of Hamiltonian
+        Vint : array, float
+            Off-diagonal component of Hamiltonian.
+        dl_list : array, float
+            List of flow times to use for the numerical integration.
+        qmax : integer
+            Maximum number of flow time steps.
+        cutoff : float
+            Threshold value below which off-diagonal elements are set to zero.
+        method : string, optional
+            Specify which method to use to generate the RHS of the flow equations.
+            Method choices are 'einsum', 'tensordot', 'jit' and 'vec'.
+            The first two are built-in NumPy methods, while the latter two are custom coded for speed.
+        precision : dtype
+            Specify what precision to store the running Hamiltonian/generator. Can be any of the following
+            values: np.float16, np.float32, np.float64. Using half precision enables access to the largest system 
+            sizes, but naturally will result in loss of precision of any later steps. It is recommended to first 
+            test with single or double precision before using half precision to ensure results are accurate.
+        norm : bool, optional
+            Specify whether to use non-perturbative normal-ordering corrections (True) or not (False).
+            This may take a lot longer to run, but typically improves accuracy. Care must be taken to 
+            ensure that use of normal-ordering is warranted and that the contractions are computed with 
+            respect to an appropriate state.
+        Hflow : bool, optional
+            Choose whether to use pre-computed generator or re-compute eta on the fly.
+
+        Returns
+        -------
+        output : dict
+            Dictionary containing diagonal Hamiltonian ("H0_diag","Hint"), LIOM interaction coefficient ("LIOM Interactions"),
+            the LIOM on central site ("LIOM") and the value of the second invariant of the flow ("Invariant").
+    
+    """
+
+    if store_flow == True:
+        # Initialise array to hold solution at all flow times
+        flow_list = np.zeros((qmax,2*(n**2+n**4)),dtype=precision)
+
+    # print('Memory64 required: MB', sol_int.nbytes/10**6)
+
+    # Store initial interaction value and trace of initial H^2 for later error estimation
+    delta = np.max(Hint)
+    e1 = np.trace(np.dot(H0+V0,H0+V0))
+    
+    # Define integrator
+    r_int = ode(int_ode_fwd).set_integrator('dopri5',nsteps=100,rtol=10**(-6),atol=10**(-6))
+    
+    # Set initial conditions
+    init = np.zeros(2*(n**2+n**4),dtype=np.float32)
+    init[:n**2] = ((H0+V0)).reshape(n**2)
+    init[n**2:n**2+n**4] = (Hint+Vint).reshape(n**4)
+
+    # Initialise a density operator in the diagonal basis on the central site
+    init_liom = np.zeros(n**2+n**4)
+    init_liom2 = np.zeros((n,n))
+    init_liom2[n//2,n//2] = 1.0
+    init_liom[:n**2] = init_liom2.reshape(n**2)
+    init[n**2+n**4:] = init_liom
+    if store_flow == True:
+        flow_list[0] = init
+
+    r_int.set_initial_value(init,dl_list[0])
+    r_int.set_f_params(n,[],method,norm,Hflow)
+
+    # Numerically integrate the flow equations
+    k = 1                       # Flow timestep index
+    J0 = 10.                    # Seed value for largest off-diagonal term
+    # Integration continues until qmax is reached or all off-diagonal elements decay below cutoff
+    while r_int.successful() and k < qmax-1 and J0 > cutoff:
+        if Hflow == True:
+            r_int.integrate(dl_list[k])
+            step = r_int.y
+            if store_flow == True:
+               flow_list[k] = step.astype(precision)
+
+        # Commented out: code to zero all off-diagonal variables below some cutoff
+        # sim = proc(r_int.y,n,cutoff)
+        # sol_int[k] = sim
+
+        # np.set_printoptions(suppress=True)
+        # print((r_int.y)[:n**2])
+        mat = step[:n**2].reshape(n,n)
+        off_diag = mat-np.diag(np.diag(mat))
+        J0 = max(off_diag.reshape(n**2))
+        k += 1 
+    print(k,J0)
+
+    # Truncate solution list and flow time list to max timestep reached
+    dl_list = dl_list[:k-1]
+    if store_flow == True:
+        flow_list = flow_list[:k-1]
+    
+    # with h5py.File('test.h5','w') as hf:
+    #     hf.create_dataset('flow',data=flow_list)
+    #     hf.create_dataset('lsteps',data=dl_list)
+    
+    liom = step[n**2+n**4::]
+    step = step[:n**2+n**4]
+
+    # Define final diagonal quadratic Hamiltonian
+    H0_diag = step[:n**2].reshape(n,n)
+    # Define final diagonal quartic Hamiltonian
+    Hint2 = step[n**2::].reshape(n,n,n,n)   
+    # Extract only the density-density terms of the final quartic Hamiltonian, as a matrix                     
+    HFint = np.zeros(n**2).reshape(n,n)
+    for i in range(n):
+        for j in range(n):
+            HFint[i,j] = Hint2[i,i,j,j]
+            HFint[i,j] += -Hint2[i,j,j,i]
+
+    # Compute the difference in the second invariant of the flow at start and end
+    # This acts as a measure of the unitarity of the transform
+    Hflat = HFint.reshape(n**2)
+    inv = 2*np.sum([d**2 for d in Hflat])
+    e2 = np.trace(np.dot(H0_diag,H0_diag))
+    inv2 = np.abs(e1 - e2 + ((2*delta)**2)*(n-1) - inv)/np.abs(e2+((2*delta)**2)*(n-1))
+
+    # Compute the l-bit interactions from the density-density terms in the final Hamiltonian
+    lbits = np.zeros(n-1)
+    for q in range(1,n):
+        lbits[q-1] = np.median(np.log10(np.abs(np.diag(HFint,q)+np.diag(HFint,-q))/2.))
+
+    # liom_all = np.sum([j**2 for j in liom])
+    f2 = np.sum([j**2 for j in liom[0:n**2]])
+    f4 = np.sum([j**2 for j in liom[n**2::]])
+    print('LIOM',f2,f4)
+    print('Hint max',np.max(np.abs(Hint2)))
+
+    output = {"H0_diag":H0_diag, "Hint":Hint2,"LIOM Interactions":lbits,"LIOM":liom,"Invariant":inv2}
+    if store_flow == True:
+        output["flow"] = flow_list
+        output["dl_list"] = dl_list
+
+    # Free up some memory
+    del flow_list
+    gc.collect()
+
+    return output
     
 def flow_dyn(n,H0,V0,num,dl_list,qmax,cutoff,tlist,method='jit'):
     """
