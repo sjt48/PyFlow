@@ -105,7 +105,7 @@ def Hinit(n,d,J,dis_type,x=0):
 
 def Hint_init(n,delta):
     # Interaction tensors
-    Hint = np.zeros((n,n,n,n))
+    Hint = np.zeros((n,n,n,n),dtype=np.float32)
     for i in range(n):
         for j in range(n):
             if abs(i-j)==1:
@@ -117,19 +117,19 @@ def Hint_init(n,delta):
 
     return Hint,Vint
  
-def namevar(dis_type,dyn,norm,n):
+def namevar(dis_type,dyn,norm,n,LIOM):
     if norm == True:
         nm = 'NO'
     else:
         nm = 'PT'
      # Make directory to store data
     if dyn == False:
-        if not os.path.exists('%s/%s/%s/dataN%s' %(dis_type,nm,'static',n)):
-            os.makedirs('%s/%s/%s/dataN%s' %(dis_type,nm,'static',n))
-        namevar = '%s/%s/%s/dataN%s' %(dis_type,nm,'static',n) 
+        if not os.path.exists('%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'static',n)):
+            os.makedirs('%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'static',n))
+        namevar = '%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'static',n) 
     elif dyn == True:
-        if not os.path.exists('%s/%s/%s/dataN%s' %(dis_type,nm,'dyn',n)):
-            os.makedirs('%s/%s/%s/dataN%s' %(dis_type,nm,'dyn',n))
-        namevar = '%s/%s/%s/dataN%s' %(dis_type,nm,'dyn',n)
+        if not os.path.exists('%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'dyn',n)):
+            os.makedirs('%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'dyn',n))
+        namevar = '%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'dyn',n)
     
     return namevar
