@@ -35,6 +35,7 @@ from psutil import cpu_count
 os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of OpenMP threads to run in parallel
 os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of MKL threads to run in parallel
 os.environ['KMP_DUPLICATE_LIB_OK']="TRUE"
+os.environ['KMP_WARNINGS'] = 'off'
 import numpy as np
 from datetime import datetime
 import h5py,gc
@@ -54,12 +55,13 @@ mpl.rcParams['mathtext.fontset'] = 'cm'
 mpl.rcParams['mathtext.rm'] = 'serif'
 #------------------------------------------------------------------------------  
 # Parameters
-n = 16                          # System size
+n = 4                           # System size
 delta = 0.1                     # Nearest-neighbour interaction strength
 J = 1.0                         # Nearest-neighbour hopping amplitude
-cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
-dis = [5.]                      # List of disorder strengths
-lmax = 20                       # Flow time max
+cutoff = 0*J*10**(-3)           # Cutoff for the off-diagonal elements to be considered zero
+dis = [0.5 + 0.1*i for i in range(11)]                    
+# List of disorder strengths
+lmax = 500                      # Flow time max
 qmax = 500                      # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
 norm = False                    # Normal-ordering, can be true or false
@@ -67,7 +69,7 @@ Hflow = True                    # Whether to store the flowing Hamiltonian (true
                                 # Storing H(l) allows SciPy ODE integration to add extra flow time steps
                                 # Storing eta(l) reduces number of tensor contractions, at cost of accuracy
                                 # NB: if the flow step dl is too large, this can lead to Vint diverging!
-precision = np.float16          # Precision with which to store running Hamiltonian/generator
+precision = np.float32          # Precision with which to store running Hamiltonian/generator
                                 # Default throughout is single precision (np.float32)
                                 # Using np.float16 will half the memory cost, at loss of precision
                                 # Only affects the backwards transform, not the forward transform
@@ -77,14 +79,21 @@ print('Norm = %s' %norm)
 intr = True                     # Turn on/off interactions
 dyn = False                     # Run the dynamics
 imbalance = False               # Sets whether to compute global imbalance or single-site dynamics
-LIOM = False                    # Compute LIOM on central site
+LIOM = 'fwd'                    # Compute LIOMs with forward ('fwd') or backward ('bck') flow
+                                # Forward uses less memory by a factor of qmax, and transforms a local operator
+                                # in the initial basis into the diagonal basis; backward does the reverse
 dyn_MF = True                   # Mean-field decoupling for dynamics (used only if dyn=True)
-logflow = False                 # Use logarithmically spaced steps in flow time
-dis_type = 'QPtest'             # Options: 'random', 'QPgolden', 'QPsilver', 'QPbronze', 'QPrandom', 'linear', 'curved', 'prime'
+logflow = True                  # Use logarithmically spaced steps in flow time
+store_flow = True               # Store the full flow of the Hamiltonian and LIOMs
+dis_type = 'linear'             # Options: 'random', 'QPgolden', 'QPsilver', 'QPbronze', 'QPrandom', 'linear', 'curved', 'prime'
                                 # Also contains 'test' and 'QPtest', potentials that do not change from run to run
 x = 0.1                         # For 'dis_type = curved', controls the gradient of the curvature
 if intr == False:               # Zero the interactions if set to False (for ED comparison and filename)
     delta = 0
+if dis_type != 'curved':
+    x = 0.0
+if n > 12 or qmax > 2000:
+    store_flow = False
 
 # Define list of timesteps for non-equilibrium dynamics
 # Only used if 'dyn = True'
@@ -93,14 +102,16 @@ tlist = [0.01*i for i in range(51)]
 # Create dictionary of parameters to pass to functions; avoids having to have too many function args
 params = {"n":n,"delta":delta,"J":J,"cutoff":cutoff,"dis":dis,"lmax":lmax,"qmax":qmax,"reps":reps,"norm":norm,
             "Hflow":Hflow,"precision":precision,"method":method, "intr":intr,"dyn":dyn,"imbalance":imbalance,
-                "LIOM":LIOM, "dyn_MF":dyn_MF,"logflow":logflow,"dis_type":dis_type,"x":x,"tlist":tlist}
+                "LIOM":LIOM, "dyn_MF":dyn_MF,"logflow":logflow,"dis_type":dis_type,"x":x,"tlist":tlist,"store_flow":store_flow}
 
 # Make directory to store data
-nvar = init.namevar(dis_type,dyn,norm,n)
+nvar = init.namevar(dis_type,dyn,norm,n,LIOM)
 
 if Hflow == False:
-    print('*** Warning: Setting Hflow=False requires small flow time steps in order to be accurate. ***')
-
+    print('*** Warning: Setting Hflow=False requires small flow time steps in order for backwards transform to be accurate. ***')
+if intr == False and norm == True:
+    print('Normal ordering is only for interacting systems.')
+    norm = False
 #==============================================================================
 # Run program
 #==============================================================================
@@ -149,6 +160,7 @@ if __name__ == '__main__':
                 ed_dyn=ed[1]
             elif n <= 12 and dyn == False:
                 ed=ED(n,H0,J,delta,np.ones(2),dyn,imbalance)
+                print('ED',ed[0])
             else:
                 ed = np.zeros(n)
             print('Time after ED: ',datetime.now()-startTime)
@@ -162,8 +174,17 @@ if __name__ == '__main__':
                 ed=np.zeros(n)
 
             # plt.plot(np.sort(flevels),'o-')
-            # # plt.plot(np.sort(flevels2),'o-')
             # plt.plot(ed,'x-')
+            # plt.show()
+            # plt.close()
+            print((flow["LIOM"][0:n**2]).shape)
+            print(np.diag((flow["LIOM"][0:n**2]).reshape(n,n)))
+#            plt.plot(np.log10(np.abs(np.diag((flow["LIOM"][0:n**2]).reshape(n,n)))))
+#            plt.show()
+#            plt.close()
+
+            # plt.plot(flow["Hint"].reshape(n**4))
+            # plt.title(r'$H_{int}$')
             # plt.show()
             # plt.close()
 
@@ -191,12 +212,15 @@ if __name__ == '__main__':
                 hf.create_dataset('params',data=str(params))
                 hf.create_dataset('H2_diag',data=flow["H0_diag"])
                 hf.create_dataset('H2_initial',data=H0+V0)
-                # hf.create_dataset('H4_initial',data=Hint)
+
                 if n <= 12:
                     hf.create_dataset('flevels', data = flevels,compression='gzip', compression_opts=9)
                     hf.create_dataset('ed', data = ed, compression='gzip', compression_opts=9)
                     hf.create_dataset('lsr', data = [lsr,lsr2])
                     hf.create_dataset('err',data = errlist)
+                    if store_flow == True:
+                        hf.create_dataset('flow',data=flow["flow"])
+                        hf.create_dataset('dl_list',data=flow["dl_list"])
                 if intr == True:
                         hf.create_dataset('lbits', data = flow["LIOM Interactions"])
                         hf.create_dataset('Hint', data = flow["Hint"], compression='gzip', compression_opts=9)
