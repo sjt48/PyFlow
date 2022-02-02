@@ -3,7 +3,7 @@ Flow Equations for Many-Body Quantum Systems
 S. J. Thomson
 Dahlem Centre for Complex Quantum Systems, FU Berlin
 steven.thomson@fu-berlin.de
-steventhomson.co.uk
+steventhomson.co.uk / @PhysicsSteve
 https://orcid.org/0000-0001-9065-9842
 ---------------------------------------------
 
@@ -35,7 +35,7 @@ os.environ['KMP_DUPLICATE_LIB_OK']="TRUE"
 import numpy as np
 from sympy import prime
 
-def Hinit(n,d,J,dis_type,x=0):
+def Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False):
     """ Generate the non-interacting part of the Hamiltonian with the specified on-site potential. """
 
     np.random.seed()
@@ -50,6 +50,7 @@ def Hinit(n,d,J,dis_type,x=0):
             H0[i,i] = np.random.uniform(-d,d)
     elif dis_type == 'test':
         # For testing purposes: fixed list of randomly generated numbers for method comparisons
+        print('**** FIXED DISORDER REALISATION FOR TESTING - DISABLE FOR REAL DATA ****')
         randomlist = [2.4979359120556666, -4.477621238657079, -4.448810326437316, -3.6115452666436543, -1.2802110535766298, -3.336862075297363, -0.3370611440832194, -3.8232260796601523, -0.5134617674857918, 1.32895294857477]
         for i in range(n):
             H0[i,i] = randomlist[i]
@@ -98,22 +99,102 @@ def Hinit(n,d,J,dis_type,x=0):
         for i in range(n):
             # Initialise Hamiltonian with quasiperiodic on-site terms
             H0[i,i] = d*np.cos(2*np.pi*(1./phi)*i + phase)
+
     # Initialise V0 with nearest-neighbour hopping
-    V0 = np.diag(J*np.ones(n-1,dtype=np.float32),1) + np.diag(J*np.ones(n-1,dtype=np.float32),-1)
-            
+    if pwrhop == False:
+        V0 = np.diag(J*np.ones(n-1,dtype=np.float32),1) + np.diag(J*np.ones(n-1,dtype=np.float32),-1)
+    else:
+        V0 = np.zeros((n,n))
+        for k in range(1,n):
+            templist = [0.]*(n-k)
+            for q in range(n-k):
+                if pwrhop == 'random':
+                    # Pick hopping randomly from a distribution with standard deviation decaying like a power-law with distance
+                    templist[q] = J*np.random.normal(0,k**(-alpha))
+                else:
+                    # Use a hopping that decays uniformly like a power-law with distance
+                    templist[q] = J*k**(-alpha)
+            V0 += np.diag(templist,k)
+            V0 += np.diag(templist,-k)
+
+    #--------------------------------------------------------------------------
+    # elif Fourier == True:
+    #     # Initialise momentum-space Hamiltonian
+
+    #     # Diagonal terms
+    #     y0 = [-2*Jxx*np.cos(2*np.pi*i/n) for i in range(-n//2,n//2)]
+
+    #     # Fourier-transform the on-site disorder
+    #     hlist = [np.random.uniform(-d,d) for i in range(n)]
+    #     H0 += np.diag(hlist)
+    #     H0 += np.diag([Jxx for i in range(n-1)],1)
+    #     H0 += np.diag([Jxx for i in range(n-1)],-1)
+    #     H0[0,n-1] += Jxx
+    #     H0[n-1,0] += Jxx
+
+    #     hmat = np.zeros(n**2,dtype=complex).reshape(n,n)
+    #     for i in range(-n//2,n//2):
+    #         for j in range(-n//2,n//2):
+    #             hmat[i+n//2,j+n//2] = (1/float(n))*np.sum([hlist[k]*np.exp(1j*2*np.pi*(i-j)*k/L) for k in range(n)])
+    #     for k in range(1,n+1):
+    #         jlist += [np.diag(hmat,k)]
+    #     jlist = np.concatenate(jlist)
+    #     diag = y0+np.diag(hmat).real
+    #     dlist = [Jz/np.sqrt(n)]*(n*(n-1)//2) #Diagonal part only
+
+    #     #----------------------------------------------------------------------
+    #     # Set up final Hamiltonian
+
+    #     if intr == False:
+    #         y00 = np.concatenate((diag, jlist.real,jlist.imag),axis=None)
+    #     elif intr == True:
+    #         y00 = np.concatenate((diag, jlist.real,jlist.imag,dlist),axis=None)
+
+         # Compare eigenvalues of free Hamiltonian in momentum- and real-space
+#        H1 = np.zeros(n**2,dtype=complex).reshape(n,n)
+#        H1 += hmat + np.diag(y0)
+#        print(sorted(np.linalg.eigvalsh(H0)))
+#        print(sorted(np.linalg.eigvalsh(H1)))
+#        print('****************************')
+
+    # elif pwrhop == False and dim == 2:
+    #     jmat = np.diagflat(np.concatenate([[Jxx for i in range(L-1)]+[0] for j in range(L)])[0:-1], 1)+np.diagflat([Jxx for i in range(n-L)], L)
+    #     jlist = np.concatenate(list(map(lambda x: np.diag(jmat, k = x), range(1,L**2))))
+    # elif pwrhop == False and dim == 3:
+    #     jmat = np.diagflat(np.concatenate([[Jxx for i in range(L-1)]+[0] for j in range(L**2)])[0:-1], 1)+np.diagflat([Jxx for i in range(n-L)], L)+np.diagflat([Jxx for i in range(n-L**2)], L**2)
+    #     jlist = np.concatenate(list(map(lambda x: np.diag(jmat, k = x), range(1,L**3))))
+
+
     return H0,V0
 
-def Hint_init(n,delta):
+def Hint_init(n,delta,pwrint=False,beta=0):
     # Interaction tensors
     Hint = np.zeros((n,n,n,n),dtype=np.float32)
     for i in range(n):
-        for j in range(n):
-            if abs(i-j)==1:
-                # Initialise nearest-neighbour interactions
-                Hint[i,i,j,j] = 0.5*delta
+        for j in range(i,n):
+            if pwrint == False:
+                if abs(i-j)==1:
+                    # Initialise nearest-neighbour interactions
+                    Hint[i,i,j,j] = 0.5*delta
+            else:
+                k = np.abs(i-j)
+                if pwrint == 'random' and i != j:
+                    # Pick interactions randomly from a distribution with standard deviation decaying like a power-law with distance
+                    Hint[i,i,j,j] = 0.5*delta*np.random.normal(0,k**(-beta))
+                elif i != j:
+                    # Use an interaction strength that decays uniformly like a power-law with distance
+                    Hint[i,i,j,j] = 0.5*delta*k**(-beta)
+            Hint[j,j,i,i] = Hint[i,i,j,j]
     
     # Initialise off-diagonal quartic tensor (empty)
     Vint = np.zeros((n,n,n,n),dtype=np.float32)
+
+    # elif intr == True and dim ==2:
+    #     Dmat = np.diagflat(np.concatenate([[Jz for i in range(L-1)]+[0] for j in range(L)])[0:-1], 1)+np.diagflat([Jz for i in range(n-L)], L)
+    #     dlist = np.concatenate(list(map(lambda x: np.diag(Dmat, k = x), range(1,L**2))))
+    # elif intr == True and dim ==3:
+    #     Dmat = np.diagflat(np.concatenate([[Jz for i in range(L-1)]+[0] for j in range(L**2)])[0:-1], 1)+np.diagflat([Jz for i in range(n-L)], L)+np.diagflat([Jz for i in range(n-L**2)], L**2)
+    #     dlist = np.concatenate(list(map(lambda x: np.diag(Dmat, k = x), range(1,L**3))))
 
     return Hint,Vint
  
@@ -124,12 +205,12 @@ def namevar(dis_type,dyn,norm,n,LIOM):
         nm = 'PT'
      # Make directory to store data
     if dyn == False:
-        if not os.path.exists('%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'static',n)):
-            os.makedirs('%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'static',n))
-        namevar = '%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'static',n) 
+        if not os.path.exists('data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'static',n)):
+            os.makedirs('data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'static',n))
+        namevar = 'data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'static',n) 
     elif dyn == True:
-        if not os.path.exists('%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'dyn',n)):
-            os.makedirs('%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'dyn',n))
-        namevar = '%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'dyn',n)
+        if not os.path.exists('data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'dyn',n)):
+            os.makedirs('data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'dyn',n))
+        namevar = 'data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'dyn',n)
     
     return namevar

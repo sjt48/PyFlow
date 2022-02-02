@@ -3,7 +3,7 @@ Flow Equations for Many-Body Quantum Systems
 S. J. Thomson
 Dahlem Centre for Complex Quantum Systems, FU Berlin
 steven.thomson@fu-berlin.de
-steventhomson.co.uk
+steventhomson.co.uk / @PhysicsSteve
 https://orcid.org/0000-0001-9065-9842
 ---------------------------------------------
 
@@ -29,8 +29,9 @@ This file contains all of the matrix/tensor contraction routines used to compute
 import os
 from psutil import cpu_count
 # Set up threading options for parallel solver
-os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False))) # set number of OpenMP threads to run in parallel
-os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False))) # set number of MKL threads to run in parallel
+os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of OpenMP threads
+os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of MKL threads
+os.environ['NUMBA_NUM_THREADS'] = str(int(cpu_count(logical=False))) # Set number of Numba threads
 import numpy as np
 from numba import jit,prange,guvectorize,float64, complex128
 
@@ -38,18 +39,28 @@ from numba import jit,prange,guvectorize,float64, complex128
 # Tensor contraction subroutines
 
 # General contraction function
-def contract(A,B,method='jit',comp=False,eta=False):
+def contract(A,B,method='jit',comp=False,eta=False,pair=None):
     """ General contract function: gets shape and calls appropriate contraction function. """
     
     if A.ndim == B.ndim == 2:
-        con = con22(A,B,method=method,comp=comp,eta=eta)
+        con = con22(A,B,method,comp,eta)
     if A.ndim != B.ndim:
         if A.ndim == 4:
             if B.ndim == 2:
-                con = con42(A,B,method=method,comp=comp)
+                if pair == None:
+                    con = con42(A,B,method,comp)
+                elif pair == 'first':
+                    con = con42_firstpair(A,B,method,comp)
+                elif pair == 'second':
+                    con = con42_secondpair(A,B,method,comp)
         if A.ndim == 2:
             if B.ndim == 4:
-                con = con24(A,B,method=method,comp=comp)
+                if pair == None:
+                    con = con24(A,B,method,comp)
+                elif pair == 'first':
+                    con = con24_firstpair(A,B,method,comp)
+                elif pair == 'second':
+                    con = con24_secondpair(A,B,method,comp)
     return con
 
 # Normal-ordering contraction function

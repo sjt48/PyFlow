@@ -3,7 +3,7 @@ Flow Equations for Many-Body Quantum Systems
 S. J. Thomson
 Dahlem Centre for Complex Quantum Systems, FU Berlin
 steven.thomson@fu-berlin.de
-steventhomson.co.uk
+steventhomson.co.uk / @PhysicsSteve
 https://orcid.org/0000-0001-9065-9842
 ---------------------------------------------
 
@@ -29,14 +29,14 @@ and save the output as an HDF5 file containing various different datasets.
 
 """
 
-import os
+import os, sys
 from psutil import cpu_count
 # Set up threading options for parallel solver
 os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of OpenMP threads to run in parallel
 os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of MKL threads to run in parallel
-os.environ['KMP_DUPLICATE_LIB_OK']="TRUE"
-os.environ['KMP_WARNINGS'] = 'off'
-import numpy as np
+os.environ['KMP_DUPLICATE_LIB_OK']="TRUE"                         # Necessary on some versions of OS X
+os.environ['KMP_WARNINGS'] = 'off'                                # Silence non-critical warning
+import numpy as np 
 from datetime import datetime
 import h5py,gc
 import core.diag as diag
@@ -55,14 +55,14 @@ mpl.rcParams['mathtext.fontset'] = 'cm'
 mpl.rcParams['mathtext.rm'] = 'serif'
 #------------------------------------------------------------------------------  
 # Parameters
-n = 4                           # System size
+n = int(sys.argv[1])            # System size
 delta = 0.1                     # Nearest-neighbour interaction strength
 J = 1.0                         # Nearest-neighbour hopping amplitude
-cutoff = 0*J*10**(-3)           # Cutoff for the off-diagonal elements to be considered zero
-dis = [0.5 + 0.1*i for i in range(11)]                    
+cutoff = J*10**(-6)             # Cutoff for the off-diagonal elements to be considered zero
+dis = [0.4+0.1*i for i in range(11)]                    
 # List of disorder strengths
-lmax = 500                      # Flow time max
-qmax = 500                      # Max number of flow time steps
+lmax = 1500                     # Flow time max
+qmax = 1000                     # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
 norm = False                    # Normal-ordering, can be true or false
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
@@ -73,19 +73,21 @@ precision = np.float32          # Precision with which to store running Hamilton
                                 # Default throughout is single precision (np.float32)
                                 # Using np.float16 will half the memory cost, at loss of precision
                                 # Only affects the backwards transform, not the forward transform
-method = 'jit'                  # Method for computing tensor contractions
+method = 'tensordot'            # Method for computing tensor contractions
                                 # Options are 'einsum', 'tensordot','jit' or 'vec'
+                                # In general 'tensordot' is fastest for small systems, 'jit' for large systems
+                                # (Note that 'jit' requires compilation on the first run, increasing run time.)
 print('Norm = %s' %norm)
 intr = True                     # Turn on/off interactions
 dyn = False                     # Run the dynamics
 imbalance = False               # Sets whether to compute global imbalance or single-site dynamics
-LIOM = 'fwd'                    # Compute LIOMs with forward ('fwd') or backward ('bck') flow
+LIOM = 'bck'                    # Compute LIOMs with forward ('fwd') or backward ('bck') flow
                                 # Forward uses less memory by a factor of qmax, and transforms a local operator
                                 # in the initial basis into the diagonal basis; backward does the reverse
 dyn_MF = True                   # Mean-field decoupling for dynamics (used only if dyn=True)
 logflow = True                  # Use logarithmically spaced steps in flow time
 store_flow = True               # Store the full flow of the Hamiltonian and LIOMs
-dis_type = 'linear'             # Options: 'random', 'QPgolden', 'QPsilver', 'QPbronze', 'QPrandom', 'linear', 'curved', 'prime'
+dis_type = str(sys.argv[2])     # Options: 'random', 'QPgolden', 'QPsilver', 'QPbronze', 'QPrandom', 'linear', 'curved', 'prime'
                                 # Also contains 'test' and 'QPtest', potentials that do not change from run to run
 x = 0.1                         # For 'dis_type = curved', controls the gradient of the curvature
 if intr == False:               # Zero the interactions if set to False (for ED comparison and filename)
@@ -177,8 +179,6 @@ if __name__ == '__main__':
             # plt.plot(ed,'x-')
             # plt.show()
             # plt.close()
-            print((flow["LIOM"][0:n**2]).shape)
-            print(np.diag((flow["LIOM"][0:n**2]).reshape(n,n)))
 #            plt.plot(np.log10(np.abs(np.diag((flow["LIOM"][0:n**2]).reshape(n,n)))))
 #            plt.show()
 #            plt.close()

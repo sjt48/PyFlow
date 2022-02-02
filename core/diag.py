@@ -3,7 +3,7 @@ Flow Equations for Many-Body Quantum Systems
 S. J. Thomson
 Dahlem Centre for Complex Quantum Systems, FU Berlin
 steven.thomson@fu-berlin.de
-steventhomson.co.uk
+steventhomson.co.uk / @PhysicsSteve
 https://orcid.org/0000-0001-9065-9842
 ---------------------------------------------
 
@@ -32,6 +32,7 @@ from psutil import cpu_count
 # Set up threading options for parallel solver
 os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of OpenMP threads to run in parallel
 os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of MKL threads to run in parallel
+os.environ['NUMBA_NUM_THREADS'] = str(int(cpu_count(logical=False))) # Set number of Numba threads
 import numpy as np
 from datetime import datetime
 from .dynamics import dyn_con,dyn_exact
@@ -39,8 +40,6 @@ from numba import jit,prange
 import gc
 from .contract import contract,contractNO
 from scipy.integrate import ode
-# import matplotlib.pyplot as plt
-# import h5py
 
 #------------------------------------------------------------------------------ 
 def CUT(params,H0,V0,Hint,Vint,num,num_int):
@@ -85,6 +84,36 @@ def CUT(params,H0,V0,Hint,Vint,num,num_int):
             flow = flow_static(n,H0,V0,dl,qmax,cutoff,method=method)
 
     return flow
+
+
+def indices(n):
+    mat = np.ones((n,n,n,n),dtype=np.int8)    
+    for i in range(n):              
+        for j in range(n):
+            if i != j:
+                # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
+                mat[i,i,j,j] = 0
+                mat[i,j,j,i] = 0
+    mat = mat.reshape(n**4)
+    indices = np.nonzero(mat)
+
+    return indices
+
+def cut(y,n,cutoff,indices):
+        mat2 = y[:n**2].reshape(n,n)
+        mat2_od = mat2-np.diag(np.diag(mat2))
+
+        if np.max(np.abs(mat2_od)) < cutoff*10**(-3):
+            mat4 = y[n**2:n**2+n**4]
+            mat4_od = np.zeros(n**4)            # Define diagonal quartic part 
+            for i in indices:                   # Load Hint0 with values
+                mat4_od[i] = mat4[i]
+            if np.median(np.abs(mat4_od)) < cutoff:
+                return 0 
+            else:
+                return 1
+        else:
+            return 1
 
 def nonint_ode(l,y,n,method='einsum'):
     """ Generate the flow equation for non-interacting systems.
@@ -327,13 +356,85 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=False):
 
         return sol0
 
+def int_ode_spin(l,y,n,method='jit'):
+
+        Hup = y[0:n**2]
+        Hup = Hup.reshape(n,n)
+        H0up = np.diag(np.diag(Hup))
+        V0up = Hup - H0up
+        
+        Hdown = y[n**2:2*n**2]
+        Hdown = Hdown.reshape(n,n)
+        H0down = np.diag(np.diag(Hdown))
+        V0down = Hdown - H0down
+
+        Hintup = y[2*n**2:2*n**2+n**4]
+        Hintup = Hintup.reshape(n,n,n,n)
+        Hint0up = np.zeros((n,n,n,n))
+        
+        for i in range(n):
+            for j in range(n):
+                if i != j:
+                    # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
+                    Hint0up[i,i,j,j] = Hintup[i,i,j,j]
+                    Hint0up[i,j,j,i] = Hintup[i,j,j,i]
+        Vintup = Hintup-Hint0up
+        
+        Hintdown = y[2*n**2+n**4:2*n**2+2*n**4]
+        Hintdown = Hintdown.reshape(n,n,n,n)
+        Hint0down = np.zeros((n,n,n,n))
+        for i in range(n):
+            for j in range(n):
+                if i != j:
+                    # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
+                    Hint0down[i,i,j,j] = Hintdown[i,i,j,j]
+                    Hint0down[i,j,j,i] = Hintdown[i,j,j,i]
+        Vintdown = Hintdown-Hint0down
+        # print(Vintdown)
+        
+        Hintupdown = y[2*n**2+2*n**4:]
+        Hintupdown = Hintupdown.reshape(n,n,n,n)
+        Hint0updown = np.zeros((n,n,n,n))
+        for i in range(n):
+            for j in range(n):
+                # if i != j:
+                    # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
+                Hint0updown[i,i,j,j] = Hintupdown[i,i,j,j]
+                    # Hint0updown[i,j,j,i] = Hintupdown[i,j,j,i]
+        Vintupdown = Hintupdown-Hint0updown
+        # print(max(Hintupdown.reshape(n**4)))                    
+        
+        eta0up = contract(H0up,V0up,method=method,eta=True)
+        eta0down = contract(H0down,V0down,method=method,eta=True)
+        eta_int_up = contract(Hint0up,V0up,method=method,eta=True) + contract(H0up,Vintup,method=method,eta=True)
+        eta_int_down = contract(Hint0down,V0down,method=method,eta=True) + contract(H0down,Vintdown,method=method,eta=True)
+        eta_int_updown = -contract(Vintupdown,H0up,method=method,eta=True,pair='first') - contract(Vintupdown,H0down,method=method,eta=True,pair='second')
+        eta_int_updown += contract(Hint0updown,V0up,method=method,eta=True,pair='first') + contract(Hint0updown,V0down,method=method,eta=True,pair='second')
+   
+        sol_up = contract(eta0up,H0up+V0up,method=method)
+        sol_down = contract(eta0down,H0down+V0down,method=method)
+        sol_int_up = contract(eta_int_up,H0up+V0up,method=method) + contract(eta0up,Hintup,method=method)
+        sol_int_down = contract(eta_int_down,H0down+V0down,method=method) + contract(eta0down,Hintdown,method=method)
+        sol_int_updown = contract(eta_int_updown,H0down+V0down,method=method,pair='second') + contract(eta0down,Hintupdown,method=method,pair='second')
+        sol_int_updown += contract(eta_int_updown,H0up+V0up,method=method,pair='first') + contract(eta0up,Hintupdown,method=method,pair='first')
+        
+        sol0 = np.zeros(2*n**2+3*n**4)
+        sol0[:n**2] = sol_up.reshape(n**2)
+        sol0[n**2:2*n**2] = sol_down.reshape(n**2)
+        sol0[2*n**2:2*n**2+n**4] = sol_int_up.reshape(n**4)
+        sol0[2*n**2+n**4:2*n**2+2*n**4] = sol_int_down.reshape(n**4)
+        sol0[2*n**2+2*n**4:] = sol_int_updown.reshape(n**4)
+
+        return sol0
+
 def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=False,norm=False):
     """ Generate the flow equation for density operators of the interacting systems.
 
         e.g. compute the RHS of dn/dl = [\eta,n] which will be used later to integrate n(l) -> n(l + dl)
 
         Note that this can be used to integrate density operators either 'forward' (from l=0 to l -> infinity) or
-        also 'backward' (from l -> infinity to l=0), as the flow equations are the same either way.
+        also 'backward' (from l -> infinity to l=0), as the flow equations are the same either way. The only changes
+        are the initial condition and the sign of the timestep dl.
 
         Parameters
         ----------
@@ -397,13 +498,13 @@ def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=False,norm=False):
             eta4 = contract(Hint0,V0,method=method,comp=comp,eta=True) + contract(H0,Vint,method=method,comp=comp,eta=True)
 
         # Add normal-ordering corrections into generator eta, if norm == True
-        # if norm == True:
+        if norm == True:
 
-        #     eta_no2 = contractNO(Hint,V0,method=method,eta=True,state=state) + contractNO(H0,Vint,method=method,eta=True,state=state)
-        #     eta2 += eta_no2
+            eta_no2 = contractNO(Hint,V0,method=method,eta=True,state=state) + contractNO(H0,Vint,method=method,eta=True,state=state)
+            eta2 += eta_no2
 
-        #     eta_no4 = contractNO(Hint0,Vint,method=method,eta=True,state=state)
-        #     eta4 += eta_no4
+            eta_no4 = contractNO(Hint0,Vint,method=method,eta=True,state=state)
+            eta4 += eta_no4
 
     else:
         eta2 = (array[0:n**2]).reshape(n,n)
@@ -431,8 +532,8 @@ def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=False,norm=False):
 
     # Add normal-ordering corrections into flow equation, if norm == True
     if norm == True:
-        # sol_no = contractNO(eta4,n2,method=method,eta=False,state=state) + contractNO(eta2,n4,method=method,eta=False,state=state)
-        # sol+=sol_no
+        sol_no = contractNO(eta4,n2,method=method,eta=False,state=state) + contractNO(eta2,n4,method=method,eta=False,state=state)
+        sol+=sol_no
         if len(y) > n**2:
             sol4_no = contractNO(eta4,n4,method=method,eta=False,state=state)
             sol2 += sol4_no
@@ -653,9 +754,9 @@ def flow_static(n,H0,V0,dl_list,qmax,cutoff,method='jit'):
     return output
     
 @jit(nopython=True,parallel=True,fastmath=True)
-def proc(mat,n,cutoff):
+def proc(mat,cutoff):
     """ Test function to zero all matrix elements below a cutoff. """
-    for i in prange(n**2):
+    for i in prange(len(mat)):
         if mat[i] < cutoff:
             mat[i] = 0.
     return mat
@@ -716,7 +817,7 @@ def flow_static_int(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',precision
     e1 = np.trace(np.dot(H0+V0,H0+V0))
     
     # Define integrator
-    r_int = ode(int_ode).set_integrator('dopri5',nsteps=100,rtol=10**(-6),atol=10**(-6))
+    r_int = ode(int_ode).set_integrator('dopri5',nsteps=100,rtol=10**(-6),atol=10**(-12))
     
     # Set initial conditions
     init = np.zeros(n**2+n**4,dtype=np.float32)
@@ -729,8 +830,10 @@ def flow_static_int(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',precision
     # Numerically integrate the flow equations
     k = 1                       # Flow timestep index
     J0 = 10.                    # Seed value for largest off-diagonal term
+    decay = 1
+    index_list = indices(n)
     # Integration continues until qmax is reached or all off-diagonal elements decay below cutoff
-    while r_int.successful() and k < qmax-1 and J0 > cutoff:
+    while r_int.successful() and k < qmax-1 and decay == 1:
         if Hflow == True:
             r_int.integrate(dl_list[k])
             step = r_int.y
@@ -744,9 +847,11 @@ def flow_static_int(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',precision
             r_int.set_f_params(n,eta,method,norm,Hflow)
             r_int.integrate(dl_list[k])
             step = r_int.y
+        
+        decay = cut(step,n,cutoff,index_list)
 
         # Commented out: code to zero all off-diagonal variables below some cutoff
-        # sim = proc(r_int.y,n,cutoff)
+        # sim = proc(step,cutoff)
         # sol_int[k] = sim
 
         # np.set_printoptions(suppress=True)
@@ -935,11 +1040,14 @@ def flow_static_int_fwd(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',preci
     r_int.set_initial_value(init,dl_list[0])
     r_int.set_f_params(n,[],method,norm,Hflow)
 
+        
     # Numerically integrate the flow equations
     k = 1                       # Flow timestep index
     J0 = 10.                    # Seed value for largest off-diagonal term
+    decay = 1
+    index_list = indices(n)
     # Integration continues until qmax is reached or all off-diagonal elements decay below cutoff
-    while r_int.successful() and k < qmax-1 and J0 > cutoff:
+    while r_int.successful() and k < qmax-1 and decay == 1:
         if Hflow == True:
             r_int.integrate(dl_list[k])
             step = r_int.y
@@ -952,6 +1060,9 @@ def flow_static_int_fwd(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',preci
 
         # np.set_printoptions(suppress=True)
         # print((r_int.y)[:n**2])
+
+        decay = cut(step,n,cutoff,index_list)
+
         mat = step[:n**2].reshape(n,n)
         off_diag = mat-np.diag(np.diag(mat))
         J0 = max(off_diag.reshape(n**2))
@@ -962,10 +1073,6 @@ def flow_static_int_fwd(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',preci
     dl_list = dl_list[:k-1]
     if store_flow == True:
         flow_list = flow_list[:k-1]
-    
-    # with h5py.File('test.h5','w') as hf:
-    #     hf.create_dataset('flow',data=flow_list)
-    #     hf.create_dataset('lsteps',data=dl_list)
     
     liom = step[n**2+n**4::]
     step = step[:n**2+n**4]
