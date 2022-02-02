@@ -42,7 +42,6 @@ import h5py,gc
 import core.diag as diag
 import core.init as init
 from ED.ed import ED
-from datetime import datetime
 
 import matplotlib.pyplot as plt
 # Part to change plotting system
@@ -58,8 +57,8 @@ mpl.rcParams['mathtext.rm'] = 'serif'
 n = int(sys.argv[1])            # System size
 delta = 0.1                     # Nearest-neighbour interaction strength
 J = 1.0                         # Nearest-neighbour hopping amplitude
-cutoff = J*10**(-6)             # Cutoff for the off-diagonal elements to be considered zero
-dis = [1.0]                    
+cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
+dis = [1.4+0.1*i for i in range(12)]                    
 # List of disorder strengths
 lmax = 1500                     # Flow time max
 qmax = 1000                     # Max number of flow time steps
@@ -162,7 +161,6 @@ if __name__ == '__main__':
                 ed_dyn=ed[1]
             elif n <= 12 and dyn == False:
                 ed=ED(n,H0,J,delta,np.ones(2),dyn,imbalance)
-                print('ED',ed[0])
             else:
                 ed = np.zeros(n)
             print('Time after ED: ',datetime.now()-startTime)

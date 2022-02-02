@@ -87,6 +87,7 @@ def CUT(params,H0,V0,Hint,Vint,num,num_int):
 
 
 def indices(n):
+    """ Gets indices of off-diagonal elements of quartic tensor when shaped as a list of length n**4. """
     mat = np.ones((n,n,n,n),dtype=np.int8)    
     for i in range(n):              
         for j in range(n):
@@ -100,21 +101,22 @@ def indices(n):
     return indices
 
 def cut(y,n,cutoff,indices):
-        mat2 = y[:n**2].reshape(n,n)
-        mat2_od = mat2-np.diag(np.diag(mat2))
+    """ Checks if ALL quadratic off-diagonal parts have decayed below cutoff*10e-3 and TYPICAL (median) off-diag quartic term have decayed below cutoff. """
+    mat2 = y[:n**2].reshape(n,n)
+    mat2_od = mat2-np.diag(np.diag(mat2))
 
-        if np.max(np.abs(mat2_od)) < cutoff*10**(-3):
-            mat4 = y[n**2:n**2+n**4]
-            mat4_od = np.zeros(n**4)            # Define diagonal quartic part 
-            for i in indices:                   # Load Hint0 with values
-                mat4_od[i] = mat4[i]
-            mat4_od = mat4_od[mat4_od != 0]
-            if np.median(np.abs(mat4_od)) < cutoff:
-                return 0 
-            else:
-                return 1
+    if np.max(np.abs(mat2_od)) < cutoff*10**(-3):
+        mat4 = y[n**2:n**2+n**4]
+        mat4_od = np.zeros(n**4)            # Define diagonal quartic part 
+        for i in indices:                   # Load Hint0 with values
+            mat4_od[i] = mat4[i]
+        mat4_od = mat4_od[mat4_od != 0]
+        if np.median(np.abs(mat4_od)) < cutoff:
+            return 0 
         else:
             return 1
+    else:
+        return 1
 
 def nonint_ode(l,y,n,method='einsum'):
     """ Generate the flow equation for non-interacting systems.
@@ -312,6 +314,8 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=False):
 
         if norm == True:
             state=nstate(n,0.5)
+
+            ## The below is an attempt at scale-dependent normal-ordering: not yet working reliably.
             # _,V1 = np.linalg.eigh(H)
             # state = np.zeros(n)
             # sites = np.array([i for i in range(n)])
@@ -358,17 +362,52 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=False):
         return sol0
 
 def int_ode_spin(l,y,n,method='jit'):
+        """ Generate the flow equation for an interacting system of SPINFUL fermions.
 
+        e.g. compute the RHS of dH/dl = [\eta,H] which will be used later to integrate H(l) -> H(l + dl)
+
+        Note that with the parameter Hflow = True, the generator will be recomputed as required. Using Hflow=False,
+        the input array eta will be used to specify the generator at this flow time step. The latter option will result 
+        in a huge speed increase, at the potential cost of accuracy. This is because the SciPi routine used to 
+        integrate the ODEs will sometimes add intermediate steps: recomputing eta on the fly will result in these 
+        steps being computed accurately, while fixing eta will avoid having to recompute the generator every time an 
+        interpolation step is added (leading to a speed increase), however it will mean that the generator evaluated at 
+        these intermediate steps has errors of order <dl (where dl is the flow time step). For sufficiently small dl, 
+        the benefits from the speed increase likely outweigh the decrease in accuracy.
+
+        Parameters
+        ----------
+        l : float
+            The (fictitious) flow time l which parameterises the unitary transform.
+        y : array
+            Array of size n**2 + n**4 containing all coefficients of the running Hamiltonian at flow time l.
+        n : integer
+            Linear system size.
+        method : string, optional
+            Specify which method to use to generate the RHS of the flow equations.
+            Method choices are 'einsum', 'tensordot', 'jit' and 'vectorize'.
+            The first two are built-in NumPy methods, while the latter two are custom coded for speed.
+
+
+        Returns
+        -------
+        sol0 : RHS of the flow equation for interacting system.
+
+        """
+        # Extract various components of the Hamiltonian from the input array 'y'
+        # Start with the quadratic part of the spin-up fermions
         Hup = y[0:n**2]
         Hup = Hup.reshape(n,n)
         H0up = np.diag(np.diag(Hup))
         V0up = Hup - H0up
         
+        # Now the quadratic part of the spin-down fermions
         Hdown = y[n**2:2*n**2]
         Hdown = Hdown.reshape(n,n)
         H0down = np.diag(np.diag(Hdown))
         V0down = Hdown - H0down
 
+        # Now we define the quartic (interaction) terms for the spin-up fermions
         Hintup = y[2*n**2:2*n**2+n**4]
         Hintup = Hintup.reshape(n,n,n,n)
         Hint0up = np.zeros((n,n,n,n))
@@ -381,6 +420,7 @@ def int_ode_spin(l,y,n,method='jit'):
                     Hint0up[i,j,j,i] = Hintup[i,j,j,i]
         Vintup = Hintup-Hint0up
         
+        # The same for spin-down fermions
         Hintdown = y[2*n**2+n**4:2*n**2+2*n**4]
         Hintdown = Hintdown.reshape(n,n,n,n)
         Hint0down = np.zeros((n,n,n,n))
@@ -393,6 +433,7 @@ def int_ode_spin(l,y,n,method='jit'):
         Vintdown = Hintdown-Hint0down
         # print(Vintdown)
         
+        # And the same for the mixed quartic term, with 2 spin-up fermion operators and 2 spin-down fermion operators
         Hintupdown = y[2*n**2+2*n**4:]
         Hintupdown = Hintupdown.reshape(n,n,n,n)
         Hint0updown = np.zeros((n,n,n,n))
@@ -405,6 +446,7 @@ def int_ode_spin(l,y,n,method='jit'):
         Vintupdown = Hintupdown-Hint0updown
         # print(max(Hintupdown.reshape(n**4)))                    
         
+        # Compute all relevant generators
         eta0up = contract(H0up,V0up,method=method,eta=True)
         eta0down = contract(H0down,V0down,method=method,eta=True)
         eta_int_up = contract(Hint0up,V0up,method=method,eta=True) + contract(H0up,Vintup,method=method,eta=True)
@@ -412,6 +454,7 @@ def int_ode_spin(l,y,n,method='jit'):
         eta_int_updown = -contract(Vintupdown,H0up,method=method,eta=True,pair='first') - contract(Vintupdown,H0down,method=method,eta=True,pair='second')
         eta_int_updown += contract(Hint0updown,V0up,method=method,eta=True,pair='first') + contract(Hint0updown,V0down,method=method,eta=True,pair='second')
    
+        # Then compute the RHS of the flow equations
         sol_up = contract(eta0up,H0up+V0up,method=method)
         sol_down = contract(eta0down,H0down+V0down,method=method)
         sol_int_up = contract(eta_int_up,H0up+V0up,method=method) + contract(eta0up,Hintup,method=method)
@@ -419,6 +462,7 @@ def int_ode_spin(l,y,n,method='jit'):
         sol_int_updown = contract(eta_int_updown,H0down+V0down,method=method,pair='second') + contract(eta0down,Hintupdown,method=method,pair='second')
         sol_int_updown += contract(eta_int_updown,H0up+V0up,method=method,pair='first') + contract(eta0up,Hintupdown,method=method,pair='first')
         
+        # Assemble output array
         sol0 = np.zeros(2*n**2+3*n**4)
         sol0[:n**2] = sol_up.reshape(n**2)
         sol0[n**2:2*n**2] = sol_down.reshape(n**2)
@@ -1730,17 +1774,17 @@ def flow_levels(n,array,intr):
     for i in range(2**n):
         lev0 = bin(i)[2::].rjust(n,'0') # Generate the many-body states
         # Compute the energies of each state from the fixed point Hamiltonian
-        # if lev0.count('1')==n//2:
-        for j in range(n):
-            flevels[i] += H0[j,j]*int(lev0[j])
-            if intr == True:
-                for q in range(n):
-                    if q !=j:
-                        # flevels[i] += Hint[j,j,q,q]*int(lev0[j])
-                        flevels[i] += Hint[j,j,q,q]*int(lev0[j])*int(lev0[q]) 
-                        flevels[i] += -Hint[j,q,q,j]*int(lev0[j])*int(lev0[q]) 
+        if lev0.count('1')==n//2:
+            for j in range(n):
+                flevels[i] += H0[j,j]*int(lev0[j])
+                if intr == True:
+                    for q in range(n):
+                        if q !=j:
+                            # flevels[i] += Hint[j,j,q,q]*int(lev0[j])
+                            flevels[i] += Hint[j,j,q,q]*int(lev0[j])*int(lev0[q]) 
+                            flevels[i] += -Hint[j,q,q,j]*int(lev0[j])*int(lev0[q]) 
     
-    # flevels2=flevels[flevels != 0]
+    flevels=flevels[flevels != 0]
     return np.sort(flevels)
 
 #------------------------------------------------------------------------------

@@ -7,7 +7,7 @@ Codebase for the Tensor Flow Equation method, used for computing local integrals
 The only file you need to edit is `main.py`. It takes two command line arguments, the first to specify the system size and the second the disorder potential. For example:
 
 ```
-python main.py 4 'linear'
+python main.py 4 linear
 ```
 
 will run the simulation for a system size `L=4` and a linear potential. To change other parameters (interaction strength, disorder strength, etc) you will need to edit the file `main.py`. All editable parameters are at the top of the file before the line `# Run Program` - in general, nothing below this line needs to be edited.

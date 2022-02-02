@@ -34,7 +34,8 @@ from psutil import cpu_count
 # Set up threading options for parallel solver
 os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of OpenMP threads to run in parallel
 os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of MKL threads to run in parallel
-os.environ['KMP_DUPLICATE_LIB_OK']="TRUE"
+os.environ['KMP_DUPLICATE_LIB_OK']="TRUE"                         # Necessary on some versions of OS X
+os.environ['KMP_WARNINGS'] = 'off'                                # Silence non-critical warning
 import numpy as np
 from datetime import datetime
 import gc

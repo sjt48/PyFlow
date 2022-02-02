@@ -30,9 +30,9 @@ benchmark the results of the flow equation approach.
 import os
 from psutil import cpu_count
 # Import ED code from QuSpin
-from quspin.operators import hamiltonian # Hamiltonians and operators
+from quspin.operators import hamiltonian 
 from quspin.tools.measurements import ED_state_vs_time
-from quspin.basis import spinless_fermion_basis_1d # Hilbert space spin basis
+from quspin.basis import spinless_fermion_basis_1d 
 # Set up threading options for parallel solver
 os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False))) # set number of OpenMP threads to run in parallel
 os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False))) # set number of MKL threads to run in parallel
@@ -73,7 +73,7 @@ def ED(n,H0,J0,delta,times,dyn,imbalance):
     dynamic=[]
     no_checks={"check_herm":False,"check_pcon":False,"check_symm":False}
 
-    basis = spinless_fermion_basis_1d(n)
+    basis = spinless_fermion_basis_1d(n,Nf=n//2)
     H = hamiltonian(static,dynamic,basis=basis,dtype=np.float64,**no_checks)
     E1,V1 = H.eigh()
 
