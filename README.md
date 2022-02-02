@@ -21,7 +21,7 @@ The other files are as follows:
 * `core/init.py` : utility functions, e.g. generating Hamiltonian matrices/tensors and making directory to save data in.
 * `tests/con_method_test.py` : test to check different contraction methods return same answer, to within numerical precision.
 
-# Main Required Packages
+# Required Packages
 
 * NumPy
 * SciPy
@@ -30,16 +30,23 @@ The other files are as follows:
 * Numba
 * SymPy
 * matplotlib
+* os 
+* sys
+* gc 
+* psutil (can replace with `multiprocessing` if necessary)
+* datetime 
+
 
 # To do 
 
 * Update non-equilibrium dynamics code to match syntax used for static functions. (**Current version will throw an error!**)
 * Write more tests for non-interacting systems.
 * For non-interacting systems, compute LIOMs with ED as a comparison/test? 
-* Add long-range couplings from earlier code versions.
+* Add long-range couplings from earlier code versions. (Added, commented out until tested.)
+* Add 2D and 3D code. (Added, commented out until tested.)
 * Figure out better solution for filenames for various models.
 * Implement model classes?
-* Merge with spinful fermion (Hubbard model) code.
+* Merge with spinful fermion (Hubbard model) code. (Begun to add, commented out until tested.)
 * Add bosons: comes down to changing a few minus signs in contract.py.
 * Merge GPU code (via CuPy/PyTorch) into main.
 * Benchmark against ED and tensor networks for finding ground state energy, non-equilibrium dynamics?
@@ -50,5 +57,5 @@ The other files are as follows:
 * Timing tests for einsum/tensordot/jit and MKL/BLAS?
 * Add Cython as a method? Not good for GPUs, but useful for CPUs.
 * Add old version of writing differential equations explicitly? Useful for systems not easily encoded as tensors.
-* Add momentum space flow, for translationally invariant systems or systems deep in delocalized phase.
+* Add momentum space flow, for translationally invariant systems or systems deep in delocalized phase. (Added, commented out until tested.)
 * Try to add spins? Their commutation relations are not friendly, but there must be some way to automate it.
