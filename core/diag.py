@@ -108,6 +108,7 @@ def cut(y,n,cutoff,indices):
             mat4_od = np.zeros(n**4)            # Define diagonal quartic part 
             for i in indices:                   # Load Hint0 with values
                 mat4_od[i] = mat4[i]
+            mat4_od = filter(lambda x: x != 0, mat4_od)
             if np.median(np.abs(mat4_od)) < cutoff:
                 return 0 
             else:
