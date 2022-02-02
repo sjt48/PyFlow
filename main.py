@@ -175,19 +175,6 @@ if __name__ == '__main__':
                 flevels=np.zeros(n)
                 ed=np.zeros(n)
 
-            # plt.plot(np.sort(flevels),'o-')
-            # plt.plot(ed,'x-')
-            # plt.show()
-            # plt.close()
-#            plt.plot(np.log10(np.abs(np.diag((flow["LIOM"][0:n**2]).reshape(n,n)))))
-#            plt.show()
-#            plt.close()
-
-            # plt.plot(flow["Hint"].reshape(n**4))
-            # plt.title(r'$H_{int}$')
-            # plt.show()
-            # plt.close()
-
             if n <= 12:
                 lsr = diag.level_stat(flevels)
                 lsr2 = diag.level_stat(ed)
