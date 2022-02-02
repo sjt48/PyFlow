@@ -59,7 +59,7 @@ n = int(sys.argv[1])            # System size
 delta = 0.1                     # Nearest-neighbour interaction strength
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-6)             # Cutoff for the off-diagonal elements to be considered zero
-dis = [0.4+0.1*i for i in range(11)]                    
+dis = [1.0]                    
 # List of disorder strengths
 lmax = 1500                     # Flow time max
 qmax = 1000                     # Max number of flow time steps
