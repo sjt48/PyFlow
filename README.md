@@ -42,12 +42,12 @@ The other files are as follows:
 * Update non-equilibrium dynamics code to match syntax used for static functions. (**Current version will throw an error!**)
 * Write more tests for non-interacting systems.
 * For non-interacting systems, compute LIOMs with ED as a comparison/test? 
-* Add long-range couplings from earlier code versions. (Added, commented out until tested.)
+* ~~Add long-range couplings from earlier code versions.~~ **Done, to be tested thoroughly.**
 * Add 2D and 3D code. (Added, commented out until tested.)
 * Figure out better solution for filenames for various models.
-* Implement model classes?
-* Merge with spinful fermion (Hubbard model) code. (Begun to add, commented out until tested.)
-* Add bosons: comes down to changing a few minus signs in contract.py.
+* ~~Implement model classes?~~ **Done, to be tested thoroughly.**
+* Merge with spinful fermion (Hubbard model) code. **Done, to be tested thoroughly.**
+* Add bosons: comes down to changing a few minus signs in contract.py. **In progress.**
 * Merge GPU code (via CuPy/PyTorch) into main.
 * Benchmark against ED and tensor networks for finding ground state energy, non-equilibrium dynamics?
 * Test code for normal ordering?

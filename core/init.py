@@ -304,5 +304,10 @@ class hamiltonian:
                 self.H4_spindown = H4dn
                 self.H4_mixed = H4updn
 
+        elif self.species == 'boson':
+            self.d = d
+            self.J = J
+        elif self.species =='hard core boson':
+            self.d  = d
 
     
