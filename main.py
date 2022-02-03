@@ -54,11 +54,14 @@ mpl.rcParams['mathtext.fontset'] = 'cm'
 mpl.rcParams['mathtext.rm'] = 'serif'
 #------------------------------------------------------------------------------  
 # Parameters
-n = int(sys.argv[1])            # System size
+L = int(sys.argv[1])            # Linear system size
+dim = 1                         # Spatial dimension
+n = L**dim                      # Total number of sites
+species = 'spinless fermion'    # Type of particle
 delta = 0.1                     # Nearest-neighbour interaction strength
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
-dis = [1.4+0.1*i for i in range(12)]                    
+dis = [3.]                    
 # List of disorder strengths
 lmax = 1500                     # Flow time max
 qmax = 1000                     # Max number of flow time steps
@@ -77,7 +80,7 @@ method = 'tensordot'            # Method for computing tensor contractions
                                 # In general 'tensordot' is fastest for small systems, 'jit' for large systems
                                 # (Note that 'jit' requires compilation on the first run, increasing run time.)
 print('Norm = %s' %norm)
-intr = True                     # Turn on/off interactions
+intr = False                     # Turn on/off interactions
 dyn = False                     # Run the dynamics
 imbalance = False               # Sets whether to compute global imbalance or single-site dynamics
 LIOM = 'bck'                    # Compute LIOMs with forward ('fwd') or backward ('bck') flow
@@ -102,16 +105,19 @@ tlist = [0.01*i for i in range(51)]
 
 # Create dictionary of parameters to pass to functions; avoids having to have too many function args
 params = {"n":n,"delta":delta,"J":J,"cutoff":cutoff,"dis":dis,"lmax":lmax,"qmax":qmax,"reps":reps,"norm":norm,
-            "Hflow":Hflow,"precision":precision,"method":method, "intr":intr,"dyn":dyn,"imbalance":imbalance,
+            "Hflow":Hflow,"precision":precision,"method":method, "intr":intr,"dyn":dyn,"imbalance":imbalance,"species":species,
                 "LIOM":LIOM, "dyn_MF":dyn_MF,"logflow":logflow,"dis_type":dis_type,"x":x,"tlist":tlist,"store_flow":store_flow}
 
 # Make directory to store data
-nvar = init.namevar(dis_type,dyn,norm,n,LIOM)
+nvar = init.namevar(dis_type,dyn,norm,n,LIOM,species)
 
 if Hflow == False:
     print('*** Warning: Setting Hflow=False requires small flow time steps in order for backwards transform to be accurate. ***')
 if intr == False and norm == True:
     print('Normal ordering is only for interacting systems.')
+    norm = False
+if species == 'spinful fermion' and norm == True:
+    print('Normal ordering not implemented for spinful fermions.')
     norm = False
 #==============================================================================
 # Run program
@@ -126,16 +132,16 @@ if __name__ == '__main__':
         for d in dis:
             
             #-----------------------------------------------------------------
-            # Non-interacting matrices
-            H0,V0 = init.Hinit(n,d,J,dis_type,x)
+            # Initialise Hamiltonian
+            ham = init.hamiltonian(species,dis_type,intr=intr)
+            if species == 'spinless fermion':
+                ham.build(n,0,d,J,dis_type,delta=delta)
+            elif species == 'spinful fermion':
+                ham.build(n,0,d,J,dis_type,delta_onsite=delta,delta_up=delta,delta_down=delta,dsymm='spin')
             
             # Initialise the number operator on the central lattice site
             num = np.zeros((n,n))
             num[n//2,n//2] = 1.0
-
-            #-----------------------------------------------------------------
-            # Interaction tensors
-            Hint,Vint = init.Hint_init(n,delta)
             
             # Initialise higher-order parts of number operator (empty)
             num_int=np.zeros((n,n,n,n),dtype=np.float32)
@@ -144,31 +150,36 @@ if __name__ == '__main__':
             
             # Diag non-interacting system w/NumPy
             startTime = datetime.now()
-            print(np.sort(np.linalg.eigvalsh(H0+V0)))
-            print('NumPy diag time',datetime.now()-startTime)
+            # print(np.sort(np.linalg.eigvalsh(ham.H2_spinless)))
+            # print('NumPy diag time',datetime.now()-startTime)
 
             #-----------------------------------------------------------------
 
             # Diagonalise with flow equations
-            flow = diag.CUT(params,H0,V0,Hint,Vint,num,num_int)
+            flow = diag.CUT(params,ham,num,num_int)
             
             print('Time after flow finishes: ',datetime.now()-startTime)
-            print(np.sort(np.diag(flow["H0_diag"])))
+            # print(np.sort(np.diag(flow["H0_diag"])))
 
             # Diagonalise with ED
             if n <= 12 and dyn == True:
-                ed=ED(n,H0,J,delta,tlist,dyn,imbalance)
+                ed=ED(n,ham,tlist,dyn,imbalance)
                 ed_dyn=ed[1]
             elif n <= 12 and dyn == False:
-                ed=ED(n,H0,J,delta,np.ones(2),dyn,imbalance)
+                ed=ED(n,ham,np.ones(2),dyn,imbalance)
             else:
                 ed = np.zeros(n)
             print('Time after ED: ',datetime.now()-startTime)
 
             if n <= 12:
-                flevels = diag.flow_levels(n,flow,intr)
+                if species == 'spinless fermion':
+                    flevels = diag.flow_levels(n,flow,intr)
+                elif species == 'spinful fermion':
+                    
+                    flevels = diag.flow_levels_spin(n,flow,intr)
                 flevels = flevels-np.median(flevels)
                 ed = ed[0] - np.median(ed[0])
+
             else:
                 flevels=np.zeros(n)
                 ed=np.zeros(n)
@@ -179,7 +190,9 @@ if __name__ == '__main__':
 
                 errlist = np.zeros(len(ed))
                 for i in range(len(ed)):
-                    errlist[i] = np.abs((ed[i]-flevels[i])/ed[i])
+                    if np.round(ed[i],10)!=0.:
+                        errlist[i] = np.abs((ed[i]-flevels[i])/ed[i])
+
                 print('***** ERROR *****: ', np.mean(errlist))   
 
             if dyn == True:
@@ -195,30 +208,32 @@ if __name__ == '__main__':
             # Export data   
             with h5py.File('%s/tflow-d%.2f-x%.2f-Jz%.2f-p%s.h5' %(nvar,d,x,delta,p),'w') as hf:
                 hf.create_dataset('params',data=str(params))
-                hf.create_dataset('H2_diag',data=flow["H0_diag"])
-                hf.create_dataset('H2_initial',data=H0+V0)
 
-                if n <= 12:
-                    hf.create_dataset('flevels', data = flevels,compression='gzip', compression_opts=9)
-                    hf.create_dataset('ed', data = ed, compression='gzip', compression_opts=9)
-                    hf.create_dataset('lsr', data = [lsr,lsr2])
-                    hf.create_dataset('err',data = errlist)
-                    if store_flow == True:
-                        hf.create_dataset('flow',data=flow["flow"])
-                        hf.create_dataset('dl_list',data=flow["dl_list"])
-                if intr == True:
-                        hf.create_dataset('lbits', data = flow["LIOM Interactions"])
-                        hf.create_dataset('Hint', data = flow["Hint"], compression='gzip', compression_opts=9)
-                        hf.create_dataset('liom', data = flow["LIOM"], compression='gzip', compression_opts=9)
-                        hf.create_dataset('inv',data=flow["Invariant"])
-                if dyn == True:
-                    hf.create_dataset('tlist', data = tlist)
-                    if imbalance == True:
-                        hf.create_dataset('imbalance',data=flow["Imbalance"])
-                    else:
-                        hf.create_dataset('flow_dyn', data = flow["Density Dynamics"])
+                if species == 'spinless fermion':
+                    hf.create_dataset('H2_diag',data=flow["H0_diag"])
+                    hf.create_dataset('H2_initial',data=ham.H2_spinless)
+
                     if n <= 12:
-                        hf.create_dataset('ed_dyn', data = ed_dyn)
+                        hf.create_dataset('flevels', data = flevels,compression='gzip', compression_opts=9)
+                        hf.create_dataset('ed', data = ed, compression='gzip', compression_opts=9)
+                        hf.create_dataset('lsr', data = [lsr,lsr2])
+                        hf.create_dataset('err',data = errlist)
+                        if store_flow == True:
+                            hf.create_dataset('flow',data=flow["flow"])
+                            hf.create_dataset('dl_list',data=flow["dl_list"])
+                    if intr == True:
+                            hf.create_dataset('lbits', data = flow["LIOM Interactions"])
+                            hf.create_dataset('Hint', data = flow["Hint"], compression='gzip', compression_opts=9)
+                            hf.create_dataset('liom', data = flow["LIOM"], compression='gzip', compression_opts=9)
+                            hf.create_dataset('inv',data=flow["Invariant"])
+                    if dyn == True:
+                        hf.create_dataset('tlist', data = tlist)
+                        if imbalance == True:
+                            hf.create_dataset('imbalance',data=flow["Imbalance"])
+                        else:
+                            hf.create_dataset('flow_dyn', data = flow["Density Dynamics"])
+                        if n <= 12:
+                            hf.create_dataset('ed_dyn', data = ed_dyn)
                                 
         gc.collect()
         print('****************')

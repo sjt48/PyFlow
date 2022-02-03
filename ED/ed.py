@@ -32,14 +32,14 @@ from psutil import cpu_count
 # Import ED code from QuSpin
 from quspin.operators import hamiltonian 
 from quspin.tools.measurements import ED_state_vs_time
-from quspin.basis import spinless_fermion_basis_1d 
+from quspin.basis import spinless_fermion_basis_1d, spinful_fermion_basis_1d
 # Set up threading options for parallel solver
 os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False))) # set number of OpenMP threads to run in parallel
 os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False))) # set number of MKL threads to run in parallel
 import numpy as np
 
 
-def ED(n,H0,J0,delta,times,dyn,imbalance):
+def ED(n,ham,times,dyn,imbalance):
     """ Exact diagonalisation function, using the QuSpin package.
     
         See the QuSpin documentation for further details on the algorithms and notation used.
@@ -63,19 +63,78 @@ def ED(n,H0,J0,delta,times,dyn,imbalance):
     
      """
 
-    hlist = np.diag(H0)
-    J = [[J0,i,i+1] for i in range(n-1)]
-    J2 = [[-J0,i,i+1] for i in range(n-1)]
-    Delta = [[delta,i,i+1] for i in range(n-1)]
-    h = [[hlist[i],i] for i in range(n)]
-    static = [["n",h],["+-",J],["-+",J2],["nn",Delta]]
+    J0 = ham.J
 
-    dynamic=[]
-    no_checks={"check_herm":False,"check_pcon":False,"check_symm":False}
+    if ham.species == 'spinless fermion':
 
-    basis = spinless_fermion_basis_1d(n,Nf=n//2)
-    H = hamiltonian(static,dynamic,basis=basis,dtype=np.float64,**no_checks)
-    E1,V1 = H.eigh()
+        H0 = ham.H2_spinless
+        if ham.intr == True:
+            delta = ham.delta
+            hlist = np.diag(H0)
+            J = [[J0,i,i+1] for i in range(n-1)]
+            J2 = [[-J0,i,i+1] for i in range(n-1)]
+            Delta = [[delta,i,i+1] for i in range(n-1)]
+            h = [[hlist[i],i] for i in range(n)]
+            static = [["n",h],["+-",J],["-+",J2],["nn",Delta]]
+
+        else:
+            hlist = np.diag(H0)
+            J = [[J0,i,i+1] for i in range(n-1)]
+            J2 = [[-J0,i,i+1] for i in range(n-1)]
+            h = [[hlist[i],i] for i in range(n)]
+            static = [["n",h],["+-",J],["-+",J2]]
+
+        dynamic=[]
+        no_checks={"check_herm":False,"check_pcon":False,"check_symm":False}
+        basis = spinless_fermion_basis_1d(n,Nf=n//2)
+
+        H = hamiltonian(static,dynamic,basis=basis,dtype=np.float64,**no_checks)
+        E1,V1 = H.eigh()
+
+    elif ham.species == 'spinful fermion':
+
+        Hup = ham.H2_spinup
+        Hdn = ham.H2_spindown
+        delta_up = ham.delta_up
+        delta_down = ham.delta_down
+        delta_updown = ham.delta_mixed
+        U = ham.delta_onsite
+        hlist_up = np.diag(Hup)
+        hlist_down = np.diag(Hdn)
+
+        h = [[hlist_up[i],i] for i in range(n)]
+        h2 = [[hlist_down[i],i] for i in range(n)]
+        
+        hop_right = [[-J0,i,(i+1)] for i in range(n-1)] # hopping to the right
+        hop_left = [[J0,i,(i+1)] for i in range(n-1)] # hopping to the left
+        hop_right0 = [[-J0,i,(i+1)] for i in range(n-1)] # hopping to the right
+        hop_left0 = [[J0,i,(i+1)] for i in range(n-1)] # hopping to the left
+        int_list_up = [[delta_up,i,i+1] for i in range(n-1)] # nn interaction
+        int_list_down = [[delta_down,i,i+1] for i in range(n-1)] # nn interaction
+        if type(U)==float:
+            int_list_updown = [[U,i,i] for i in range(n)] # onsite interaction
+        else:
+            int_list_updown = [[U[i],i,i] for i in range(n)] # onsite interaction
+        int_list_updown += [[delta_updown,i,i+1] for i in range(n-1)] # onsite interaction
+        
+        static= [	
+                ["n|",h],
+                ["|n",h2],
+                ["+-|", hop_left], # up hop left
+                ["-+|", hop_right], # up hop right
+                ["|+-", hop_left0], # down hop left
+                ["|-+", hop_right0], # down hop right
+                ["n|n", int_list_updown], # onsite interaction
+                ["nn|", int_list_up], # nn interaction
+                ["|nn", int_list_down], # nn interaction
+                ]
+
+        dynamic=[]
+        no_checks={"check_herm":True,"check_pcon":True,"check_symm":False}
+    
+        basis = spinful_fermion_basis_1d(n)
+        H = hamiltonian(static,dynamic,basis=basis,dtype=np.float64,**no_checks)
+        E1,V1 = H.eigh()
 
     if dyn == True:
         st = "".join("10" for i in range(n//2))

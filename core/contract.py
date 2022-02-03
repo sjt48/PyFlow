@@ -295,6 +295,53 @@ def con44_NO(A,B,method='jit',comp=False,eta=False,state=[]):
         # con = con_jit44_anti_NO(A,B,state)
 
     return con
+
+# Contract rank-4 tensor with square matrix
+def con42_firstpair(A,B,method='jit',comp=False,eta=False):
+    #print(psutil.cpu_percent(percpu=True))    
+# print('con42',A.dtype,B.dtype)
+    if method == 'einsum':
+        # print('einsum')
+        # con = np.einsum('abcd,df->abcf',A,B,optimize=True) 
+        # con += -np.einsum('abcd,ec->abed',A,B,optimize=True)
+        con = np.einsum('abcd,bf->afcd',A,B,optimize=True)
+        con += -np.einsum('abcd,ea->ebcd',A,B,optimize=True)
+    elif method == 'tensordot':
+        # print('tensordot')
+        con = - np.moveaxis(np.tensordot(A,B,axes=[0,1]),[0,1,2,3],[1,2,3,0])
+        # con += - np.moveaxis(np.tensordot(A,B,axes=[2,1]),[0,1,2,3],[0,1,3,2])
+        con += np.moveaxis(np.tensordot(A,B,axes=[1,0]),[0,1,2,3],[0,2,3,1])
+        # con += np.tensordot(A,B,axes=[3,0])
+    elif method == 'jit':
+        con = con_jit42_firstpair(A,B)
+    return con
+
+# Contract rank-4 tensor with square matrix
+def con42_secondpair(A,B,method='jit',comp=False,eta=False):
+    #print(psutil.cpu_percent(percpu=True))    
+# print('con42',A.dtype,B.dtype)
+    if method == 'einsum':
+        # print('einsum')
+        con = np.einsum('abcd,df->abcf',A,B,optimize=True) 
+        con += -np.einsum('abcd,ec->abed',A,B,optimize=True)
+        # con += np.einsum('abcd,bf->afcd',A,B,optimize=True)
+        # con += -np.einsum('abcd,ea->ebcd',A,B,optimize=True)
+    elif method == 'tensordot':
+        # print('tensordot')
+        # con = - np.moveaxis(np.tensordot(A,B,axes=[0,1]),[0,1,2,3],[1,2,3,0])
+        con = - np.moveaxis(np.tensordot(A,B,axes=[2,1]),[0,1,2,3],[0,1,3,2])
+        # con += np.moveaxis(np.tensordot(A,B,axes=[1,0]),[0,1,2,3],[0,2,3,1])
+        con += np.tensordot(A,B,axes=[3,0])
+    elif method == 'jit':
+        con = con_jit42_secondpair(A,B)
+    return con
+
+
+def con24_firstpair(A,B,method='jit',comp=False,eta=False):
+    return -con42_firstpair(B,A,method,comp,eta)
+
+def con24_secondpair(A,B,method='jit',comp=False,eta=False):
+    return -con42_secondpair(B,A,method,comp,eta)
 #------------------------------------------------------------------------------
 # jit functions which return a matrix
     
@@ -401,6 +448,40 @@ def con_jit42(A,B):
                         C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
                         C[i,j,k,q] += A[i,l,k,q]*B[l,j]
                         C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
+
+    return C
+
+@jit(nopython=True,parallel=True,fastmath=True,cache=True)
+def con_jit42_firstpair(A,B):
+    C = np.zeros(A.shape,dtype=np.float32)
+    m,_,_,_=A.shape
+    for i in prange(m):
+        for j in prange(m):
+            for k in prange(m):
+                for q in prange(m):
+                    C[i,j,k,q] = 0.
+                    for l in prange(m):
+                        # C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
+                        # C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
+                        C[i,j,k,q] += A[i,l,k,q]*B[l,j]
+                        C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
+
+    return C
+
+@jit(nopython=True,parallel=True,fastmath=True,cache=True)
+def con_jit42_secondpair(A,B):
+    C = np.zeros(A.shape,dtype=np.float32)
+    m,_,_,_=A.shape
+    for i in prange(m):
+        for j in prange(m):
+            for k in prange(m):
+                for q in prange(m):
+                    C[i,j,k,q] = 0.
+                    for l in prange(m):
+                        C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
+                        C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
+                        # C[i,j,k,q] += A[i,l,k,q]*B[l,j]
+                        # C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
 
     return C
 

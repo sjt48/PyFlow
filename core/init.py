@@ -165,7 +165,22 @@ def Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False):
     #     jlist = np.concatenate(list(map(lambda x: np.diag(jmat, k = x), range(1,L**3))))
 
 
-    return H0,V0
+    return H0+V0
+
+def H2_spin_init(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dsymm='charge'):
+    H2_spin_up = Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False)
+
+    if dsymm == 'charge':
+        H2_spin_down = H2_spin_up
+    elif dsymm == 'spin':
+        H2_spin_down = H2_spin_up
+        for i in range(len(H2_spin_down)):
+            H2_spin_down[i,i] = -H2_spin_up[i,i]
+    elif dsymm == 'random':
+        H2_spin_up = Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False)
+
+    return H2_spin_up,H2_spin_down
+    
 
 def Hint_init(n,delta,pwrint=False,beta=0):
     # Interaction tensors
@@ -196,21 +211,98 @@ def Hint_init(n,delta,pwrint=False,beta=0):
     #     Dmat = np.diagflat(np.concatenate([[Jz for i in range(L-1)]+[0] for j in range(L**2)])[0:-1], 1)+np.diagflat([Jz for i in range(n-L)], L)+np.diagflat([Jz for i in range(n-L**2)], L**2)
     #     dlist = np.concatenate(list(map(lambda x: np.diag(Dmat, k = x), range(1,L**3))))
 
-    return Hint,Vint
+    return Hint+Vint
+
+def H4_spin_init(n,delta_up=0,delta_down=0,delta_updown=0,delta_onsite=0,delta_mixed=0):
+
+    # Interaction tensors
+    Hint_up = np.zeros((n,n,n,n),dtype=np.float32)
+    Hint_down = np.zeros((n,n,n,n),dtype=np.float32)
+    Hint_updown = np.zeros((n,n,n,n),dtype=np.float32)
+    for i in range(n):
+        for j in range(n):
+            if abs(i-j)==1:
+                # Initialise nearest-neighbour interactions
+                Hint_up[i,i,j,j] = 0.5*delta_up
+                Hint_down[i,i,j,j] = 0.5*delta_down
+                Hint_updown[i,i,j,j] = 0.5*delta_updown
+        Hint_updown [i,i,i,i] = delta_onsite #*np.random.uniform(0,1)
+    
+    # Initialise off-diagonal quartic tensor (empty)
+    # Vint_up = np.zeros((n,n,n,n),dtype=np.float32)
+    # Vint_down = np.zeros((n,n,n,n),dtype=np.float32)
+    # Vint_updown = np.zeros((n,n,n,n),dtype=np.float32)
+
+    return Hint_up,Hint_down,Hint_updown
  
-def namevar(dis_type,dyn,norm,n,LIOM):
+def namevar(dis_type,dyn,norm,n,LIOM,species):
     if norm == True:
         nm = 'NO'
     else:
         nm = 'PT'
+    if species == 'spinful fermion':
+        spec = 'spin_fermion'
+    elif species == 'spinless fermion':
+        spec = 'fermion'
      # Make directory to store data
     if dyn == False:
-        if not os.path.exists('data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'static',n)):
-            os.makedirs('data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'static',n))
-        namevar = 'data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'static',n) 
+        if not os.path.exists('spec/data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'static',n)):
+            os.makedirs('spec/data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'static',n))
+        namevar = 'spec/data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'static',n) 
     elif dyn == True:
-        if not os.path.exists('data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'dyn',n)):
-            os.makedirs('data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'dyn',n))
-        namevar = 'data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'dyn',n)
+        if not os.path.exists('spec/data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'dyn',n)):
+            os.makedirs('spec/data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'dyn',n))
+        namevar = 'spec/data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'dyn',n)
     
     return namevar
+
+
+class hamiltonian:
+    def __init__(self,species,dis_type,intr):
+        self.species = species
+        self.dis_type = dis_type
+        # self.n = []
+        # self.dim = []
+
+        # self.H2_spinless = []
+        # self.H4_spinless = []
+
+        # self.H2_spinup = []
+        # self.H2_spindown = []
+        # self.H4_spinup = []
+        # self.H4_spindown = []
+        # self.H4_mixed = []
+        self.intr = intr
+
+    def build(self,n,dim,d,J,dis_type,delta=0,delta_up=0,delta_down=0,delta_mixed=0,delta_onsite=0,alpha=0,beta=0,dsymm='charge'):
+        self.n = n
+        self.dim = dim
+
+        if self.species == 'spinless fermion':
+            self.d = d
+            self.J = J
+            self.H2_spinless = Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False)
+            if self.intr == True:
+                self.delta = delta
+                self.H4_spinless = Hint_init(n,delta,pwrint=False,beta=0)
+
+        elif self.species == 'spinful fermion':
+            self.d = d
+            self.J = J
+            self.dsymm = dsymm
+            H2up,H2dn = H2_spin_init(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dsymm='charge')
+            self.H2_spinup = H2up
+            self.H2_spindown = H2dn
+            if self.intr == True:
+
+                self.delta_onsite = delta_onsite
+                self.delta_up = delta_up 
+                self.delta_down = delta_down 
+                self.delta_mixed = delta_mixed
+                H4up,H4dn,H4updn = H4_spin_init(n,delta_onsite=delta_onsite,delta_up=delta_up,delta_down=delta_down,delta_mixed=delta_mixed)
+                self.H4_spinup = H4up
+                self.H4_spindown = H4dn
+                self.H4_mixed = H4updn
+
+
+    

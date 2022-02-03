@@ -30,9 +30,9 @@ and numerically integrate the flow equation to obtain a diagonal Hamiltonian.
 import os
 from psutil import cpu_count
 # Set up threading options for parallel solver
-os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of OpenMP threads to run in parallel
-os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of MKL threads to run in parallel
-os.environ['NUMBA_NUM_THREADS'] = str(int(cpu_count(logical=False))) # Set number of Numba threads
+os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False)))       # Set number of OpenMP threads to run in parallel
+os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False)))       # Set number of MKL threads to run in parallel
+os.environ['NUMBA_NUM_THREADS'] = str(int(cpu_count(logical=False)))    # Set number of Numba threads
 import numpy as np
 from datetime import datetime
 from .dynamics import dyn_con,dyn_exact
@@ -42,7 +42,7 @@ from .contract import contract,contractNO
 from scipy.integrate import ode
 
 #------------------------------------------------------------------------------ 
-def CUT(params,H0,V0,Hint,Vint,num,num_int):
+def CUT(params,hamiltonian,num,num_int):
     """ Function to take input Hamiltonian and other variables, then call the appropriate flow method subroutine. """
 
     n = params["n"]
@@ -62,28 +62,47 @@ def CUT(params,H0,V0,Hint,Vint,num,num_int):
     store_flow = params["store_flow"]
 
     if logflow == False:
-        dl = np.linspace(0,lmax,qmax,endpoint=True)
+            dl = np.linspace(0,lmax,qmax,endpoint=True)
     elif logflow == True:
         print('Warning: careful choices of qmax and lmax required for log flow.')
         dl = np.logspace(np.log10(0.01), np.log10(lmax),qmax,endpoint=True,base=10)
-    if dyn == True:
-        if intr == True:
-            if imbalance == True:
-                flow = flow_dyn_int2(n,H0,V0,Hint,Vint,num,num_int,dl,qmax,cutoff,tlist,method=method)
-            else:
-                flow = flow_dyn_int(n,H0,V0,Hint,Vint,num,num_int,dl,qmax,cutoff,tlist,method=method)
-        elif intr == False:
-            flow = flow_dyn(n,H0,V0,num,dl,qmax,cutoff,tlist,method=method)
-    elif dyn == False:
-        if intr == True:
-            if LIOM == 'bck':
-                flow = flow_static_int(n,H0,V0,Hint,Vint,dl,qmax,cutoff,method=method,precision=precision,norm=norm,Hflow=Hflow,store_flow=store_flow)
-            elif LIOM == 'fwd':
-                flow = flow_static_int_fwd(n,H0,V0,Hint,Vint,dl,qmax,cutoff,method=method,precision=precision,norm=norm,Hflow=Hflow,store_flow=store_flow)
-        elif intr == False:
-            flow = flow_static(n,H0,V0,dl,qmax,cutoff,method=method)
 
-    return flow
+    if hamiltonian.species == 'spinless fermion':
+        H2 = hamiltonian.H2_spinless
+
+        # Fix this later:
+        H0 = np.diag(np.diag(H2))
+        V0 = H2 - H0
+        Vint = np.zeros((n,n,n,n))
+        
+        if dyn == True:
+            if intr == True:
+                Hint = hamiltonian.H4_spinless
+                if imbalance == True:
+                    flow = flow_dyn_int2(n,H0,V0,Hint,Vint,num,num_int,dl,qmax,cutoff,tlist,method=method)
+                else:
+                    flow = flow_dyn_int(n,H0,V0,Hint,Vint,num,num_int,dl,qmax,cutoff,tlist,method=method)
+            elif intr == False:
+                flow = flow_dyn(n,H0,V0,num,dl,qmax,cutoff,tlist,method=method)
+        elif dyn == False:
+            if intr == True:
+                if LIOM == 'bck':
+                    flow = flow_static_int(n,hamiltonian,dl,qmax,cutoff,method=method,precision=precision,norm=norm,Hflow=Hflow,store_flow=store_flow)
+                elif LIOM == 'fwd':
+                    flow = flow_static_int_fwd(n,hamiltonian,dl,qmax,cutoff,method=method,precision=precision,norm=norm,Hflow=Hflow,store_flow=store_flow)
+            elif intr == False:
+                flow = flow_static(n,hamiltonian,dl,qmax,cutoff,method=method,store_flow=store_flow)
+
+        return flow
+
+    elif hamiltonian.species == 'spinful fermion':
+
+        flow = flow_static_int_spin(n,hamiltonian,dl,qmax,cutoff,method=method)
+
+        return flow
+
+    else:
+        print('ERROR: Unknown type of particle.')
 
 
 def indices(n):
@@ -472,7 +491,7 @@ def int_ode_spin(l,y,n,method='jit'):
 
         return sol0
 
-def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=False,norm=False):
+def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=True,norm=False):
     """ Generate the flow equation for density operators of the interacting systems.
 
         e.g. compute the RHS of dn/dl = [\eta,n] which will be used later to integrate n(l) -> n(l + dl)
@@ -588,6 +607,99 @@ def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=False,norm=False):
     if len(y)> n**2:
         sol0[n**2:] = sol2.reshape(n**4)
 
+    return sol0
+
+def liom_spin(l,nlist,y,n,method='jit',comp=False):
+
+    Hup = y[0:n**2]
+    Hup = Hup.reshape(n,n)
+    H0up = np.diag(np.diag(Hup))
+    V0up = Hup - H0up
+    
+    Hdown = y[n**2:2*n**2]
+    Hdown = Hdown.reshape(n,n)
+    H0down = np.diag(np.diag(Hdown))
+    V0down = Hdown - H0down
+
+    Hintup = y[2*n**2:2*n**2+n**4]
+    Hintup = Hintup.reshape(n,n,n,n)
+    Hint0up = np.zeros((n,n,n,n))
+    
+    for i in range(n):
+        for j in range(n):
+            if i != j:
+                # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
+                Hint0up[i,i,j,j] = Hintup[i,i,j,j]
+                Hint0up[i,j,j,i] = Hintup[i,j,j,i]
+    Vintup = Hintup-Hint0up
+    
+    Hintdown = y[2*n**2+n**4:2*n**2+2*n**4]
+    Hintdown = Hintdown.reshape(n,n,n,n)
+    Hint0down = np.zeros((n,n,n,n))
+    for i in range(n):
+        for j in range(n):
+            if i != j:
+                # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
+                Hint0down[i,i,j,j] = Hintdown[i,i,j,j]
+                Hint0down[i,j,j,i] = Hintdown[i,j,j,i]
+    Vintdown = Hintdown-Hint0down
+    # print(Vintdown)
+    
+    Hintupdown = y[2*n**2+2*n**4:]
+    Hintupdown = Hintupdown.reshape(n,n,n,n)
+    Hint0updown = np.zeros((n,n,n,n))
+    for i in range(n):
+        for j in range(n):
+            # if i != j:
+                # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
+            Hint0updown[i,i,j,j] = Hintupdown[i,i,j,j]
+                # Hint0updown[i,j,j,i] = Hintupdown[i,j,j,i]
+    Vintupdown = Hintupdown-Hint0updown
+    # print(max(Hintupdown.reshape(n**4)))                    
+    
+    eta0up = contract(H0up,V0up,method=method,eta=True)
+    eta0down = contract(H0down,V0down,method=method,eta=True)
+    eta_int_up = contract(Hint0up,V0up,method=method,eta=True) + contract(H0up,Vintup,method=method,eta=True)
+    eta_int_down = contract(Hint0down,V0down,method=method,eta=True) + contract(H0down,Vintdown,method=method,eta=True)
+    eta_int_updown = -contract(Vintupdown,H0up,method=method,eta=True,pair='first') - contract(Vintupdown,H0down,method=method,eta=True,pair='second')
+    eta_int_updown += contract(Hint0updown,V0up,method=method,eta=True,pair='first') + contract(Hint0updown,V0down,method=method,eta=True,pair='second')
+
+    # print(eta_int_updown)
+                
+    n2_up = nlist[0:n**2]
+    n2_up = n2_up.reshape(n,n)
+    
+    n2_down = nlist[n**2:2*n**2]
+    n2_down = n2_down.reshape(n,n)
+
+    n4_up = nlist[2*n**2:2*n**2+n**4]
+    n4_up = n4_up.reshape(n,n,n,n)
+
+    n4_down = nlist[2*n**2+n**4:2*n**2+2*n**4]
+    n4_down = n4_down.reshape(n,n,n,n)
+    n4_down = np.zeros((n,n,n,n))
+
+    n4_updown = nlist[2*n**2+2*n**4:]
+    n4_updown = n4_updown.reshape(n,n,n,n)
+
+    sol_up = contract(eta0up,n2_up,method=method)
+    sol_down = contract(eta0down,n2_down,method=method)
+    sol_int_up = contract(eta_int_up,n2_up,method=method) + contract(eta0up,n4_up,method=method)
+    sol_int_down = contract(eta_int_down,n2_down,method=method) + contract(eta0down,n4_down,method=method)
+    sol_int_updown = contract(eta_int_updown,n2_down,method=method,pair='second') + contract(eta0down,n4_updown,method=method,pair='second')
+    sol_int_updown += contract(eta_int_updown,n2_up,method=method,pair='first') + contract(eta0up,n4_updown,method=method,pair='first')
+    
+    # print(sol_int_updown)
+
+    sol0 = np.zeros(2*n**2+3*n**4)
+    sol0[:n**2] = sol_up.reshape(n**2)
+    sol0[n**2:2*n**2] = sol_down.reshape(n**2)
+    sol0[2*n**2:2*n**2+n**4] = sol_int_up.reshape(n**4)
+    sol0[2*n**2+n**4:2*n**2+2*n**4] = sol_int_down.reshape(n**4)
+    sol0[2*n**2+2*n**4:] = sol_int_updown.reshape(n**4)
+
+
+    # return np.concatenate((sol.reshape(n**2), sol2.reshape(n**4)))
     return sol0
 
 def int_ode_fwd(l,y0,n,eta=[],method='jit',norm=False,Hflow=False,comp=False):
@@ -713,7 +825,7 @@ def int_ode_fwd(l,y0,n,eta=[],method='jit',norm=False,Hflow=False,comp=False):
         return sol0
 #------------------------------------------------------------------------------  
 
-def flow_static(n,H0,V0,dl_list,qmax,cutoff,method='jit'):
+def flow_static(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_flow=True):
     """
     Diagonalise an initial non-interacting Hamiltonian and compute the integrals of motion.
 
@@ -746,14 +858,15 @@ def flow_static(n,H0,V0,dl_list,qmax,cutoff,method='jit'):
             Dictionary containing diagonal Hamiltonian ("H0_diag") and LIOM on central site ("LIOM").
     
     """
+    H2 = hamiltonian.H2_spinless
 
     # Initialise array to hold solution at all flow times
     sol = np.zeros((qmax,n**2),dtype=np.float64)
-    sol[0] = (H0+V0).reshape(n**2)
+    sol[0] = (H2).reshape(n**2)
 
     # Define integrator
     r = ode(nonint_ode).set_integrator('dopri5', nsteps=100)
-    r.set_initial_value((H0+V0).reshape(n**2),dl_list[0])
+    r.set_initial_value((H2).reshape(n**2),dl_list[0])
     r.set_f_params(n,method)
     
     # Numerically integrate the flow equations
@@ -767,6 +880,8 @@ def flow_static(n,H0,V0,dl_list,qmax,cutoff,method='jit'):
         off_diag = mat-np.diag(np.diag(mat))
         J0 = max(np.abs(off_diag.reshape(n**2)))
         k += 1
+    sol = sol[0:k-1]
+    dl_list = dl_list[0:k-1]
 
     # Initialise a density operator in the diagonal basis on the central site
     liom = np.zeros((qmax,n**2))
@@ -776,6 +891,7 @@ def flow_static(n,H0,V0,dl_list,qmax,cutoff,method='jit'):
     
     # Reverse list of flow times in order to conduct backwards integration
     dl_list = dl_list[::-1]
+    sol = sol[::-1]
 
     # Degine integrator for density operator
     n_int = ode(liom_ode).set_integrator('dopri5', nsteps=100)
@@ -784,8 +900,8 @@ def flow_static(n,H0,V0,dl_list,qmax,cutoff,method='jit'):
     # Numerically integrate the flow equations for the density operator 
     # Integral goes from l -> infinity to l=0 (i.e. from diagonal basis to original basis)
     k0=1
-    while n_int.successful() and k0 < len(dl_list[:k]):
-        n_int.set_f_params(sol[len(dl_list[:k])-k0-1],n)
+    while n_int.successful() and k0 < k-1:
+        n_int.set_f_params(n,sol[k0])
         n_int.integrate(dl_list[k0])
         liom[k0] = n_int.y
         k0 += 1
@@ -794,7 +910,10 @@ def flow_static(n,H0,V0,dl_list,qmax,cutoff,method='jit'):
     central = (liom[k0-1,:n**2]).reshape(n,n)
 
     # Build output dictionary
-    output = {"H0_diag":sol[k-1].reshape(n,n),"LIOM":central}
+    output = {"H0_diag":sol[0].reshape(n,n),"LIOM":central}
+    if store_flow == True:
+        output["flow"] = sol[::-1]
+        output["dl_list"] = dl_list[::-1]
 
     return output
     
@@ -806,7 +925,7 @@ def proc(mat,cutoff):
             mat[i] = 0.
     return mat
 
-def flow_static_int(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',precision=np.float32,norm=True,Hflow=False,store_flow=False):
+def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',precision=np.float32,norm=True,Hflow=False,store_flow=False):
     """
     Diagonalise an initial interacting Hamiltonian and compute the integrals of motion.
 
@@ -852,6 +971,7 @@ def flow_static_int(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',precision
             the LIOM on central site ("LIOM") and the value of the second invariant of the flow ("Invariant").
     
     """
+    H2,Hint = hamiltonian.H2_spinless,hamiltonian.H4_spinless
 
     # Initialise array to hold solution at all flow times
     flow_list = np.zeros((qmax,n**2+n**4),dtype=precision)
@@ -859,15 +979,15 @@ def flow_static_int(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',precision
 
     # Store initial interaction value and trace of initial H^2 for later error estimation
     delta = np.max(Hint)
-    e1 = np.trace(np.dot(H0+V0,H0+V0))
+    e1 = np.trace(np.dot(H2,H2))
     
     # Define integrator
     r_int = ode(int_ode).set_integrator('dopri5',nsteps=100,rtol=10**(-6),atol=10**(-12))
     
     # Set initial conditions
     init = np.zeros(n**2+n**4,dtype=np.float32)
-    init[:n**2] = ((H0+V0)).reshape(n**2)
-    init[n**2:] = (Hint+Vint).reshape(n**4)
+    init[:n**2] = ((H2)).reshape(n**2)
+    init[n**2:] = (Hint).reshape(n**4)
     r_int.set_initial_value(init,dl_list[0])
     r_int.set_f_params(n,[],method,norm,Hflow)
     flow_list[0] = init
@@ -1000,7 +1120,7 @@ def flow_static_int(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',precision
 
     return output
     
-def flow_static_int_fwd(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',precision=np.float32,norm=True,Hflow=False,store_flow=False):
+def flow_static_int_fwd(n,hamiltonian,dl_list,qmax,cutoff,method='jit',precision=np.float32,norm=True,Hflow=False,store_flow=False):
     """
     Diagonalise an initial interacting Hamiltonian and compute the integrals of motion.
 
@@ -1055,6 +1175,8 @@ def flow_static_int_fwd(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',preci
     
     """
 
+    H2,Hint = hamiltonian.H2_spinless,hamiltonian.H4_spinless
+
     if store_flow == True:
         # Initialise array to hold solution at all flow times
         flow_list = np.zeros((qmax,2*(n**2+n**4)),dtype=precision)
@@ -1063,15 +1185,15 @@ def flow_static_int_fwd(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',preci
 
     # Store initial interaction value and trace of initial H^2 for later error estimation
     delta = np.max(Hint)
-    e1 = np.trace(np.dot(H0+V0,H0+V0))
+    e1 = np.trace(np.dot(H2,H2))
     
     # Define integrator
     r_int = ode(int_ode_fwd).set_integrator('dopri5',nsteps=100,rtol=10**(-6),atol=10**(-6))
     
     # Set initial conditions
     init = np.zeros(2*(n**2+n**4),dtype=np.float32)
-    init[:n**2] = ((H0+V0)).reshape(n**2)
-    init[n**2:n**2+n**4] = (Hint+Vint).reshape(n**4)
+    init[:n**2] = ((H2)).reshape(n**2)
+    init[n**2:n**2+n**4] = (Hint).reshape(n**4)
 
     # Initialise a density operator in the diagonal basis on the central site
     init_liom = np.zeros(n**2+n**4)
@@ -1161,6 +1283,110 @@ def flow_static_int_fwd(n,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit',preci
     gc.collect()
 
     return output
+
+def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit'):
+      
+        H0_up,H0_down,Hint_up,Hint_down,Hint_updown = hamiltonian.H2_spinup,hamiltonian.H2_spindown,hamiltonian.H4_spinup,hamiltonian.H4_spindown,hamiltonian.H4_mixed
+
+        sol_int = np.zeros((qmax,2*n**2+3*n**4),dtype=np.float32)
+        # print('Memory64 required: MB', sol_int.nbytes/10**6)
+        # sol_int = np.zeros((qmax,n**2+n**4),dtype=np.float32)
+        # print('Memory32 required: MB', sol_int.nbytes/10**6)
+        
+        r_int = ode(int_ode_spin).set_integrator('dopri5', nsteps=150,atol=10**(-6),rtol=10**(-3))
+        r_int.set_f_params(n,method)
+        
+        init = np.zeros(2*n**2+3*n**4,dtype=np.float32)
+        init[:n**2] = (H0_up).reshape(n**2)
+        init[n**2:2*n**2] = (H0_down).reshape(n**2)
+        init[2*n**2:2*n**2+n**4] = (Hint_up).reshape(n**4)
+        init[2*n**2+n**4:2*n**2+2*n**4] = (Hint_down).reshape(n**4)
+        init[2*n**2+2*n**4:] = (Hint_updown).reshape(n**4)
+        
+        r_int.set_initial_value(init,dl_list[0])
+        sol_int[0] = init
+        
+        k = 1
+        J0 = 10.
+        while r_int.successful() and k < qmax-1 and J0 > cutoff:
+            r_int.integrate(dl_list[k])
+            # sim = proc(r_int.y,n,cutoff)
+            # sol_int[k] = sim
+            sol_int[k] = r_int.y
+            mat_up = sol_int[k,0:n**2].reshape(n,n)
+            mat_down = sol_int[k,n**2:2*n**2].reshape(n,n)
+            off_diag_up = mat_up-np.diag(np.diag(mat_up))
+            off_diag_down = mat_down-np.diag(np.diag(mat_down))
+            J0_up = max(np.abs(off_diag_up).reshape(n**2))
+            J0_down = max(np.abs(off_diag_down).reshape(n**2))
+            J0=max(J0_up,J0_down)
+
+ 
+            k += 1
+        print(k,J0)   
+        sol_int=sol_int[:k-1]
+        dl_list = dl_list[:k-1]
+
+        print('eigenvalues',np.sort(np.diag(sol_int[-1,0:n**2].reshape(n,n))))
+  
+        H0_diag_up = sol_int[-1,:n**2].reshape(n,n)
+        H0_diag_down = sol_int[-1,n**2:2*n**2].reshape(n,n)
+        
+        Hint_up = sol_int[-1,2*n**2:2*n**2+n**4].reshape(n,n,n,n)
+        Hint_down = sol_int[-1,2*n**2+n**4:2*n**2+2*n**4].reshape(n,n,n,n) 
+        Hint_updown = sol_int[-1,2*n**2+2*n**4:].reshape(n,n,n,n)  
+              
+        HFint_up = np.zeros(n**2).reshape(n,n)
+        HFint_down = np.zeros(n**2).reshape(n,n)
+        HFint_updown = np.zeros(n**2).reshape(n,n)
+        for i in range(n):
+            for j in range(n):
+                if i != j:
+                    HFint_up[i,j] = Hint_up[i,i,j,j]
+                    HFint_up[i,j] += -Hint_up[i,j,j,i]
+                    
+                    HFint_down[i,j] = Hint_down[i,i,j,j]
+                    HFint_down[i,j] += -Hint_down[i,j,j,i]
+                    
+                HFint_updown[i,j] = Hint_updown[i,i,j,j]
+  
+        lbits_up = np.zeros(n-1)
+        lbits_down = np.zeros(n-1)
+        lbits_updown = np.zeros(n-1)
+
+        for q in range(1,n):
+            lbits_up[q-1] = np.median(np.log10(np.abs(np.diag(HFint_up,q)+np.diag(HFint_up,-q))/2.))
+            lbits_down[q-1] = np.median(np.log10(np.abs(np.diag(HFint_down,q)+np.diag(HFint_down,-q))/2.))
+            lbits_updown[q-1] = np.median(np.log10(np.abs(np.diag(HFint_updown,q)+np.diag(HFint_updown,-q))/2.))
+
+        r_int.set_initial_value(init,dl_list[0])
+        init = np.zeros(2*n**2+3*n**4,dtype=np.float32)
+        temp = np.zeros((n,n))
+        temp[n//2,n//2] = 1.0
+        init[:n**2] = temp.reshape(n**2)
+        init[n**2:2*n**2] = temp.reshape(n**2)
+
+
+        dl_list = dl_list[::-1]
+
+        r_int = ode(liom_spin).set_integrator('dopri5', nsteps=150,atol=10**(-6),rtol=10**(-3))
+        r_int.set_initial_value(init,dl_list[0])
+
+        k0 = 1
+        while r_int.successful() and k0 < k-1:
+            r_int.set_f_params(sol_int[-k0],n,method)
+            r_int.integrate(dl_list[k0])
+            # sim = proc(r_int.y,n,cutoff)
+            # sol_int[k] = sim
+            liom = r_int.y
+ 
+            k0 += 1
+
+        output = {"H0_diag":[H0_diag_up,H0_diag_down],"Hint":[Hint_up,Hint_down,Hint_updown],
+                    "LIOM":liom,"LIOM Interactions":[lbits_up,lbits_down,lbits_updown],"Invariant":0}
+
+        return output
+    
     
 def flow_dyn(n,H0,V0,num,dl_list,qmax,cutoff,tlist,method='jit'):
     """
@@ -1768,7 +1994,8 @@ def flow_tensordot_nonint(H0,V0,dl):
 def flow_levels(n,array,intr):
     """ Function to compute the many-body eigenvalues from the Hamiltonian returned by the TFE method. """
     H0 = array["H0_diag"]
-    Hint = array["Hint"]
+    if intr == True:
+        Hint = array["Hint"]
     flevels = np.zeros(2**n)
 
     for i in range(2**n):
@@ -1785,6 +2012,56 @@ def flow_levels(n,array,intr):
                             flevels[i] += -Hint[j,q,q,j]*int(lev0[j])*int(lev0[q]) 
     
     flevels=flevels[flevels != 0]
+    return np.sort(flevels)
+
+def flow_levels_spin(n,flow,intr=True):
+
+    H0 = flow["H0_diag"]
+    Hint = flow["Hint"]
+    H0_up = H0[0]
+    H0_down = H0[1]
+    Hint_up_full = Hint[0]
+    Hint_down_full = Hint[1]
+    Hint_updown_full = Hint[2]
+
+    Hint_up = np.zeros((n,n))
+    Hint_down = np.zeros((n,n))
+    Hint_updown = np.zeros((n,n))
+    for i in range(n):
+        for j in range(n):
+            Hint_up[i,j] += Hint_up_full[i,i,j,j]
+            Hint_up[i,j] += -Hint_up_full[i,j,j,i]
+            Hint_down[i,j] += Hint_down_full[i,i,j,j]
+            Hint_down[i,j] += -Hint_down_full[i,j,j,i]
+            Hint_updown[i,j] += Hint_updown_full[i,i,j,j]
+            Hint_updown[i,j] += -Hint_updown_full[i,j,j,i]
+    
+    flevels = np.zeros(4**n)
+    
+    count = 0
+    for i in range(2**n):
+        lev0 = bin(i)[2::].rjust(n,'0') # Generate the many-body states
+        for i1 in range(2**n):
+            lev1 = bin(i1)[2::].rjust(n,'0') # Generate the many-body states
+            
+            # Compute the energies of each state from the fixed point Hamiltonian
+            for j in range(n):
+                flevels[count] += H0_up[j,j]*int(lev0[j])+H0_down[j,j]*int(lev1[j])
+                
+                if intr == True:
+                    for q in range(n):
+                        if q !=j:
+                            # flevels[i] += Hint[j,j,q,q]*int(lev0[j])
+                            flevels[count] += Hint_up[j,q]*int(lev0[j])*int(lev0[q]) 
+                            # flevels[i] += -Hint_up[j,q,q,j]*int(lev0[j])*int(lev0[q]) 
+                            
+                            flevels[count] += Hint_down[j,q]*int(lev1[j])*int(lev1[q]) 
+                            # flevels[i] += -Hint_down[j,q,q,j]*int(lev1[j])*int(lev1[q]) 
+                            
+                        flevels[count] += Hint_up[j,q]*int(lev1[j])*int(lev0[q]) 
+            count += 1
+
+    
     return np.sort(flevels)
 
 #------------------------------------------------------------------------------
