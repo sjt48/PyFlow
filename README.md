@@ -39,7 +39,7 @@ The other files are as follows:
 
 # To do 
 
-* Update non-equilibrium dynamics code to match syntax used for static functions. (**Current version will throw an error!**)
+* ~~Update non-equilibrium dynamics code to match syntax used for static functions.~~ (**Done, can be tidied up.**)
 * Write more tests for non-interacting systems.
 * For non-interacting systems, compute LIOMs with ED as a comparison/test? 
 * ~~Add long-range couplings from earlier code versions.~~ **Done, to be tested thoroughly.**
