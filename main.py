@@ -55,13 +55,13 @@ mpl.rcParams['mathtext.rm'] = 'serif'
 #------------------------------------------------------------------------------  
 # Parameters
 L = int(sys.argv[1])            # Linear system size
-dim = 1                         # Spatial dimension
+dim = 2                         # Spatial dimension
 n = L**dim                      # Total number of sites
 species = 'spinless fermion'    # Type of particle
-delta = 0.1                     # Nearest-neighbour interaction strength
+delta = 0.05                    # Nearest-neighbour interaction strength
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
-dis = [3.]                    
+dis = [10.0]                    
 # List of disorder strengths
 lmax = 1500                     # Flow time max
 qmax = 1000                     # Max number of flow time steps
@@ -80,7 +80,7 @@ method = 'tensordot'            # Method for computing tensor contractions
                                 # In general 'tensordot' is fastest for small systems, 'jit' for large systems
                                 # (Note that 'jit' requires compilation on the first run, increasing run time.)
 print('Norm = %s' %norm)
-intr = False                     # Turn on/off interactions
+intr = True                     # Turn on/off interactions
 dyn = False                     # Run the dynamics
 imbalance = False               # Sets whether to compute global imbalance or single-site dynamics
 LIOM = 'bck'                    # Compute LIOMs with forward ('fwd') or backward ('bck') flow
@@ -135,9 +135,9 @@ if __name__ == '__main__':
             # Initialise Hamiltonian
             ham = init.hamiltonian(species,dis_type,intr=intr)
             if species == 'spinless fermion':
-                ham.build(n,0,d,J,dis_type,delta=delta)
+                ham.build(n,dim,d,J,dis_type,delta=delta)
             elif species == 'spinful fermion':
-                ham.build(n,0,d,J,dis_type,delta_onsite=delta,delta_up=delta,delta_down=delta,dsymm='spin')
+                ham.build(n,dim,d,J,dis_type,delta_onsite=delta,delta_up=delta,delta_down=delta,dsymm='spin')
             
             # Initialise the number operator on the central lattice site
             num = np.zeros((n,n))
@@ -157,7 +157,7 @@ if __name__ == '__main__':
 
             # Diagonalise with flow equations
             flow = diag.CUT(params,ham,num,num_int)
-            
+
             print('Time after flow finishes: ',datetime.now()-startTime)
             # print(np.sort(np.diag(flow["H0_diag"])))
 
@@ -171,7 +171,7 @@ if __name__ == '__main__':
                 ed = np.zeros(n)
             print('Time after ED: ',datetime.now()-startTime)
 
-            if n <= 12:
+            if intr == False or n <= 12:
                 if species == 'spinless fermion':
                     flevels = diag.flow_levels(n,flow,intr)
                 elif species == 'spinful fermion':
@@ -179,12 +179,12 @@ if __name__ == '__main__':
                     flevels = diag.flow_levels_spin(n,flow,intr)
                 flevels = flevels-np.median(flevels)
                 ed = ed[0] - np.median(ed[0])
-
+            
             else:
                 flevels=np.zeros(n)
                 ed=np.zeros(n)
 
-            if n <= 12:
+            if intr == False or n <= 12:
                 lsr = diag.level_stat(flevels)
                 lsr2 = diag.level_stat(ed)
 
@@ -193,7 +193,7 @@ if __name__ == '__main__':
                     if np.round(ed[i],10)!=0.:
                         errlist[i] = np.abs((ed[i]-flevels[i])/ed[i])
 
-                print('***** ERROR *****: ', np.mean(errlist))   
+                print('***** ERROR *****: ', np.mean(errlist))  
 
             if dyn == True:
                 plt.plot(tlist,ed_dyn)

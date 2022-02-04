@@ -35,11 +35,12 @@ os.environ['KMP_DUPLICATE_LIB_OK']="TRUE"
 import numpy as np
 from sympy import prime
 
-def Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False):
+def Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dim=1):
     """ Generate the non-interacting part of the Hamiltonian with the specified on-site potential. """
 
     np.random.seed()
     print('Choice of potential = %s' %dis_type)
+    print(pwrhop,dim)
 
     #-----------------------------------------------------------------
     # Non-interacting matrices
@@ -101,9 +102,18 @@ def Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False):
             H0[i,i] = d*np.cos(2*np.pi*(1./phi)*i + phase)
 
     # Initialise V0 with nearest-neighbour hopping
-    if pwrhop == False:
+    if pwrhop == False and dim ==1:
         V0 = np.diag(J*np.ones(n-1,dtype=np.float32),1) + np.diag(J*np.ones(n-1,dtype=np.float32),-1)
-    else:
+    elif pwrhop == False and dim ==2:
+        L = np.int(np.sqrt(n))
+        jmat = np.diagflat(np.concatenate([[J for i in range(L-1)]+[0] for j in range(L)])[0:-1], 1)+np.diagflat([J for i in range(n-L)], L)
+        V0 = jmat + jmat.T
+
+    elif pwrhop == False and dim == 3:
+        L = int(n**(1/3))
+        jmat = np.diagflat(np.concatenate([[J for i in range(L-1)]+[0] for j in range(L**2)])[0:-1], 1)+np.diagflat([J for i in range(n-L)], L)+np.diagflat([J for i in range(n-L**2)], L**2)
+        V0 = jmat + jmat.T
+    elif pwrhop == True:
         V0 = np.zeros((n,n))
         for k in range(1,n):
             templist = [0.]*(n-k)
@@ -182,15 +192,28 @@ def H2_spin_init(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dsymm='ch
     return H2_spin_up,H2_spin_down
     
 
-def Hint_init(n,delta,pwrint=False,beta=0):
+def Hint_init(n,delta,pwrint=False,beta=0,dim=1):
     # Interaction tensors
     Hint = np.zeros((n,n,n,n),dtype=np.float32)
+
+    if dim == 2:
+        L = int(np.sqrt(n))
+        Dmat = np.diagflat(np.concatenate([[delta for i in range(L-1)]+[0] for j in range(L)])[0:-1], 1)+np.diagflat([delta for i in range(n-L)], L)
+        Dmat += Dmat.T
+        Dmat *= 0.5
+    if dim == 3:
+        L = int(n**(1/3))
+        Dmat = np.diagflat(np.concatenate([[delta for i in range(L-1)]+[0] for j in range(L**2)])[0:-1], 1)+np.diagflat([delta for i in range(n-L)], L)+np.diagflat([delta for i in range(n-L**2)], L**2)
+        Dmat += Dmat.T
+        Dmat *= 0.5
     for i in range(n):
         for j in range(i,n):
-            if pwrint == False:
+            if pwrint == False and dim == 1:
                 if abs(i-j)==1:
                     # Initialise nearest-neighbour interactions
                     Hint[i,i,j,j] = 0.5*delta
+            elif pwrint == False and (dim ==2 or dim ==3):
+                Hint[i,i,j,j] = Dmat[i,j]
             else:
                 k = np.abs(i-j)
                 if pwrint == 'random' and i != j:
@@ -246,45 +269,43 @@ def namevar(dis_type,dyn,norm,n,LIOM,species):
         spec = 'fermion'
      # Make directory to store data
     if dyn == False:
-        if not os.path.exists('spec/data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'static',n)):
-            os.makedirs('spec/data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'static',n))
-        namevar = 'spec/data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'static',n) 
+        if not os.path.exists('%s/data/%s/%s/%s/%s/dataN%s' %(spec,dis_type,nm,LIOM,'static',n)):
+            os.makedirs('%s/data/%s/%s/%s/%s/dataN%s' %(spec,dis_type,nm,LIOM,'static',n))
+        namevar = '%s/data/%s/%s/%s/%s/dataN%s' %(spec,dis_type,nm,LIOM,'static',n) 
     elif dyn == True:
-        if not os.path.exists('spec/data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'dyn',n)):
-            os.makedirs('spec/data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'dyn',n))
-        namevar = 'spec/data/%s/%s/%s/%s/dataN%s' %(dis_type,nm,LIOM,'dyn',n)
+        if not os.path.exists('%s/data/%s/%s/%s/%s/dataN%s' %(spec,dis_type,nm,LIOM,'dyn',n)):
+            os.makedirs('%s/data/%s/%s/%s/%s/dataN%s' %(spec,dis_type,nm,LIOM,'dyn',n))
+        namevar = '%s/data/%s/%s/%s/%s/dataN%s' %(spec,dis_type,nm,LIOM,'dyn',n)
     
     return namevar
 
 
 class hamiltonian:
-    def __init__(self,species,dis_type,intr):
+    def __init__(self,species,dis_type,intr,pwrhop=False,pwrint=False):
         self.species = species
         self.dis_type = dis_type
-        # self.n = []
-        # self.dim = []
-
-        # self.H2_spinless = []
-        # self.H4_spinless = []
-
-        # self.H2_spinup = []
-        # self.H2_spindown = []
-        # self.H4_spinup = []
-        # self.H4_spindown = []
-        # self.H4_mixed = []
         self.intr = intr
+        self.pwrhop = pwrhop
+        self.pwrint = pwrint
 
     def build(self,n,dim,d,J,dis_type,delta=0,delta_up=0,delta_down=0,delta_mixed=0,delta_onsite=0,alpha=0,beta=0,dsymm='charge'):
         self.n = n
         self.dim = dim
 
+        if dim == 1:
+            self.L = n
+        elif dim == 2:
+            self.L = int(np.sqrt(n))
+        elif dim == 3:
+            self.L = int(n**(1/3))
+
         if self.species == 'spinless fermion':
             self.d = d
             self.J = J
-            self.H2_spinless = Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False)
+            self.H2_spinless = Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dim=dim)
             if self.intr == True:
                 self.delta = delta
-                self.H4_spinless = Hint_init(n,delta,pwrint=False,beta=0)
+                self.H4_spinless = Hint_init(n,delta,pwrint=False,beta=0,dim=dim)
 
         elif self.species == 'spinful fermion':
             self.d = d

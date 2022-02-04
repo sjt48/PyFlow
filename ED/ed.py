@@ -68,28 +68,34 @@ def ED(n,ham,times,dyn,imbalance):
     if ham.species == 'spinless fermion':
 
         H0 = ham.H2_spinless
+        hlist = np.diag(H0)
+        h = [[hlist[i],i] for i in range(n)]
+        if ham.pwrhop == False and ham.dim == 1:
+            J = [[J0,i,i+1] for i in range(n-1)]
+            J2 = [[-J0,i,i+1] for i in range(n-1)]
+        else:
+            J = []
+            J2 = []
+            for i in range(n):
+                for j in range(n):
+                    if i != j:
+                        J += [[0.5*H0[i,j],i,j]]
+                        J2 += [[-0.5*H0[i,j],j,i]]
+
         if ham.intr == True:
             delta = ham.delta
-            hlist = np.diag(H0)
-            J = [[J0,i,i+1] for i in range(n-1)]
-            J2 = [[-J0,i,i+1] for i in range(n-1)]
             Delta = [[delta,i,i+1] for i in range(n-1)]
-            h = [[hlist[i],i] for i in range(n)]
             static = [["n",h],["+-",J],["-+",J2],["nn",Delta]]
-
-        else:
-            hlist = np.diag(H0)
-            J = [[J0,i,i+1] for i in range(n-1)]
-            J2 = [[-J0,i,i+1] for i in range(n-1)]
-            h = [[hlist[i],i] for i in range(n)]
+        else: 
             static = [["n",h],["+-",J],["-+",J2]]
 
         dynamic=[]
         no_checks={"check_herm":False,"check_pcon":False,"check_symm":False}
-        basis = spinless_fermion_basis_1d(n,Nf=n//2)
+        basis = spinless_fermion_basis_1d(n)
 
         H = hamiltonian(static,dynamic,basis=basis,dtype=np.float64,**no_checks)
         E1,V1 = H.eigh()
+        # print(E1)
 
     elif ham.species == 'spinful fermion':
 

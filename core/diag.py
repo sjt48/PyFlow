@@ -880,6 +880,7 @@ def flow_static(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_flow=True):
         off_diag = mat-np.diag(np.diag(mat))
         J0 = max(np.abs(off_diag.reshape(n**2)))
         k += 1
+    print(k,J0)
     sol = sol[0:k-1]
     dl_list = dl_list[0:k-1]
 
@@ -2001,17 +2002,17 @@ def flow_levels(n,array,intr):
     for i in range(2**n):
         lev0 = bin(i)[2::].rjust(n,'0') # Generate the many-body states
         # Compute the energies of each state from the fixed point Hamiltonian
-        if lev0.count('1')==n//2:
-            for j in range(n):
-                flevels[i] += H0[j,j]*int(lev0[j])
-                if intr == True:
-                    for q in range(n):
-                        if q !=j:
-                            # flevels[i] += Hint[j,j,q,q]*int(lev0[j])
-                            flevels[i] += Hint[j,j,q,q]*int(lev0[j])*int(lev0[q]) 
-                            flevels[i] += -Hint[j,q,q,j]*int(lev0[j])*int(lev0[q]) 
-    
-    flevels=flevels[flevels != 0]
+        # if lev0.count('1')==n//2:
+        for j in range(n):
+            flevels[i] += H0[j,j]*int(lev0[j])
+            if intr == True:
+                for q in range(n):
+                    if q !=j:
+                        # flevels[i] += Hint[j,j,q,q]*int(lev0[j])
+                        flevels[i] += Hint[j,j,q,q]*int(lev0[j])*int(lev0[q]) 
+                        flevels[i] += -Hint[j,q,q,j]*int(lev0[j])*int(lev0[q]) 
+
+    # flevels=flevels[flevels != 0]
     return np.sort(flevels)
 
 def flow_levels_spin(n,flow,intr=True):
