@@ -109,7 +109,7 @@ def con22(A,B,method='jit',comp=False,eta=False):
     """
 
     if method == 'einsum':
-        return np.einsum('ij,jk->ik',A,B) - np.einsum('ki,ij->kj',B,A,optimize=True)
+        return np.einsum('ij,jk->ik',A,B,optimize=True) - np.einsum('ki,ij->kj',B,A,optimize=True)
     elif method == 'tensordot':
         return np.tensordot(A,B,axes=1) - np.tensordot(B,A,axes=1)
     elif method == 'jit' and comp==False:

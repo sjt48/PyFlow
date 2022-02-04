@@ -75,7 +75,7 @@ def w(q,steps):
             return 1.
 
 def n_evo(t,nlist,y,n,method='jit'):
-        """ Function to compute the RHS of the Heisenberg equation, dn/dt = [H,n]
+        """ Function to compute the RHS of the Heisenberg equation, dn/dt = i[H,n]
         
             Parameters
             ----------
@@ -99,9 +99,15 @@ def n_evo(t,nlist,y,n,method='jit'):
         H = H.reshape(n,n)
         
         # Extract quadratic part of density operator from input array nlist
-        n2 = nlist[0:n**2]
+        nlist = nlist[0:len(y)]+1j*nlist[len(y):]
+        n2 = nlist[:n**2]
         n2 = n2.reshape(n,n)
-        
+
+        # print('*****')
+        # print(H)
+        # print(n2)
+        # print('*****')
+
         # If the system is interacting, extract interacting components of H and n
         if len(y) > n**2:
             Hint = y[n**2::]
@@ -110,7 +116,8 @@ def n_evo(t,nlist,y,n,method='jit'):
             nint = nint.reshape(n,n,n,n)
 
         # Perform time evolution of non-interacting terms
-        sol = 1j*contract(H,n2,method=method,comp=True)
+        sol = 1j*contract(H,n2,eta=True,method=method,comp=True)
+        # sol = 1j*(H@n2-n2@H)
         sol0 = np.zeros(len(y),dtype=np.complex128)
         sol0[:n**2] = sol.reshape(n**2)
         
@@ -119,10 +126,14 @@ def n_evo(t,nlist,y,n,method='jit'):
             sol2 = 1j*contract(Hint,n2,method=method,comp=True) + 1j*contract(H,nint,method=method,comp=True)
             sol0[n**2:] = sol2.reshape(n**4)
 
-        return sol0
+        sol_complex = np.zeros(2*len(y),dtype=np.float64)
+        sol_complex[0:len(y)] = sol0.real
+        sol_complex[len(y)::] = sol0.imag
+
+        return sol_complex
 
 def dyn_con(n,num,y,tlist,method='jit'):
-    """ Function to compute the RHS of the Heisenberg equation, dn/dt = [H,n], using matrix/tensor contractions.
+    """ Function to compute the RHS of the Heisenberg equation, dn/dt = i[H,n], using matrix/tensor contractions.
     
         Parameters
         ----------
@@ -141,25 +152,35 @@ def dyn_con(n,num,y,tlist,method='jit'):
 
     """
 
+    num=num.astype(np.float64)
+    y = y.astype(np.float64)
+
     # Initialise list for time-evolved operator
-    num_t_list = np.zeros((len(tlist),len(y)))
+    num_t_list = np.zeros((len(tlist),2*len(y)),dtype=np.float64)
     # Prepare first element of list with the initial operator (t=0)
-    num_t_list[0] = num
+    num_t_list[0,:len(y)] = num
 
     # Define the integrator used to evolve the operator
     # Note: we use `zvode' here as it allows complex numbers, contrary to many other SciPy integrators
-    n_int = ode(n_evo).set_integrator('zvode', nsteps=100)
+    n_int = ode(n_evo).set_integrator('dopri5', nsteps=100)
     n_int.set_f_params(y,n,method)
-    n_int.set_initial_value(num,0)
+    n_int.set_initial_value(num_t_list[0],tlist[0])
 
     # Run the integrator for all times in tlist and return time-evolved operator
     t0=1
     while n_int.successful() and t0 < len(tlist):
         n_int.integrate(tlist[t0])
-        num_t_list[t0] = (n_int.y).real
+        num_t_list[t0] = (n_int.y)
+        # print(((n_int.y).imag).reshape(n,n))
+        # num_t_list[t0] = num_t_list[t0-1] + 1j*(tlist[t0]-tlist[t0-1])*(H2@(num_t_list[t0-1].reshape(n,n))-(num_t_list[t0-1]).reshape(n,n)@H2).reshape(n**2)
+        # print(num_t_list[t0].reshape(n,n))
         t0 += 1
 
-    return num_t_list.real
+    num_t_list2 = np.zeros((len(tlist),len(y)))
+    for t in range(len(tlist)):
+        num_t_list2[t] = num_t_list[t,:len(y)] + 1j*num_t_list[t,len(y)::]
+
+    return num_t_list2
 
 
 # @jit(nopython=True,parallel=True,fastmath=True)
@@ -248,7 +269,7 @@ def dyn_exact(n,num,y,tlist):
     return num_t_list
 
 # @jit(nopython=True,parallel=True,fastmath=True)
-def dyn_mf(n,num,y,tlist,state):
+def dyn_mf(n,num,y,tlist,state=[],method='jit'):
     """ Function to compute the mean-field time evolution, using a mean-field decoupling of the interaction term.
 
         In principle this state could be time-dependent, however that is not yet implemented here.
@@ -282,6 +303,7 @@ def dyn_mf(n,num,y,tlist,state):
         Hint = y[n**2::]
         Hint = Hint.reshape(n,n,n,n)
 
+    t0 = 0
     # Compute the time-evolved operator for every time t in input array tlist
     for t in tlist:
         n2 = (num.copy())[:n**2]

@@ -55,15 +55,15 @@ mpl.rcParams['mathtext.rm'] = 'serif'
 #------------------------------------------------------------------------------  
 # Parameters
 L = int(sys.argv[1])            # Linear system size
-dim = 2                         # Spatial dimension
+dim = 1                         # Spatial dimension
 n = L**dim                      # Total number of sites
 species = 'spinless fermion'    # Type of particle
-delta = 0.05                    # Nearest-neighbour interaction strength
+delta = 0.0                     # Nearest-neighbour interaction strength
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
-dis = [10.0]                    
+dis = [3.0]                    
 # List of disorder strengths
-lmax = 1500                     # Flow time max
+lmax = 15                       # Flow time max
 qmax = 1000                     # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
 norm = False                    # Normal-ordering, can be true or false
@@ -75,13 +75,13 @@ precision = np.float32          # Precision with which to store running Hamilton
                                 # Default throughout is single precision (np.float32)
                                 # Using np.float16 will half the memory cost, at loss of precision
                                 # Only affects the backwards transform, not the forward transform
-method = 'tensordot'            # Method for computing tensor contractions
+method = 'tensordot'                  # Method for computing tensor contractions
                                 # Options are 'einsum', 'tensordot','jit' or 'vec'
                                 # In general 'tensordot' is fastest for small systems, 'jit' for large systems
                                 # (Note that 'jit' requires compilation on the first run, increasing run time.)
 print('Norm = %s' %norm)
 intr = True                     # Turn on/off interactions
-dyn = False                     # Run the dynamics
+dyn = True                      # Run the dynamics
 imbalance = False               # Sets whether to compute global imbalance or single-site dynamics
 LIOM = 'bck'                    # Compute LIOMs with forward ('fwd') or backward ('bck') flow
                                 # Forward uses less memory by a factor of qmax, and transforms a local operator
@@ -101,7 +101,7 @@ if n > 12 or qmax > 2000:
 
 # Define list of timesteps for non-equilibrium dynamics
 # Only used if 'dyn = True'
-tlist = [0.01*i for i in range(51)]
+tlist = [0.01*i for i in range(101)]
 
 # Create dictionary of parameters to pass to functions; avoids having to have too many function args
 params = {"n":n,"delta":delta,"J":J,"cutoff":cutoff,"dis":dis,"lmax":lmax,"qmax":qmax,"reps":reps,"norm":norm,
@@ -196,11 +196,14 @@ if __name__ == '__main__':
                 print('***** ERROR *****: ', np.mean(errlist))  
 
             if dyn == True:
-                plt.plot(tlist,ed_dyn)
+                plt.plot(tlist,ed_dyn,label=r'ED')
                 if imbalance == True:
                     plt.plot(tlist,flow["Imbalance"],'o')
                 else:
-                    plt.plot(tlist,flow["Density Dynamics"],'o')
+                    plt.plot(tlist,flow["Density Dynamics"],'o',label='Flow')
+                plt.ylabel(r'$\langle n_i(t) \rangle$')
+                plt.xlabel(r'$t$')
+                plt.legend()
                 plt.show()
                 plt.close()
 

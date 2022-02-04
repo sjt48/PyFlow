@@ -35,7 +35,7 @@ os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False)))       # Set nu
 os.environ['NUMBA_NUM_THREADS'] = str(int(cpu_count(logical=False)))    # Set number of Numba threads
 import numpy as np
 from datetime import datetime
-from .dynamics import dyn_con,dyn_exact
+from .dynamics import dyn_con,dyn_exact,dyn_mf
 from numba import jit,prange
 import gc
 from .contract import contract,contractNO
@@ -81,9 +81,9 @@ def CUT(params,hamiltonian,num,num_int):
                 if imbalance == True:
                     flow = flow_dyn_int2(n,H0,V0,Hint,Vint,num,num_int,dl,qmax,cutoff,tlist,method=method)
                 else:
-                    flow = flow_dyn_int(n,H0,V0,Hint,Vint,num,num_int,dl,qmax,cutoff,tlist,method=method)
+                    flow = flow_dyn_int(n,hamiltonian,num,num_int,dl,qmax,cutoff,tlist,method=method,store_flow=store_flow)
             elif intr == False:
-                flow = flow_dyn(n,H0,V0,num,dl,qmax,cutoff,tlist,method=method)
+                flow = flow_dyn(n,hamiltonian,num,dl,qmax,cutoff,tlist,method=method,store_flow=store_flow)
         elif dyn == False:
             if intr == True:
                 if LIOM == 'bck':
@@ -272,7 +272,7 @@ def nstate(n,a):
 
 #------------------------------------------------------------------------------
 
-def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=False):
+def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
         """ Generate the flow equation for the interacting systems.
 
         e.g. compute the RHS of dH/dl = [\eta,H] which will be used later to integrate H(l) -> H(l + dl)
@@ -1279,9 +1279,9 @@ def flow_static_int_fwd(n,hamiltonian,dl_list,qmax,cutoff,method='jit',precision
         output["flow"] = flow_list
         output["dl_list"] = dl_list
 
-    # Free up some memory
-    del flow_list
-    gc.collect()
+        # Free up some memory
+        del flow_list
+        gc.collect()
 
     return output
 
@@ -1389,7 +1389,7 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit'):
         return output
     
     
-def flow_dyn(n,H0,V0,num,dl_list,qmax,cutoff,tlist,method='jit'):
+def flow_dyn(n,hamiltonian,num,dl_list,qmax,cutoff,tlist,method='jit',store_flow=False):
     """
     Diagonalise an initial non-interacting Hamiltonian and compute the quench dynamics.
 
@@ -1428,14 +1428,15 @@ def flow_dyn(n,H0,V0,num,dl_list,qmax,cutoff,tlist,method='jit'):
             Local integral of motion (LIOM) computed on the central lattice site of the chain
     
     """
-    
+    H2 = hamiltonian.H2_spinless
+
     # Initialise array to hold solution at all flow times
     sol = np.zeros((qmax,n**2),dtype=np.float64)
-    sol[0] = (H0+V0).reshape(n**2)
+    sol[0] = (H2).reshape(n**2)
 
     # Define integrator
     r = ode(nonint_ode).set_integrator('dopri5', nsteps=1000)
-    r.set_initial_value((H0+V0).reshape(n**2),dl_list[0])
+    r.set_initial_value((H2).reshape(n**2),dl_list[0])
     r.set_f_params(n,method)
     
     # Numerically integrate the flow equations
@@ -1449,31 +1450,34 @@ def flow_dyn(n,H0,V0,num,dl_list,qmax,cutoff,tlist,method='jit'):
         off_diag = mat-np.diag(np.diag(mat))
         J0 = max(np.abs(off_diag.reshape(n**2)))
         k += 1
+    print(k,J0)
+    sol=sol[0:k-1]
+    dl_list= dl_list[0:k-1]
 
     # Initialise a density operator in the diagonal basis on the central site
-    liom = np.zeros((qmax,n**2))
+    # liom = np.zeros((qmax,n**2))
     init_liom = np.zeros((n,n))
     init_liom[n//2,n//2] = 1.0
-    liom[0,:n**2] = init_liom.reshape(n**2)
+    # liom[0,:n**2] = init_liom.reshape(n**2)
     
     # Reverse list of flow times in order to conduct backwards integration
     dl_list = dl_list[::-1]
 
     # Define integrator for density operator
     n_int = ode(liom_ode).set_integrator('dopri5', nsteps=100)
-    n_int.set_initial_value(liom[0],dl_list[0])
+    n_int.set_initial_value(init_liom.reshape(n**2),dl_list[0])
 
     # Numerically integrate the flow equations for the density operator 
     # Integral goes from l -> infinity to l=0 (i.e. from diagonal basis to original basis)
     k0=1
     while n_int.successful() and k0 < len(dl_list[:k]):
-        n_int.set_f_params(sol[len(dl_list[:k])-k0-1],n)
+        n_int.set_f_params(n,sol[-k0],method)
         n_int.integrate(dl_list[k0])
-        liom[k0] = n_int.y
+        liom = n_int.y
         k0 += 1
     
     # Take final value for the transformed density operator and reshape to a matrix
-    central = (liom[k0-1,:n**2]).reshape(n,n)
+    # central = (liom.reshape(n,n))
     
     # Invert dl again back to original
     dl_list = dl_list[::-1] 
@@ -1485,15 +1489,17 @@ def flow_dyn(n,H0,V0,num,dl_list,qmax,cutoff,tlist,method='jit'):
     k0=1
     num=np.zeros((k,n**2))
     while num_int.successful() and k0 < k-1:
-        num_int.set_f_params(sol[k0],n,method)
+        num_int.set_f_params(n,sol[k0],method)
         num_int.integrate(dl_list[k0])
         num[k0] = num_int.y
         k0 += 1
+    num = num[:k0-1]
 
     # Run non-equilibrium dynamics following a quench from CDW state
     # Returns answer *** in LIOM basis ***
-    evolist = dyn_con(n,num[k0-1],sol[k-1],tlist,method=method)
-    
+    evolist = dyn_con(n,num[-1],sol[-1],tlist,method=method)
+    print(evolist)
+
     # For each timestep, integrate back from l -> infinity to l=0
     # i.e. from LIOM basis back to original microscopic basis
     num_t_list = np.zeros((len(tlist),n**2))
@@ -1504,7 +1510,7 @@ def flow_dyn(n,H0,V0,num,dl_list,qmax,cutoff,tlist,method='jit'):
 
         k0=1
         while num_int.successful() and k0 < k-1:
-            num_int.set_f_params(sol[-k0],n,method)
+            num_int.set_f_params(n,sol[-k0],method)
             num_int.integrate(dl_list[k0])
             k0 += 1
         num_t_list[t0] = num_int.y
@@ -1524,10 +1530,15 @@ def flow_dyn(n,H0,V0,num,dl_list,qmax,cutoff,tlist,method='jit'):
         for i in range(n):
             nlist[t0] += (mat[i,i]*state[i]**2).real
 
-    return([sol[k-1,:n**2].reshape(n,n),central,liom[-1],nlist])
+    output = {"H0_diag":sol[-1].reshape(n,n),"LIOM":liom,"Invariant":0,"Density Dynamics":nlist}
+    if store_flow == True:
+        output["flow"] = sol
+        output["dl_list"] = dl_list[::-1]
+
+    return output
 
      
-def flow_dyn_int(n,H0,V0,Hint,Vint,num,num_int,dl_list,qmax,cutoff,tlist,method='jit'):
+def flow_dyn_int(n,hamiltonian,num,num_int,dl_list,qmax,cutoff,tlist,method='jit',store_flow=False):
     """
     Diagonalise an initial interacting Hamiltonian and compute the quench dynamics.
 
@@ -1568,20 +1579,23 @@ def flow_dyn_int(n,H0,V0,Hint,Vint,num,num_int,dl_list,qmax,cutoff,tlist,method=
             Local integral of motion (LIOM) computed on the central lattice site of the chain
     
     """
+    H2 = hamiltonian.H2_spinless
+    H4=hamiltonian.H4_spinless
+
     # Initialise array to hold solution at all flow times
     sol_int = np.zeros((qmax,n**2+n**4),dtype=np.float32)
     # print('Memory64 required: MB', sol_int.nbytes/10**6)
     
     # Initialise the first flow timestep
     init = np.zeros(n**2+n**4,dtype=np.float32)
-    init[:n**2] = ((H0+V0)).reshape(n**2)
-    init[n**2:] = (Hint+Vint).reshape(n**4)
+    init[:n**2] = (H2).reshape(n**2)
+    init[n**2:] = (H4).reshape(n**4)
     sol_int[0] = init
 
     # Define integrator
     r_int = ode(int_ode).set_integrator('dopri5', nsteps=50,atol=10**(-6),rtol=10**(-3))
     r_int.set_initial_value(init,dl_list[0])
-    r_int.set_f_params(n,method)
+    r_int.set_f_params(n,[],method)
     
     
     # Numerically integrate the flow equations
@@ -1636,7 +1650,7 @@ def flow_dyn_int(n,H0,V0,Hint,Vint,num,num_int,dl_list,qmax,cutoff,tlist,method=
     # Integral goes from l -> infinity to l=0 (i.e. from diagonal basis to original basis)
     k0=1
     while n_int.successful() and k0 < k-1:
-        n_int.set_f_params(sol_int[-k0],n,method)
+        n_int.set_f_params(n,sol_int[-k0],method)
         n_int.integrate(dl_list[k0])
         liom[k0] = n_int.y
         k0 += 1
@@ -1659,7 +1673,7 @@ def flow_dyn_int(n,H0,V0,Hint,Vint,num,num_int,dl_list,qmax,cutoff,tlist,method=
     # Integrate the density operator
     k0=1
     while num_int.successful() and k0 < k-1:
-        num_int.set_f_params(sol_int[k0],n,method)
+        num_int.set_f_params(n,sol_int[k0],method)
         num_int.integrate(dl_list[k0])
         k0 += 1
     num = num_int.y
@@ -1667,18 +1681,19 @@ def flow_dyn_int(n,H0,V0,Hint,Vint,num,num_int,dl_list,qmax,cutoff,tlist,method=
     # Run non-equilibrium dynamics following a quench from CDW state
     # Returns answer *** in LIOM basis ***
     evolist2 = dyn_exact(n,num,sol_int[-1],tlist)
+    # evolist2 = dyn_con(n,num,sol_int[-1],tlist)
     
     # For each timestep, integrate back from l -> infinity to l=0
     # i.e. from LIOM basis back to original microscopic basis
-    num_t_list2 = np.zeros((len(tlist),n**2+n**4),dtype=np.float64)
+    num_t_list2 = np.zeros((len(tlist),n**2+n**4),dtype=np.complex128)
     dl_list = dl_list[::-1] # Reverse dl for backwards flow
     for t0 in range(len(tlist)):
         
-        num_int = ode(liom_ode).set_integrator('zvode',nsteps=100,atol=10**(-8),rtol=10**(-8))
+        num_int = ode(liom_ode).set_integrator('dopri5',nsteps=100,atol=10**(-8),rtol=10**(-8))
         num_int.set_initial_value(evolist2[t0],dl_list[0])
         k0=1
         while num_int.successful() and k0 < k-1:
-            num_int.set_f_params(sol_int[-k0],n,method,True)
+            num_int.set_f_params(n,sol_int[-k0],method,True)
             num_int.integrate(dl_list[k0])
             k0 += 1
         num_t_list2[t0] = (num_int.y).real
@@ -1705,8 +1720,12 @@ def flow_dyn_int(n,H0,V0,Hint,Vint,num,num_int,dl_list,qmax,cutoff,tlist,method=
                     nlist2[t0] += -(mat4[i,j,j,i]*state[i]*state[j]).real
     print(nlist2)
 
+    output = {"H0_diag":H0_diag,"Hint":Hintfinal,"LIOM Interactions":lbits,"LIOM":liom,"Invariant":0,"Density Dynamics":nlist2}
+    if store_flow == True:
+        output["flow"] = sol_int
+        output["dl_list"] = dl_list[::-1]
 
-    return([H0final,central,liom[-1],Hintfinal,lbits,nlist2])
+    return output
  
     
 def flow_dyn_int2(n,H0,V0,Hint,Vint,num,num_int,dl_list,qmax,cutoff,tlist,method='jit'):
