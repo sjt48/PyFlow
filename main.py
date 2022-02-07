@@ -82,7 +82,7 @@ method = 'tensordot'                  # Method for computing tensor contractions
 print('Norm = %s' %norm)
 intr = True                     # Turn on/off interactions
 dyn = True                      # Run the dynamics
-imbalance = False               # Sets whether to compute global imbalance or single-site dynamics
+imbalance = True                # Sets whether to compute global imbalance or single-site dynamics
 LIOM = 'bck'                    # Compute LIOMs with forward ('fwd') or backward ('bck') flow
                                 # Forward uses less memory by a factor of qmax, and transforms a local operator
                                 # in the initial basis into the diagonal basis; backward does the reverse
@@ -101,7 +101,7 @@ if n > 12 or qmax > 2000:
 
 # Define list of timesteps for non-equilibrium dynamics
 # Only used if 'dyn = True'
-tlist = [0.01*i for i in range(101)]
+tlist = [0.01*i for i in range(31)]
 
 # Create dictionary of parameters to pass to functions; avoids having to have too many function args
 params = {"n":n,"delta":delta,"J":J,"cutoff":cutoff,"dis":dis,"lmax":lmax,"qmax":qmax,"reps":reps,"norm":norm,
@@ -199,9 +199,10 @@ if __name__ == '__main__':
                 plt.plot(tlist,ed_dyn,label=r'ED')
                 if imbalance == True:
                     plt.plot(tlist,flow["Imbalance"],'o')
+                    plt.ylabel(r'$\mathcal{I}(t)$')
                 else:
                     plt.plot(tlist,flow["Density Dynamics"],'o',label='Flow')
-                plt.ylabel(r'$\langle n_i(t) \rangle$')
+                    plt.ylabel(r'$\langle n_i(t) \rangle$')
                 plt.xlabel(r'$t$')
                 plt.legend()
                 plt.show()

@@ -79,9 +79,9 @@ def CUT(params,hamiltonian,num,num_int):
             if intr == True:
                 Hint = hamiltonian.H4_spinless
                 if imbalance == True:
-                    flow = flow_dyn_int2(n,H0,V0,Hint,Vint,num,num_int,dl,qmax,cutoff,tlist,method=method)
+                    flow = flow_dyn_int_imb(n,hamiltonian,num,num_int,dl,qmax,cutoff,tlist,method=method,store_flow=store_flow)
                 else:
-                    flow = flow_dyn_int(n,hamiltonian,num,num_int,dl,qmax,cutoff,tlist,method=method,store_flow=store_flow)
+                    flow = flow_dyn_int_singlesite(n,hamiltonian,num,num_int,dl,qmax,cutoff,tlist,method=method,store_flow=store_flow)
             elif intr == False:
                 flow = flow_dyn(n,hamiltonian,num,dl,qmax,cutoff,tlist,method=method,store_flow=store_flow)
         elif dyn == False:
@@ -279,7 +279,7 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
 
         Note that with the parameter Hflow = True, the generator will be recomputed as required. Using Hflow=False,
         the input array eta will be used to specify the generator at this flow time step. The latter option will result 
-        in a huge speed increase, at the potential cost of accuracy. This is because the SciPi routine used to 
+        in a huge speed increase, at the potential cost of accuracy. This is because the SciPy routine used to 
         integrate the ODEs will sometimes add intermediate steps: recomputing eta on the fly will result in these 
         steps being computed accurately, while fixing eta will avoid having to recompute the generator every time an 
         interpolation step is added (leading to a speed increase), however it will mean that the generator evaluated at 
@@ -387,7 +387,7 @@ def int_ode_spin(l,y,n,method='jit'):
 
         Note that with the parameter Hflow = True, the generator will be recomputed as required. Using Hflow=False,
         the input array eta will be used to specify the generator at this flow time step. The latter option will result 
-        in a huge speed increase, at the potential cost of accuracy. This is because the SciPi routine used to 
+        in a huge speed increase, at the potential cost of accuracy. This is because the SciPy routine used to 
         integrate the ODEs will sometimes add intermediate steps: recomputing eta on the fly will result in these 
         steps being computed accurately, while fixing eta will avoid having to recompute the generator every time an 
         interpolation step is added (leading to a speed increase), however it will mean that the generator evaluated at 
@@ -1538,7 +1538,7 @@ def flow_dyn(n,hamiltonian,num,dl_list,qmax,cutoff,tlist,method='jit',store_flow
     return output
 
      
-def flow_dyn_int(n,hamiltonian,num,num_int,dl_list,qmax,cutoff,tlist,method='jit',store_flow=False):
+def flow_dyn_int_singlesite(n,hamiltonian,num,num_int,dl_list,qmax,cutoff,tlist,method='jit',store_flow=False):
     """
     Diagonalise an initial interacting Hamiltonian and compute the quench dynamics.
 
@@ -1728,7 +1728,7 @@ def flow_dyn_int(n,hamiltonian,num,num_int,dl_list,qmax,cutoff,tlist,method='jit
     return output
  
     
-def flow_dyn_int2(n,H0,V0,Hint,Vint,num,num_int,dl_list,qmax,cutoff,tlist,method='jit'):
+def flow_dyn_int_imb(n,hamiltonian,num,num_int,dl_list,qmax,cutoff,tlist,method='jit',store_flow=False):
     """
     Diagonalise an initial interacting Hamiltonian and compute the quench dynamics.
 
@@ -1771,20 +1771,24 @@ def flow_dyn_int2(n,H0,V0,Hint,Vint,num,num_int,dl_list,qmax,cutoff,tlist,method
     
     """
 
+    H2 = hamiltonian.H2_spinless
+    H4 = hamiltonian.H4_spinless
+
     # Initialise array to hold solution at all flow times
     sol_int = np.zeros((qmax,n**2+n**4),dtype=np.float32)
     # print('Memory64 required: MB', sol_int.nbytes/10**6)
     
     # Initialise the first flow timestep
     init = np.zeros(n**2+n**4,dtype=np.float32)
-    init[:n**2] = ((H0+V0)).reshape(n**2)
-    init[n**2:] = (Hint+Vint).reshape(n**4)
+    init[:n**2] = (H2).reshape(n**2)
+    init[n**2:] = (H4).reshape(n**4)
     sol_int[0] = init
 
     # Define integrator
     r_int = ode(int_ode).set_integrator('dopri5', nsteps=50,atol=10**(-6),rtol=10**(-3))
     r_int.set_initial_value(init,dl_list[0])
-    r_int.set_f_params(n,method)
+    r_int.set_f_params(n,[],method)
+    
     
     # Numerically integrate the flow equations
     k = 1                       # Flow timestep index
@@ -1802,6 +1806,9 @@ def flow_dyn_int2(n,H0,V0,Hint,Vint,num,num_int,dl_list,qmax,cutoff,tlist,method
     sol_int=sol_int[:k-1]
     dl_list=dl_list[:k-1]
 
+    # Define final Hamiltonian, for function return
+    H0final,Hintfinal = sol_int[-1,:n**2].reshape(n,n),sol_int[-1,n**2::].reshape(n,n,n,n)
+    
     # Define final diagonal quadratic Hamiltonian
     H0_diag = sol_int[-1,:n**2].reshape(n,n)
     # Define final diagonal quartic Hamiltonian
@@ -1826,22 +1833,6 @@ def flow_dyn_int2(n,H0,V0,Hint,Vint,num,num_int,dl_list,qmax,cutoff,tlist,method
     
     # Reverse list of flow times in order to conduct backwards integration
     dl_list = dl_list[::-1]
-
-    # Define integrator for density operator
-    n_int = ode(liom_ode).set_integrator('dopri5', nsteps=50)
-    n_int.set_initial_value(liom[0],dl_list[0])
-
-    # Numerically integrate the flow equations for the density operator 
-    # Integral goes from l -> infinity to l=0 (i.e. from diagonal basis to original basis)
-    k0=1
-    while n_int.successful() and k0 < k-1:
-        n_int.set_f_params(sol_int[-k0],n,method)
-        n_int.integrate(dl_list[k0])
-        liom[k0] = n_int.y
-        k0 += 1
-
-    # Take final value for the transformed density operator and reshape quadratic part to a matrix
-    central = (liom[k0-1,:n**2]).reshape(n,n)
     
     # Set up initial state as a CDW
     list1 = np.array([1. for i in range(n//2)])
@@ -1873,7 +1864,7 @@ def flow_dyn_int2(n,H0,V0,Hint,Vint,num,num_int,dl_list,qmax,cutoff,tlist,method
         num_int.set_initial_value(num[0],dl_list[0])
         k0=1
         while num_int.successful() and k0 < k-1:
-            num_int.set_f_params(sol_int[k0],n,method)
+            num_int.set_f_params(n,sol_int[k0],method)
             num_int.integrate(dl_list[k0])
             # liom[k0] = num_int.y
             k0 += 1
@@ -1884,16 +1875,16 @@ def flow_dyn_int2(n,H0,V0,Hint,Vint,num,num_int,dl_list,qmax,cutoff,tlist,method
         evolist2 = dyn_exact(n,num,sol_int[-1],tlist)
         dl_list = dl_list[::-1] # Reverse the flow
         
-        num_t_list2 = np.zeros((len(tlist),n**2+n**4),dtype=np.complex64)
+        num_t_list2 = np.zeros((len(tlist),n**2+n**4))
         # For each timestep, integrate back from l -> infinity to l=0
         # i.e. from LIOM basis back to original microscopic basis
         for t0 in range(len(tlist)):
             
-            num_int = ode(liom_ode).set_integrator('zvode',nsteps=50,atol=10**(-8),rtol=10**(-8))
+            num_int = ode(liom_ode).set_integrator('dopri5',nsteps=50,atol=10**(-8),rtol=10**(-8))
             num_int.set_initial_value(evolist2[t0],dl_list[0])
             k0=1
             while num_int.successful() and k0 < k-1:
-                num_int.set_f_params(sol_int[-k0],n,method,True)
+                num_int.set_f_params(n,sol_int[-k0],method,True)
                 num_int.integrate(dl_list[k0])
                 k0 += 1
             num_t_list2[t0] = num_int.y
@@ -1926,7 +1917,12 @@ def flow_dyn_int2(n,H0,V0,Hint,Vint,num,num_int,dl_list,qmax,cutoff,tlist,method
     imblist = 2*np.sum(imblist,axis=0)
     imblist2 = 2*np.sum(imblist2,axis=0)
 
-    return([H0final,central,liom[k0-1],Hintfinal,lbits,imblist2,imblist])
+    output = {"H0_diag":H0_diag,"Hint":Hintfinal,"LIOM Interactions":lbits,"LIOM":liom,"Invariant":0,"Imbalance":imblist}
+    if store_flow == True:
+        output["flow"] = sol_int
+        output["dl_list"] = dl_list[::-1]
+
+    return output
 
 #------------------------------------------------------------------------------
 # Function for benchmarking the non-interacting system using 'einsum'
