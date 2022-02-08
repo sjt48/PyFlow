@@ -58,10 +58,10 @@ L = int(sys.argv[1])            # Linear system size
 dim = 1                         # Spatial dimension
 n = L**dim                      # Total number of sites
 species = 'spinless fermion'    # Type of particle
-delta = 0.0                     # Nearest-neighbour interaction strength
+delta = 0.1                     # Nearest-neighbour interaction strength
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
-dis = [3.0]                    
+dis = [8.0]                    
 # List of disorder strengths
 lmax = 15                       # Flow time max
 qmax = 1000                     # Max number of flow time steps
@@ -75,13 +75,13 @@ precision = np.float32          # Precision with which to store running Hamilton
                                 # Default throughout is single precision (np.float32)
                                 # Using np.float16 will half the memory cost, at loss of precision
                                 # Only affects the backwards transform, not the forward transform
-method = 'tensordot'                  # Method for computing tensor contractions
+method = 'tensordot'            # Method for computing tensor contractions
                                 # Options are 'einsum', 'tensordot','jit' or 'vec'
                                 # In general 'tensordot' is fastest for small systems, 'jit' for large systems
                                 # (Note that 'jit' requires compilation on the first run, increasing run time.)
 print('Norm = %s' %norm)
 intr = True                     # Turn on/off interactions
-dyn = True                      # Run the dynamics
+dyn = False                     # Run the dynamics
 imbalance = True                # Sets whether to compute global imbalance or single-site dynamics
 LIOM = 'bck'                    # Compute LIOMs with forward ('fwd') or backward ('bck') flow
                                 # Forward uses less memory by a factor of qmax, and transforms a local operator
@@ -137,7 +137,10 @@ if __name__ == '__main__':
             if species == 'spinless fermion':
                 ham.build(n,dim,d,J,dis_type,delta=delta)
             elif species == 'spinful fermion':
-                ham.build(n,dim,d,J,dis_type,delta_onsite=delta,delta_up=delta,delta_down=delta,dsymm='spin')
+                print('** NOTE **: Using different disorder strenths for up and down fermions.')
+                list1 = np.random.uniform(-d,d,n)
+                list2 = np.random.uniform(-d/10,d/10,n)
+                ham.build(n,dim,d,J,dis_type,delta_onsite=delta,delta_up=delta,delta_down=0.,dsymm=[list1,list2])
             
             # Initialise the number operator on the central lattice site
             num = np.zeros((n,n))
@@ -161,17 +164,22 @@ if __name__ == '__main__':
             print('Time after flow finishes: ',datetime.now()-startTime)
             # print(np.sort(np.diag(flow["H0_diag"])))
 
+            if species == 'spinless fermion':
+                ncut = 12
+            elif species == 'spinful fermion':
+                ncut = 6
+
             # Diagonalise with ED
-            if n <= 12 and dyn == True:
+            if n <= ncut and dyn == True:
                 ed=ED(n,ham,tlist,dyn,imbalance)
                 ed_dyn=ed[1]
-            elif n <= 12 and dyn == False:
+            elif n <= ncut and dyn == False:
                 ed=ED(n,ham,np.ones(2),dyn,imbalance)
             else:
                 ed = np.zeros(n)
             print('Time after ED: ',datetime.now()-startTime)
 
-            if intr == False or n <= 12:
+            if intr == False or n <= ncut:
                 if species == 'spinless fermion':
                     flevels = diag.flow_levels(n,flow,intr)
                 elif species == 'spinful fermion':
@@ -184,7 +192,12 @@ if __name__ == '__main__':
                 flevels=np.zeros(n)
                 ed=np.zeros(n)
 
-            if intr == False or n <= 12:
+            # plt.plot(flevels)
+            # plt.plot(ed,'--')
+            # plt.show()
+            # plt.close()
+
+            if intr == False or n <= ncut:
                 lsr = diag.level_stat(flevels)
                 lsr2 = diag.level_stat(ed)
 

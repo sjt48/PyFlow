@@ -40,12 +40,14 @@ def Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dim=1):
 
     np.random.seed()
     print('Choice of potential = %s' %dis_type)
-    print(pwrhop,dim)
 
     #-----------------------------------------------------------------
     # Non-interacting matrices
     H0 = np.zeros((n,n),dtype=np.float32)
-    if dis_type == 'random':
+
+    if isinstance(d,float) == False:
+        H0 = np.diag(d)
+    elif dis_type == 'random':
         for i in range(n):
             # Initialise Hamiltonian with random on-site terms
             H0[i,i] = np.random.uniform(-d,d)
@@ -178,21 +180,30 @@ def Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dim=1):
     return H0+V0
 
 def H2_spin_init(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dsymm='charge'):
-    H2_spin_up = Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False)
 
-    if dsymm == 'charge':
-        H2_spin_down = H2_spin_up
-    elif dsymm == 'spin':
-        H2_spin_down = H2_spin_up
-        for i in range(len(H2_spin_down)):
-            H2_spin_down[i,i] = -H2_spin_up[i,i]
-    elif dsymm == 'random':
+    print('str',isinstance(dsymm,str))
+    if isinstance(dsymm,str) == False:
+        hlist_up = dsymm[0]
+        hlist_down = dsymm[1]
+        print('hup',hlist_up)
+        print('hdn',hlist_down)
+        H2_spin_up = Hinit(n,hlist_up,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False)
+        H2_spin_down = Hinit(n,hlist_down,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False)
+    else:
         H2_spin_up = Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False)
+        if dsymm == 'charge':
+            H2_spin_down = H2_spin_up
+        elif dsymm == 'spin':
+            H2_spin_down = H2_spin_up
+            for i in range(len(H2_spin_down)):
+                H2_spin_down[i,i] = -H2_spin_up[i,i]
+        elif dsymm == 'random':
+            H2_spin_down = Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False)
 
     return H2_spin_up,H2_spin_down
     
 
-def Hint_init(n,delta,pwrint=False,beta=0,dim=1):
+def Hint_init(n,delta,pwrint=False,beta=0,dim=1,U=0):
     # Interaction tensors
     Hint = np.zeros((n,n,n,n),dtype=np.float32)
 
@@ -207,6 +218,7 @@ def Hint_init(n,delta,pwrint=False,beta=0,dim=1):
         Dmat += Dmat.T
         Dmat *= 0.5
     for i in range(n):
+        Hint[i,i,i,i] = U
         for j in range(i,n):
             if pwrint == False and dim == 1:
                 if abs(i-j)==1:
@@ -288,7 +300,7 @@ class hamiltonian:
         self.pwrhop = pwrhop
         self.pwrint = pwrint
 
-    def build(self,n,dim,d,J,dis_type,delta=0,delta_up=0,delta_down=0,delta_mixed=0,delta_onsite=0,alpha=0,beta=0,dsymm='charge'):
+    def build(self,n,dim,d,J,dis_type,delta=0,delta_up=0,delta_down=0,delta_mixed=0,delta_onsite=0,alpha=0,beta=0,U=0,dsymm='charge'):
         self.n = n
         self.dim = dim
 
@@ -311,7 +323,7 @@ class hamiltonian:
             self.d = d
             self.J = J
             self.dsymm = dsymm
-            H2up,H2dn = H2_spin_init(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dsymm='charge')
+            H2up,H2dn = H2_spin_init(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dsymm=dsymm)
             self.H2_spinup = H2up
             self.H2_spindown = H2dn
             if self.intr == True:
@@ -328,6 +340,10 @@ class hamiltonian:
         elif self.species == 'boson':
             self.d = d
             self.J = J
+            self.U = U
+            self.boson = Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dim=dim)
+            if self.intr == True:
+                self.H4_boson = Hint_init(n,0,pwrint=False,beta=0,dim=dim,U=U)
         elif self.species =='hard core boson':
             self.d  = d
 
