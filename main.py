@@ -57,7 +57,7 @@ mpl.rcParams['mathtext.rm'] = 'serif'
 L = int(sys.argv[1])            # Linear system size
 dim = 1                         # Spatial dimension
 n = L**dim                      # Total number of sites
-species = 'spinless fermion'    # Type of particle
+species = 'spinful fermion'     # Type of particle
 delta = 0.1                     # Nearest-neighbour interaction strength
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
@@ -226,32 +226,36 @@ if __name__ == '__main__':
             with h5py.File('%s/tflow-d%.2f-x%.2f-Jz%.2f-p%s.h5' %(nvar,d,x,delta,p),'w') as hf:
                 hf.create_dataset('params',data=str(params))
 
+                # if species == 'spinless fermion':
+                hf.create_dataset('H2_diag',data=flow["H0_diag"])
                 if species == 'spinless fermion':
-                    hf.create_dataset('H2_diag',data=flow["H0_diag"])
                     hf.create_dataset('H2_initial',data=ham.H2_spinless)
+                elif species == 'spinless fermion':
+                    hf.create_dataset('H2_up',data=ham.H2_spinup)
+                    hf.create_dataset('H2_dn',data=ham.H2_spindown)
 
+                if n <= 12:
+                    hf.create_dataset('flevels', data = flevels,compression='gzip', compression_opts=9)
+                    hf.create_dataset('ed', data = ed, compression='gzip', compression_opts=9)
+                    hf.create_dataset('lsr', data = [lsr,lsr2])
+                    hf.create_dataset('err',data = errlist)
+                    if store_flow == True:
+                        hf.create_dataset('flow',data=flow["flow"])
+                        hf.create_dataset('dl_list',data=flow["dl_list"])
+                if intr == True:
+                        hf.create_dataset('lbits', data = flow["LIOM Interactions"])
+                        hf.create_dataset('Hint', data = flow["Hint"], compression='gzip', compression_opts=9)
+                        hf.create_dataset('liom', data = flow["LIOM"], compression='gzip', compression_opts=9)
+                        hf.create_dataset('inv',data=flow["Invariant"])
+                if dyn == True:
+                    hf.create_dataset('tlist', data = tlist)
+                    if imbalance == True:
+                        hf.create_dataset('imbalance',data=flow["Imbalance"])
+                    else:
+                        hf.create_dataset('flow_dyn', data = flow["Density Dynamics"])
                     if n <= 12:
-                        hf.create_dataset('flevels', data = flevels,compression='gzip', compression_opts=9)
-                        hf.create_dataset('ed', data = ed, compression='gzip', compression_opts=9)
-                        hf.create_dataset('lsr', data = [lsr,lsr2])
-                        hf.create_dataset('err',data = errlist)
-                        if store_flow == True:
-                            hf.create_dataset('flow',data=flow["flow"])
-                            hf.create_dataset('dl_list',data=flow["dl_list"])
-                    if intr == True:
-                            hf.create_dataset('lbits', data = flow["LIOM Interactions"])
-                            hf.create_dataset('Hint', data = flow["Hint"], compression='gzip', compression_opts=9)
-                            hf.create_dataset('liom', data = flow["LIOM"], compression='gzip', compression_opts=9)
-                            hf.create_dataset('inv',data=flow["Invariant"])
-                    if dyn == True:
-                        hf.create_dataset('tlist', data = tlist)
-                        if imbalance == True:
-                            hf.create_dataset('imbalance',data=flow["Imbalance"])
-                        else:
-                            hf.create_dataset('flow_dyn', data = flow["Density Dynamics"])
-                        if n <= 12:
-                            hf.create_dataset('ed_dyn', data = ed_dyn)
-                                
+                        hf.create_dataset('ed_dyn', data = ed_dyn)
+                            
         gc.collect()
         print('****************')
         print('Time taken for one run:',datetime.now()-startTime)

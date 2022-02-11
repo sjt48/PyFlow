@@ -97,7 +97,7 @@ def CUT(params,hamiltonian,num,num_int):
 
     elif hamiltonian.species == 'spinful fermion':
 
-        flow = flow_static_int_spin(n,hamiltonian,dl,qmax,cutoff,method=method)
+        flow = flow_static_int_spin(n,hamiltonian,dl,qmax,cutoff,method=method,store_flow=store_flow)
 
         return flow
 
@@ -1285,7 +1285,7 @@ def flow_static_int_fwd(n,hamiltonian,dl_list,qmax,cutoff,method='jit',precision
 
     return output
 
-def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit'):
+def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_flow=False):
       
         H0_up,H0_down,Hint_up,Hint_down,Hint_updown = hamiltonian.H2_spinup,hamiltonian.H2_spindown,hamiltonian.H4_spinup,hamiltonian.H4_spindown,hamiltonian.H4_mixed
 
@@ -1385,6 +1385,9 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit'):
 
         output = {"H0_diag":[H0_diag_up,H0_diag_down],"Hint":[Hint_up,Hint_down,Hint_updown],
                     "LIOM":liom,"LIOM Interactions":[lbits_up,lbits_down,lbits_updown],"Invariant":0}
+        if store_flow == True:
+            output["flow"] = sol_int
+            output["dl_list"] = dl_list
 
         return output
     
