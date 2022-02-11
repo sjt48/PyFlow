@@ -57,14 +57,14 @@ mpl.rcParams['mathtext.rm'] = 'serif'
 L = int(sys.argv[1])            # Linear system size
 dim = 1                         # Spatial dimension
 n = L**dim                      # Total number of sites
-species = 'spinful fermion'     # Type of particle
+species = 'spinless fermion'    # Type of particle
 delta = 0.1                     # Nearest-neighbour interaction strength
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
-dis = [8.0]                    
+dis = [0.4+0.1*i for i in range(12)]                    
 # List of disorder strengths
-lmax = 15                       # Flow time max
-qmax = 1000                     # Max number of flow time steps
+lmax = 500                      # Flow time max
+qmax = 500                     # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
 norm = False                    # Normal-ordering, can be true or false
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
@@ -97,6 +97,7 @@ if intr == False:               # Zero the interactions if set to False (for ED 
 if dis_type != 'curved':
     x = 0.0
 if n > 12 or qmax > 2000:
+    print('SETTING store_flow = False DUE TO TOO MANY VARIABLES AND/OR FLOW TIME STEPS')
     store_flow = False
 
 # Define list of timesteps for non-equilibrium dynamics
