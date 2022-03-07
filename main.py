@@ -40,7 +40,9 @@ import numpy as np
 from datetime import datetime
 import h5py,gc
 import core.diag as diag
-import core.init as init
+# import core.init as init
+import core.models as models
+import core.utility as utility
 from ED.ed import ED
 
 import matplotlib.pyplot as plt
@@ -57,16 +59,16 @@ mpl.rcParams['mathtext.rm'] = 'serif'
 L = int(sys.argv[1])            # Linear system size
 dim = 1                         # Spatial dimension
 n = L**dim                      # Total number of sites
-species = 'spinless fermion'    # Type of particle
+species = 'spinless fermion'     # Type of particle
 delta = 0.1                     # Nearest-neighbour interaction strength
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
-dis = [2.0]                    
+dis = [1.0,5.0,10.0]                    
 # List of disorder strengths
-lmax = 500                      # Flow time max
+lmax = 100                      # Flow time max
 qmax = 500                      # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
-norm = False                    # Normal-ordering, can be true or false
+norm = False                     # Normal-ordering, can be true or false
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
                                 # Storing H(l) allows SciPy ODE integration to add extra flow time steps
                                 # Storing eta(l) reduces number of tensor contractions, at cost of accuracy
@@ -110,16 +112,16 @@ params = {"n":n,"delta":delta,"J":J,"cutoff":cutoff,"dis":dis,"lmax":lmax,"qmax"
                 "LIOM":LIOM, "dyn_MF":dyn_MF,"logflow":logflow,"dis_type":dis_type,"x":x,"tlist":tlist,"store_flow":store_flow}
 
 # Make directory to store data
-nvar = init.namevar(dis_type,dyn,norm,n,LIOM,species)
+nvar = utility.namevar(dis_type,dyn,norm,n,LIOM,species)
 
 if Hflow == False:
     print('*** Warning: Setting Hflow=False requires small flow time steps in order for backwards transform to be accurate. ***')
 if intr == False and norm == True:
     print('Normal ordering is only for interacting systems.')
     norm = False
-if species == 'spinful fermion' and norm == True:
-    print('Normal ordering not implemented for spinful fermions.')
-    norm = False
+# if species == 'spinful fermion' and norm == True:
+#     print('Normal ordering not implemented for spinful fermions.')
+#     norm = False
 #==============================================================================
 # Run program
 #==============================================================================
@@ -130,18 +132,20 @@ if __name__ == '__main__':
     print('Start time: ', startTime)
 
     for p in range(reps):
+        lbit_list = np.zeros((reps,len(dis),n-1))
+        dcount = 0
         for d in dis:
             
             #-----------------------------------------------------------------
             # Initialise Hamiltonian
-            ham = init.hamiltonian(species,dis_type,intr=intr)
+            ham = models.hamiltonian(species,dis_type,intr=intr)
             if species == 'spinless fermion':
                 ham.build(n,dim,d,J,dis_type,delta=delta)
             elif species == 'spinful fermion':
-                print('** NOTE **: Using different disorder strenths for up and down fermions.')
-                list1 = np.random.uniform(-d,d,n)
-                list2 = np.random.uniform(-d/10,d/10,n)
-                ham.build(n,dim,d,J,dis_type,delta_onsite=delta,delta_up=delta,delta_down=0.,dsymm=[list1,list2])
+                # print('** NOTE **: Using different disorder strengths for up and down fermions.')
+                # list1 = np.random.uniform(-d,d,n)
+                # list2 = np.random.uniform(-d/10,d/10,n)
+                ham.build(n,dim,d,J,dis_type,delta_onsite=delta,delta_up=0.,delta_down=0.,dsymm='charge')
             
             # Initialise the number operator on the central lattice site
             num = np.zeros((n,n))
@@ -222,6 +226,9 @@ if __name__ == '__main__':
                 plt.show()
                 plt.close()
 
+            lbit_list[p,dcount] = (flow["LIOM Interactions"])[-1]
+            dcount += 1
+
             #==============================================================
             # Export data   
             with h5py.File('%s/tflow-d%.2f-x%.2f-Jz%.2f-p%s.h5' %(nvar,d,x,delta,p),'w') as hf:
@@ -235,7 +242,7 @@ if __name__ == '__main__':
                     hf.create_dataset('H2_up',data=ham.H2_spinup)
                     hf.create_dataset('H2_dn',data=ham.H2_spindown)
 
-                if n <= 12:
+                if n <= ncut:
                     hf.create_dataset('flevels', data = flevels,compression='gzip', compression_opts=9)
                     hf.create_dataset('ed', data = ed, compression='gzip', compression_opts=9)
                     hf.create_dataset('lsr', data = [lsr,lsr2])
@@ -254,10 +261,16 @@ if __name__ == '__main__':
                         hf.create_dataset('imbalance',data=flow["Imbalance"])
                     else:
                         hf.create_dataset('flow_dyn', data = flow["Density Dynamics"])
-                    if n <= 12:
+                    if n <= ncut:
                         hf.create_dataset('ed_dyn', data = ed_dyn)
                             
         gc.collect()
         print('****************')
         print('Time taken for one run:',datetime.now()-startTime)
         print('****************')
+
+    lbits = np.mean(lbit_list,axis=0)
+    for i in range(len(dis)):
+        plt.plot(lbits[i])
+    plt.show()
+    plt.close()
