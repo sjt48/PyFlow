@@ -40,7 +40,8 @@ import numpy as np
 from datetime import datetime
 import h5py,gc
 import core.diag as diag
-import models.models as models
+# import core.init as init
+import core.models as models
 import core.utility as utility
 from ED.ed import ED
 
@@ -62,12 +63,12 @@ species = 'spinful fermion'     # Type of particle
 delta = 0.1                     # Nearest-neighbour interaction strength
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
-dis = [5.0]                    
+dis = [1.0,5.0,10.0]                    
 # List of disorder strengths
 lmax = 100                      # Flow time max
-qmax = 500                      # Max number of flow time steps
-reps = 1                        # Number of disorder realisations
-norm = False                     # Normal-ordering, can be true or false
+qmax = 250                      # Max number of flow time steps
+reps = 1                      # Number of disorder realisations
+norm = True                   # Normal-ordering, can be true or false
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
                                 # Storing H(l) allows SciPy ODE integration to add extra flow time steps
                                 # Storing eta(l) reduces number of tensor contractions, at cost of accuracy
@@ -268,8 +269,8 @@ if __name__ == '__main__':
         print('Time taken for one run:',datetime.now()-startTime)
         print('****************')
 
-    # lbits = np.mean(lbit_list,axis=0)
-    # for i in range(len(dis)):
-    #     plt.plot(lbits[i])
-    # plt.show()
-    # plt.close()
+    lbits = np.mean(lbit_list,axis=0)
+    for i in range(len(dis)):
+        plt.plot(lbits[i])
+    plt.show()
+    plt.close()

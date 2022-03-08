@@ -65,7 +65,7 @@ def contract(A,B,method='jit',comp=False,eta=False,pair=None):
     return con
 
 # Normal-ordering contraction function
-def contractNO(A,B,method='jit',comp=False,eta=False,state=[],pair=None):
+def contractNO(A,B,method='jit',comp=False,eta=False,state=[],upstate=[],downstate=[],pair=None):
     """ General normal-ordering function: gets shape and calls appropriate contraction function. """
 
     # print(A.ndim,B.ndim,pair)
@@ -86,6 +86,8 @@ def contractNO(A,B,method='jit',comp=False,eta=False,state=[],pair=None):
         con = -1*con_jit44_NO_up_mixed(A,B,state=state)
     elif A.ndim == B.ndim == 4 and pair=='mixed-down':
         con = -1*con_jit44_NO_down_mixed(A,B,state=state)
+    elif A.ndim == B.ndim == 4 and pair=='mixed':
+        con = con_jit44_NO_mixed(A,B,upstate=upstate,downstate=downstate)
 
     elif A.ndim != B.ndim:
         if A.ndim == 4:
@@ -647,6 +649,29 @@ def con_jit44_NO_mixed_mixed_up(A,B,state):
                                     # C[i,j,k,q] += A[l,m,i,j]*(B[m,l,k,q]+B[k,q,m,l]-B[m,q,k,l]+B[k,l,m,q])*(state[l]-state[m]) #+
                                     # C[i,j,k,q] += -A[l,j,i,m]*(B[m,l,k,q]+B[k,l,m,q]-B[m,q,k,l]+B[k,q,m,l])*(state[l]-state[m]) #-
                                     # C[i,j,k,q] += A[i,l,m,j]*(B[k,m,l,q]+B[k,q,l,m]+B[l,m,k,q]-B[l,q,k,m])*(state[l]-state[m]) #-
+
+                                
+    return C
+
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
+def con_jit44_NO_mixed(A,B,upstate,downstate):
+    C = np.zeros(A.shape,dtype=np.float64)
+    m,_,_,_=A.shape
+    for i in prange(m):
+        for j in prange(m):
+            for k in prange(m):
+                for q in prange(m):
+                        # Indices to be summed over
+                        for l in prange(m):
+                            for m in prange(m):
+                                # if state[l] != state[m]:
+                                C[i,j,k,q] += A[l,j,k,m]*(B[i,l,m,q])*(upstate[l]-downstate[m]) #+
+                                C[i,j,k,q] += A[i,l,m,q]*B[l,j,k,m]*(-upstate[l]+downstate[m])
+                                    # C[i,j,k,q] += A[l,m,i,j]*(B[m,l,k,q]+B[k,q,m,l]-B[m,q,k,l]+B[k,l,m,q])*(state[l]-state[m]) #+
+                                    # C[i,j,k,q] += -A[l,j,i,m]*(B[m,l,k,q]+B[k,l,m,q]-B[m,q,k,l]+B[k,q,m,l])*(state[l]-state[m]) #-
+                                    # C[i,j,k,q] += A[i,l,m,j]*(B[k,m,l,q]+B[k,q,l,m]+B[l,m,k,q]-B[l,q,k,m])*(state[l]-state[m]) #-
+                                C[i,j,k,q] +=  -A[l,j,m,q]*(B[i,l,k,m])*(upstate[l]+downstate[m]) #--
+                                C[i,j,k,q] +=  A[i,l,k,m]*(B[l,j,m,q])*(upstate[l]+downstate[m]) #--
                                 
     return C
 

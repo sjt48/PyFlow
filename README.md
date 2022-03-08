@@ -4,7 +4,7 @@ Codebase for the ~~Tensor Flow Equation~~ **PyFlow** library, used for computing
 
 # How to run
 
-The only file you need to edit is `main.py`. It takes two command line arguments, the first to specify the system size and the second the disorder potential. For example:
+The only file you need to edit is `main.py`. It takes three command line arguments, the first to specify the system size, the second the disorder potential, and the third the method used for computing the tensor contractions. For example:
 
 ```
 python main.py 4 linear tensordot
@@ -41,6 +41,7 @@ The other files are as follows:
 
 * ~~Update non-equilibrium dynamics code to match syntax used for static functions.~~ (**Done, can be tidied up.**)
 * Write more tests for non-interacting systems.
+* Normal-ordering for Hubbard models can introduce small deviations from Hermitian matrices. Why?
 * For non-interacting systems, compute LIOMs with ED as a comparison/test? 
 * ~~Add long-range couplings from earlier code versions.~~ **Done, to be tested thoroughly.**
 * ~~Add 2D and 3D code.~~ **Done, passed tests in 2D.**
@@ -59,3 +60,4 @@ The other files are as follows:
 * Add old version of writing differential equations explicitly? Useful for systems not easily encoded as tensors.
 * Add momentum space flow, for translationally invariant systems or systems deep in delocalized phase. (Added, commented out until tested.)
 * Try to add spins? Their commutation relations are not friendly, but there must be some way to automate it.
+* Open quantum systems: Lindblad operators possible by adapting spinful fermion code (2x2 block structure of L).
