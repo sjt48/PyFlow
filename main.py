@@ -65,9 +65,9 @@ cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be con
 dis = [5.0]                    
 # List of disorder strengths
 lmax = 100                      # Flow time max
-qmax = 500                      # Max number of flow time steps
+qmax = 500                     # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
-norm = False                     # Normal-ordering, can be true or false
+norm = False                      # Normal-ordering, can be true or false
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
                                 # Storing H(l) allows SciPy ODE integration to add extra flow time steps
                                 # Storing eta(l) reduces number of tensor contractions, at cost of accuracy
@@ -196,10 +196,10 @@ if __name__ == '__main__':
                 flevels=np.zeros(n)
                 ed=np.zeros(n)
 
-            # plt.plot(flevels)
-            # plt.plot(ed,'--')
-            # plt.show()
-            # plt.close()
+            plt.plot(flevels)
+            plt.plot(ed,'--')
+            plt.show()
+            plt.close()
 
             if intr == False or n <= ncut:
                 lsr = diag.level_stat(flevels)
@@ -210,7 +210,7 @@ if __name__ == '__main__':
                     if np.round(ed[i],10)!=0.:
                         errlist[i] = np.abs((ed[i]-flevels[i])/ed[i])
 
-                print('***** ERROR *****: ', np.mean(errlist))  
+                print('***** ERROR *****: ', np.median(errlist))  
 
             if dyn == True:
                 plt.plot(tlist,ed_dyn,label=r'ED')

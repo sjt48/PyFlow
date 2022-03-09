@@ -380,8 +380,8 @@ def con24_secondpair(A,B,method='jit',comp=False,eta=False):
 #------------------------------------------------------------------------------
 # jit functions which return a matrix
     
-@jit(float64[:,:](float64[:,:],float64[:,:],float64[:,:]),nopython=True,parallel=True,fastmath=True,cache=True,nogil=True)
-# @jit(nopython=True,parallel=True,fastmath=True,cache=True)
+@jit(float64[:,:](float64[:,:],float64[:,:],float64[:,:]),nopython=True,parallel=True,fastmath=False,cache=True,nogil=True)
+# @jit(nopython=True,parallel=True,fastmath=False,cache=True)
 def con_jit(A,B,C):
     """ Contract two square matrices. Computes upper half only and then symmetrises. """
     
@@ -394,7 +394,7 @@ def con_jit(A,B,C):
 
     return C
 
-@jit(float64[:,:](float64[:,:],float64[:,:],float64[:,:]),nopython=True,parallel=True,fastmath=True,cache=True,nogil=True)
+@jit(float64[:,:](float64[:,:],float64[:,:],float64[:,:]),nopython=True,parallel=True,fastmath=False,cache=True,nogil=True)
 def con_jit_anti(A,B,C):
     """ Contract two square matrices. Computes upper half only and then anti-symmetrises. """
     
@@ -406,7 +406,7 @@ def con_jit_anti(A,B,C):
             C[j,i] = -C[i,j]
     return C
 
-@jit(nopython=True,parallel=True,fastmath=True,cache=True)
+@jit(nopython=True,parallel=True,fastmath=False,cache=True)
 def con_jit_comp(A,B):
     """ Contract two square complex matrices. Computes upper half only and then symmetrises. """
     C = np.zeros(A.shape,dtype=np.complex64)
@@ -419,7 +419,7 @@ def con_jit_comp(A,B):
 
     return C
 
-@jit(nopython=True,parallel=True,fastmath=True,cache=True)
+@jit(nopython=True,parallel=True,fastmath=False,cache=True)
 def con_jit_anti_comp(A,B):
     """ Contract two square complex matrices. Computes upper half only and then anti-symmetrises. """
     C = np.zeros(A.shape,dtype=np.complex64)
@@ -432,7 +432,7 @@ def con_jit_anti_comp(A,B):
 
     return C
 
-@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
+@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
 def con_jit42_NO(A,B,state):
     """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
     C = np.zeros(B.shape,dtype=np.float64)
@@ -449,7 +449,7 @@ def con_jit42_NO(A,B,state):
 
     return C
 
-@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
+@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
 def con_jit42_NO_secondpair(A,B,state):
     """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
     C = np.zeros(B.shape,dtype=np.float64)
@@ -467,7 +467,7 @@ def con_jit42_NO_secondpair(A,B,state):
 
     return C
 
-@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
+@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
 def con_jit42_NO_firstpair(A,B,state):
     """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
     C = np.zeros(B.shape,dtype=np.float64)
@@ -485,7 +485,7 @@ def con_jit42_NO_firstpair(A,B,state):
                         # C[i,j] += A[i,q,k,j]*B[q,k]*(state[k]-state[q])
     return C
 
-@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
+@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
 def con_jit42_comp_NO(A,B,state):
     """ 2-point contractions of a (complex) rank-4 tensor with a (complex) square matrix. Computes upper half only and then symmetrises. """
     C = np.zeros(B.shape,dtype=np.float64)
@@ -507,7 +507,7 @@ def con_jit42_comp_NO(A,B,state):
 #------------------------------------------------------------------------------
 # jit functions which return a rank-4 tensor
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:]),nopython=True,parallel=True,fastmath=True,cache=True,nogil=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:]),nopython=True,parallel=True,fastmath=False,cache=True,nogil=True)
 def con_jit42(A,B):
     C = np.zeros(A.shape,dtype=np.float64)
     m,_,_,_=A.shape
@@ -524,7 +524,7 @@ def con_jit42(A,B):
 
     return C
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:]),nopython=True,parallel=True,fastmath=True,cache=True,nogil=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:]),nopython=True,parallel=True,fastmath=False,cache=True,nogil=True)
 def con_jit42_firstpair(A,B):
     C = np.zeros(A.shape,dtype=np.float64)
     m,_,_,_=A.shape
@@ -541,7 +541,7 @@ def con_jit42_firstpair(A,B):
 
     return C
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:]),nopython=True,parallel=True,fastmath=True,cache=True,nogil=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:]),nopython=True,parallel=True,fastmath=False,cache=True,nogil=True)
 def con_jit42_secondpair(A,B):
     C = np.zeros(A.shape,dtype=np.float64)
     m,_,_,_=A.shape
@@ -558,7 +558,7 @@ def con_jit42_secondpair(A,B):
 
     return C
 
-@jit(nopython=True,parallel=True,fastmath=True,cache=True)
+@jit(nopython=True,parallel=True,fastmath=False,cache=True)
 def con_jit42_comp(A,B):
     C = np.zeros(A.shape,dtype=np.complex64)
     m,_,_,_=A.shape
@@ -574,17 +574,17 @@ def con_jit42_comp(A,B):
 
     return C
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
 def con_jit44_NO(A,B,state):
     C = np.zeros(A.shape,dtype=np.float64)
-    m,_,_,_=A.shape
-    for i in prange(m):
-        for j in prange(m):
-            for k in prange(m):
-                for q in prange(m):
+    m0,_,_,_=A.shape
+    for i in prange(m0):
+        for j in range(m0):
+            for k in range(m0):
+                for q in range(m0):
                         # Indices to be summed over
-                        for l in prange(m):
-                            for m in prange(m):
+                        for l in range(m0):
+                            for m in range(m0):
                                 if state[l] != state[m]:
                                     C[i,j,k,q] += A[i,j,l,m]*(B[m,l,k,q]+B[k,q,m,l]-B[m,q,k,l]+B[k,l,m,q])*(state[l]-state[m]) #+
                                     C[i,j,k,q] += A[l,m,i,j]*(B[m,l,k,q]+B[k,q,m,l]-B[m,q,k,l]+B[k,l,m,q])*(state[l]-state[m]) #+
@@ -595,17 +595,17 @@ def con_jit44_NO(A,B,state):
                                 
     return C
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
 def con_jit44_NO_up_mixed(A,B,state):
     C = np.zeros(A.shape,dtype=np.float64)
-    m,_,_,_=A.shape
-    for i in prange(m):
-        for j in prange(m):
-            for k in prange(m):
-                for q in prange(m):
+    m0,_,_,_=A.shape
+    for i in prange(m0):
+        for j in range(m0):
+            for k in range(m0):
+                for q in range(m0):
                         # Indices to be summed over
-                        for l in prange(m):
-                            for m in prange(m):
+                        for l in range(m0):
+                            for m in range(m0):
                                 if state[l] != state[m]:
                                     C[i,j,k,q] += A[i,j,l,m]*(B[m,l,k,q])*(state[l]-state[m]) #+
                                     C[i,j,k,q] += A[l,m,i,j]*(B[m,l,k,q])*(state[l]-state[m]) #+
@@ -614,17 +614,17 @@ def con_jit44_NO_up_mixed(A,B,state):
 
     return C
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
 def con_jit44_NO_down_mixed(A,B,state):
     C = np.zeros(A.shape,dtype=np.float64)
-    m,_,_,_=A.shape
-    for i in prange(m):
-        for j in prange(m):
-            for k in prange(m):
-                for q in prange(m):
+    m0,_,_,_=A.shape
+    for i in prange(m0):
+        for j in range(m0):
+            for k in range(m0):
+                for q in range(m0):
                         # Indices to be summed over
-                        for l in prange(m):
-                            for m in prange(m):
+                        for l in range(m0):
+                            for m in range(m0):
                                 if state[l] != state[m]:
                                     C[i,j,k,q] += A[i,j,l,m]*(B[k,q,m,l])*(state[l]-state[m]) #+
                                     C[i,j,k,q] += A[l,m,i,j]*(B[k,q,m,l])*(state[l]-state[m]) #+
@@ -633,37 +633,40 @@ def con_jit44_NO_down_mixed(A,B,state):
                                 
     return C
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
 def con_jit44_NO_mixed_mixed_up(A,B,state):
     C = np.zeros(A.shape,dtype=np.float64)
-    m,_,_,_=A.shape
-    for i in prange(m):
-        for j in prange(m):
-            for k in prange(m):
-                for q in prange(m):
+    m0,_,_,_=A.shape
+    for i in range(m0):
+        for j in range(m0):
+            for k in range(m0):
+                for q in range(m0):
+                        # print(i,j,k,q)
                         # Indices to be summed over
-                        for l in prange(m):
-                            for m in prange(m):
+                        for l in range(m0):
+                            for m in range(m0):
                                 if state[l] != state[m]:
                                     C[i,j,k,q] += A[i,j,l,m]*(B[k,q,m,l])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += A[q,k,l,m]*(B[j,i,m,l])*(state[l]-state[m])
                                     # C[i,j,k,q] += A[l,m,i,j]*(B[m,l,k,q]+B[k,q,m,l]-B[m,q,k,l]+B[k,l,m,q])*(state[l]-state[m]) #+
                                     # C[i,j,k,q] += -A[l,j,i,m]*(B[m,l,k,q]+B[k,l,m,q]-B[m,q,k,l]+B[k,q,m,l])*(state[l]-state[m]) #-
                                     # C[i,j,k,q] += A[i,l,m,j]*(B[k,m,l,q]+B[k,q,l,m]+B[l,m,k,q]-B[l,q,k,m])*(state[l]-state[m]) #-
 
-                                
-    return C
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
+    # print(C[1,1,2,2],C[2,2,1,1])                 
+    return 0.5*C
+
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
 def con_jit44_NO_mixed(A,B,upstate,downstate):
     C = np.zeros(A.shape,dtype=np.float64)
-    m,_,_,_=A.shape
-    for i in prange(m):
-        for j in prange(m):
-            for k in prange(m):
-                for q in prange(m):
+    m0,_,_,_=A.shape
+    for i in prange(m0):
+        for j in range(m0):
+            for k in range(m0):
+                for q in range(m0):
                         # Indices to be summed over
-                        for l in prange(m):
-                            for m in prange(m):
+                        for l in range(m0):
+                            for m in range(m0):
                                 # if state[l] != state[m]:
                                 C[i,j,k,q] += A[l,j,k,m]*(B[i,l,m,q])*(upstate[l]-downstate[m]) #+
                                 C[i,j,k,q] += A[i,l,m,q]*B[l,j,k,m]*(-upstate[l]+downstate[m])
@@ -675,36 +678,37 @@ def con_jit44_NO_mixed(A,B,upstate,downstate):
                                 
     return C
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
 def con_jit44_NO_mixed_mixed_down(A,B,state):
     C = np.zeros(A.shape,dtype=np.float64)
-    m,_,_,_=A.shape
-    for i in prange(m):
-        for j in prange(m):
-            for k in prange(m):
-                for q in prange(m):
+    m0,_,_,_=A.shape
+    for i in range(m0):
+        for j in range(m0):
+            for k in range(m0):
+                for q in range(m0):
                         # Indices to be summed over
-                        for l in prange(m):
-                            for m in prange(m):
+                        for l in range(m0):
+                            for m in range(m0):
                                 if state[l] != state[m]:
                                     # C[i,j,k,q] += A[i,j,l,m]*(B[m,l,k,q]+B[k,q,m,l]-B[m,q,k,l]+B[k,l,m,q])*(state[l]-state[m]) #+
                                     C[i,j,k,q] += A[l,m,i,j]*(B[m,l,k,q])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += A[l,m,q,k]*(B[m,l,j,i])*(state[l]-state[m])
                                     # C[i,j,k,q] += -A[l,j,i,m]*(B[m,l,k,q]+B[k,l,m,q]-B[m,q,k,l]+B[k,q,m,l])*(state[l]-state[m]) #-
                                     # C[i,j,k,q] += A[i,l,m,j]*(B[k,m,l,q]+B[k,q,l,m]+B[l,m,k,q]-B[l,q,k,m])*(state[l]-state[m]) #-
                                 
-    return C
+    return 0.5*C
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
 def con_jit44_anti_NO(A,B,state):
     C = np.zeros(A.shape,dtype=np.float64)
-    m,_,_,_=A.shape
-    for i in prange(m):
-        for j in prange(m):
-            for k in prange(m):
-                for q in prange(m):
+    m0,_,_,_=A.shape
+    for i in range(m0):
+        for j in range(m0):
+            for k in range(m0):
+                for q in range(m0):
                     # Indices to be summed over
-                    for l in prange(m):
-                        for m in prange(m):
+                    for l in range(m0):
+                        for m in range(m0):
                             if state[l] != state[m]:
                                 C[i,j,k,q] += A[i,j,l,m]*(B[m,l,k,q]+B[k,q,m,l]-B[m,q,k,l]+B[k,l,m,q])*(state[l]-state[m]) #+
                                 C[i,j,k,q] += A[l,m,i,j]*(B[m,l,k,q]+B[k,q,m,l]-B[m,q,k,l]+B[k,l,m,q])*(state[l]-state[m]) #+

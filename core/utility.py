@@ -80,7 +80,7 @@ def nstate(n,a):
     elif a == 'random':
         state0 = np.random.choice([0.,1.0],n)
     elif a == 'random_half':
-        state0 = np.array([1. for i in range(n/2)]+[0.0 for i in range(n/2)])
+        state0 = np.array([1. for i in range(n//2)]+[0.0 for i in range(n//2)])
         np.random.shuffle(state0)
     else:
         state0 = np.array([a for i in range(n)])

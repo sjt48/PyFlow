@@ -234,6 +234,7 @@ def Hint_init(n,delta,pwrint=False,beta=0,dim=1,U=0):
                     # Use an interaction strength that decays uniformly like a power-law with distance
                     Hint[i,i,j,j] = 0.5*delta*k**(-beta)
             Hint[j,j,i,i] = Hint[i,i,j,j]
+
     
     # Initialise off-diagonal quartic tensor (empty)
     Vint = np.zeros((n,n,n,n),dtype=np.float32)
@@ -260,8 +261,8 @@ def H4_spin_init(n,delta_up=0,delta_down=0,delta_updown=0,delta_onsite=0,delta_m
                 Hint_up[i,i,j,j] = 0.5*delta_up
                 Hint_down[i,i,j,j] = 0.5*delta_down
                 Hint_updown[i,i,j,j] = 0.5*delta_updown
-        Hint_updown [i,i,i,i] = delta_onsite #*np.random.uniform(0,1)
-    
+        Hint_updown [i,i,i,i] = delta_onsite
+
     # Initialise off-diagonal quartic tensor (empty)
     # Vint_up = np.zeros((n,n,n,n),dtype=np.float32)
     # Vint_down = np.zeros((n,n,n,n),dtype=np.float32)

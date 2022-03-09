@@ -299,7 +299,7 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
         Vint = Hint-Hint0
 
         if norm == True:
-            state=nstate(n,0.5)
+            state=nstate(n,'CDW')
 
             ## The below is an attempt at scale-dependent normal-ordering: not yet working reliably.
             # _,V1 = np.linalg.eigh(H)
@@ -434,7 +434,7 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         
         upstate=nstate(n,'CDW')
         downstate=np.array([np.abs(1-i) for i in upstate])
-        # downstate = upstate
+        downstate = upstate
 
         # Compute all relevant generators
         eta0up = contract(H0up,V0up,method=method,eta=True)
@@ -445,23 +445,29 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         eta_int_updown += contract(Hint0updown,V0up,method=method,eta=True,pair='first') + contract(Hint0updown,V0down,method=method,eta=True,pair='second')
    
         if norm == True:
-            # eta0up += contractNO2(Hint0up,V0up,method=method,eta=True,state=upstate)
-            # eta0up += contractNO2(H0up,Vintup,method=method,eta=True,state=upstate)
-            # eta0down += contractNO2(Hint0down,V0down,method=method,eta=True,state=downstate)
-            # eta0down += contractNO2(H0down,Vintdown,method=method,eta=True,state=downstate)
-            # eta0up += contractNO2(Hint0updown,V0down,method=method,eta=True,state=downstate,pair='second')
-            # eta0up += contractNO2(H0down,Vintupdown,method=method,eta=True,state=downstate,pair='second')
-            # eta0down += contractNO2(Hint0updown,V0up,method=method,eta=True,state=upstate,pair='first')
-            # eta0down += contractNO2(H0up,Vintupdown,method=method,eta=True,state=upstate,pair='first')
+        #     # eta0up += contractNO(Hint0up,V0up,method=method,eta=True,state=upstate)
+        #     # eta0up += contractNO(H0up,Vintup,method=method,eta=True,state=upstate)
+        #     # eta0down += contractNO(Hint0down,V0down,method=method,eta=True,state=downstate)
+        #     # eta0down += contractNO(H0down,Vintdown,method=method,eta=True,state=downstate)
+        #     # eta0up += contractNO(Hint0updown,V0down,method=method,eta=True,state=downstate,pair='second')
+        #     # eta0up += contractNO(H0down,Vintupdown,method=method,eta=True,state=downstate,pair='second')
+        #     # eta0down += contractNO(Hint0updown,V0up,method=method,eta=True,state=upstate,pair='first')
+        #     # eta0down += contractNO(H0up,Vintupdown,method=method,eta=True,state=upstate,pair='first')
 
             eta_int_updown += contractNO(Hint0up,Vintupdown,method=method,eta=True,pair='up-mixed',state=upstate)
-            eta_int_up += contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed-mixed-up',state=downstate)
-            eta_int_updown += contractNO(Hint0down,Vintupdown,method=method,eta=True,pair='down-mixed',state=upstate)
-            eta_int_down += contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed-mixed-down',state=upstate)
+            # eta_int_up += contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed-mixed-up',state=downstate)
+            eta_int_updown += contractNO(Hint0down,Vintupdown,method=method,eta=True,pair='down-mixed',state=downstate)
+            # eta_int_down += contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed-mixed-down',state=upstate)
             eta_int_updown += contractNO(Hint0updown,Vintup,method=method,eta=True,pair='mixed-up',state=upstate)
             eta_int_updown += contractNO(Hint0updown,Vintdown,method=method,eta=True,pair='mixed-down',state=downstate)
 
-            eta_int_updown += contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed',upstate=upstate,downstate=downstate)
+            # test = contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed-mixed-up',state=downstate)
+        test = eta_int_updown
+        # print('eta',test[0,1,2,3],test[3,2,1,0])
+            # eta_int_updown += contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed',upstate=upstate,downstate=downstate)
+            # print(contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed',upstate=upstate,downstate=downstate))
+
+            # print(eta_int_updown)
 
         # Then compute the RHS of the flow equations
         sol_up = contract(eta0up,H0up+V0up,method=method)
@@ -472,14 +478,14 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         sol_int_updown += contract(eta_int_updown,H0up+V0up,method=method,pair='first') + contract(eta0up,Hintupdown,method=method,pair='first')
         
         if norm == True:
-            # sol_up += contractNO2(eta_int_up,Hup,method=method,state=upstate)
-            # sol_up += contractNO2(eta0up,Hintup,method=method,state=upstate)
-            # sol_down += contractNO2(eta_int_down,Hdown,method=method,state=downstate)
-            # sol_down += contractNO2(eta0down,Hintdown,method=method,state=downstate)
-            # sol_up += contractNO2(eta_int_updown,Hdown,method=method,state=downstate,pair='second')
-            # sol_up += contractNO2(eta0down,Hintupdown,method=method,state=downstate,pair='second')
-            # sol_down += contractNO2(eta_int_updown,Hup,method=method,state=upstate,pair='first')
-            # sol_down += contractNO2(eta0up,Hintupdown,method=method,state=upstate,pair='first')
+            # sol_up += contractNO(eta_int_up,Hup,method=method,state=upstate)
+            # sol_up += contractNO(eta0up,Hintup,method=method,state=upstate)
+            # sol_down += contractNO(eta_int_down,Hdown,method=method,state=downstate)
+            # sol_down += contractNO(eta0down,Hintdown,method=method,state=downstate)
+            # sol_up += contractNO(eta_int_updown,Hdown,method=method,state=downstate,pair='second')
+            # sol_up += contractNO(eta0down,Hintupdown,method=method,state=downstate,pair='second')
+            # sol_down += contractNO(eta_int_updown,Hup,method=method,state=upstate,pair='first')
+            # sol_down += contractNO(eta0up,Hintupdown,method=method,state=upstate,pair='first')
 
             sol_int_updown += contractNO(eta_int_up,Hintupdown,method=method,pair='up-mixed',state=upstate)
             sol_int_up += contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed-mixed-up',state=downstate)
@@ -488,8 +494,13 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
             sol_int_updown += contractNO(eta_int_updown,Hintup,method=method,pair='mixed-up',state=upstate)
             sol_int_updown += contractNO(eta_int_updown,Hintdown,method=method,pair='mixed-down',state=downstate)
 
-            sol_int_updown += contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed',upstate=upstate,downstate=downstate)
+            test = contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed-mixed-up',state=downstate)
+            # print('Hupdn',Hintupdown[1,1,2,2],Hintupdown[2,2,1,1])
+            # print(test[1,1,2,2],test[2,2,1,1])
 
+            # sol_int_updown += contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed',upstate=upstate,downstate=downstate)
+
+            # print(contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed',upstate=upstate,downstate=downstate))
 
         # Assemble output array
         sol0 = np.zeros(2*n**2+3*n**4)
@@ -544,7 +555,8 @@ def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=True,norm=False):
 
     """
 
-    array=array.astype(np.float32)
+    array=array.astype(np.float64)
+    norm = False
     state=nstate(n,'CDW')
     if Hflow == True:
         # Extract various components of the Hamiltonian from the input array 'y'
@@ -951,7 +963,7 @@ def flow_static(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_flow=True):
 
     return output
     
-@jit(nopython=True,parallel=True,fastmath=True)
+@jit(nopython=True,parallel=True,fastmath=False)
 def proc(mat,cutoff):
     """ Test function to zero all matrix elements below a cutoff. """
     for i in prange(len(mat)):
@@ -1374,6 +1386,11 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
         Hint_down = sol_int[-1,2*n**2+n**4:2*n**2+2*n**4].reshape(n,n,n,n) 
         Hint_updown = sol_int[-1,2*n**2+2*n**4:].reshape(n,n,n,n)  
               
+        print('***')
+        print(Hint_up)
+        print(np.sum(Hint_up.reshape(n**4)))
+        print(np.mean(np.abs(Hint_up.reshape(n**4))))
+        print('***')
         HFint_up = np.zeros(n**2).reshape(n,n)
         HFint_down = np.zeros(n**2).reshape(n,n)
         HFint_updown = np.zeros(n**2).reshape(n,n)
@@ -1382,6 +1399,8 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
                 if i != j:
                     HFint_up[i,j] = Hint_up[i,i,j,j]
                     HFint_up[i,j] += -Hint_up[i,j,j,i]
+
+                    print(i,j,Hint_up[i,i,j,j],Hint_up[j,j,i,i],-Hint_up[i,j,j,i],-Hint_up[j,i,i,j])
                     
                     HFint_down[i,j] = Hint_down[i,i,j,j]
                     HFint_down[i,j] += -Hint_down[i,j,j,i]
@@ -1392,14 +1411,24 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
         print(HFint_down)
         print(HFint_updown)
 
+        charge = HFint_up+HFint_down+HFint_updown
+        spin = HFint_up+HFint_down-HFint_updown
+
         lbits_up = np.zeros(n-1)
         lbits_down = np.zeros(n-1)
         lbits_updown = np.zeros(n-1)
+        lbits_charge = np.zeros(n-1)
+        lbits_spin = np.zeros(n-1)
 
         for q in range(1,n):
+            # print('NOT AVERAGING ALL ij COMBINATIONS, i>j ONLY')
+            # print(q,np.diag(HFint_up,q),np.diag(HFint_up,-q)/2.)
             lbits_up[q-1] = np.median(np.log10(np.abs(np.diag(HFint_up,q)+np.diag(HFint_up,-q))/2.))
             lbits_down[q-1] = np.median(np.log10(np.abs(np.diag(HFint_down,q)+np.diag(HFint_down,-q))/2.))
             lbits_updown[q-1] = np.median(np.log10(np.abs(np.diag(HFint_updown,q)+np.diag(HFint_updown,-q))/2.))
+
+            lbits_charge[q-1] = np.median(np.log10(np.abs(np.diag(charge,q)+np.diag(charge,-q))/2.))
+            lbits_spin[q-1] = np.median(np.log10(np.abs(np.diag(spin,q)+np.diag(spin,-q))/2.))
 
         r_int.set_initial_value(init,dl_list[0])
         init = np.zeros(2*n**2+3*n**4,dtype=np.float64)
@@ -1424,18 +1453,20 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
  
             k0 += 1
 
-        # plt.plot(lbits_up,'r')
-        # plt.plot(lbits_down,'b')
-        # plt.plot(lbits_updown,'k--')
-        # plt.show()
-        # plt.close()
+        plt.plot(lbits_up,'r')
+        plt.plot(lbits_down,'b')
+        plt.plot(lbits_updown,'k--')
+        plt.plot(lbits_charge)
+        plt.plot(lbits_spin)
+        plt.show()
+        plt.close()
 
         print('up',lbits_up)
         print('dn',lbits_down)
         print('mix',lbits_updown)
 
-        liom_up = liom[:n**2]
-        liom_down = liom[n**2:2*n**2]
+        # liom_up = liom[:n**2]
+        # liom_down = liom[n**2:2*n**2]
         # plt.plot(np.abs(liom_up+liom_down))
         # plt.plot(np.abs(liom_up - liom_down),'--')
         # plt.yscale('log')
