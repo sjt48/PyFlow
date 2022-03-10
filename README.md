@@ -1,4 +1,4 @@
-# TensorFlowEquations
+# PyFlow
 
 Codebase for the ~~Tensor Flow Equation~~ **PyFlow** library, used for computing local integrals of motion of a variety of disordered quantum systems and computing their non-equilibrium dynamics. The method is described in https://arxiv.org/abs/2110.02906.
 
@@ -11,6 +11,8 @@ python main.py 4 linear tensordot
 ```
 
 will run the simulation for a system size `L=4` and a linear potential, using NumPy's `tensordot` method. To change other parameters (interaction strength, disorder strength, etc) you will need to edit the file `main.py`. All editable parameters are at the top of the file before the line `# Run Program` - in general, nothing below this line needs to be edited.
+
+In general, `tensordot` is the best method to use for small systems if you don't require normal ordering or other advanced ffeatures. I find `vec` to be faster, particularly when running on a single thread, but as it's explicitly typed it can throw errors if you pass a dtype it's not expecting. For large systems and/or normal-ordering, use `jit`, but beware the compilation overhead on the first call to the contraction functions.
 
 The other files are as follows:
 
