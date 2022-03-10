@@ -434,7 +434,7 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         
         upstate=nstate(n,'CDW')
         downstate=np.array([np.abs(1-i) for i in upstate])
-        downstate = upstate
+        # downstate = upstate
 
         # Compute all relevant generators
         eta0up = contract(H0up,V0up,method=method,eta=True)
@@ -445,24 +445,24 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         eta_int_updown += contract(Hint0updown,V0up,method=method,eta=True,pair='first') + contract(Hint0updown,V0down,method=method,eta=True,pair='second')
    
         if norm == True:
-        #     # eta0up += contractNO(Hint0up,V0up,method=method,eta=True,state=upstate)
-        #     # eta0up += contractNO(H0up,Vintup,method=method,eta=True,state=upstate)
-        #     # eta0down += contractNO(Hint0down,V0down,method=method,eta=True,state=downstate)
-        #     # eta0down += contractNO(H0down,Vintdown,method=method,eta=True,state=downstate)
-        #     # eta0up += contractNO(Hint0updown,V0down,method=method,eta=True,state=downstate,pair='second')
-        #     # eta0up += contractNO(H0down,Vintupdown,method=method,eta=True,state=downstate,pair='second')
-        #     # eta0down += contractNO(Hint0updown,V0up,method=method,eta=True,state=upstate,pair='first')
-        #     # eta0down += contractNO(H0up,Vintupdown,method=method,eta=True,state=upstate,pair='first')
+            eta0up += contractNO(Hint0up,V0up,method=method,eta=True,state=upstate)
+            eta0up += contractNO(H0up,Vintup,method=method,eta=True,state=upstate)
+            eta0down += contractNO(Hint0down,V0down,method=method,eta=True,state=downstate)
+            eta0down += contractNO(H0down,Vintdown,method=method,eta=True,state=downstate)
+            eta0up += contractNO(Hint0updown,V0down,method=method,eta=True,state=downstate,pair='second')
+            eta0up += contractNO(H0down,Vintupdown,method=method,eta=True,state=downstate,pair='second')
+            eta0down += contractNO(Hint0updown,V0up,method=method,eta=True,state=upstate,pair='first')
+            eta0down += contractNO(H0up,Vintupdown,method=method,eta=True,state=upstate,pair='first')
 
             eta_int_updown += contractNO(Hint0up,Vintupdown,method=method,eta=True,pair='up-mixed',state=upstate)
-            # eta_int_up += contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed-mixed-up',state=downstate)
+            eta_int_up += contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed-mixed-up',state=downstate)
             eta_int_updown += contractNO(Hint0down,Vintupdown,method=method,eta=True,pair='down-mixed',state=downstate)
-            # eta_int_down += contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed-mixed-down',state=upstate)
+            eta_int_down += contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed-mixed-down',state=upstate)
             eta_int_updown += contractNO(Hint0updown,Vintup,method=method,eta=True,pair='mixed-up',state=upstate)
             eta_int_updown += contractNO(Hint0updown,Vintdown,method=method,eta=True,pair='mixed-down',state=downstate)
 
             # test = contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed-mixed-up',state=downstate)
-        test = eta_int_updown
+        # test = eta_int_updown
         # print('eta',test[0,1,2,3],test[3,2,1,0])
             # eta_int_updown += contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed',upstate=upstate,downstate=downstate)
             # print(contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed',upstate=upstate,downstate=downstate))
@@ -477,30 +477,30 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         sol_int_updown = contract(eta_int_updown,H0down+V0down,method=method,pair='second') + contract(eta0down,Hintupdown,method=method,pair='second')
         sol_int_updown += contract(eta_int_updown,H0up+V0up,method=method,pair='first') + contract(eta0up,Hintupdown,method=method,pair='first')
         
-        if norm == True:
-            # sol_up += contractNO(eta_int_up,Hup,method=method,state=upstate)
-            # sol_up += contractNO(eta0up,Hintup,method=method,state=upstate)
-            # sol_down += contractNO(eta_int_down,Hdown,method=method,state=downstate)
-            # sol_down += contractNO(eta0down,Hintdown,method=method,state=downstate)
-            # sol_up += contractNO(eta_int_updown,Hdown,method=method,state=downstate,pair='second')
-            # sol_up += contractNO(eta0down,Hintupdown,method=method,state=downstate,pair='second')
-            # sol_down += contractNO(eta_int_updown,Hup,method=method,state=upstate,pair='first')
-            # sol_down += contractNO(eta0up,Hintupdown,method=method,state=upstate,pair='first')
+        # if norm == True:
+        #     sol_up += contractNO(eta_int_up,Hup,method=method,state=upstate)
+        #     sol_up += contractNO(eta0up,Hintup,method=method,state=upstate)
+        #     sol_down += contractNO(eta_int_down,Hdown,method=method,state=downstate)
+        #     sol_down += contractNO(eta0down,Hintdown,method=method,state=downstate)
+        #     sol_up += contractNO(eta_int_updown,Hdown,method=method,state=downstate,pair='second')
+        #     sol_up += contractNO(eta0down,Hintupdown,method=method,state=downstate,pair='second')
+        #     sol_down += contractNO(eta_int_updown,Hup,method=method,state=upstate,pair='first')
+        #     sol_down += contractNO(eta0up,Hintupdown,method=method,state=upstate,pair='first')
 
-            sol_int_updown += contractNO(eta_int_up,Hintupdown,method=method,pair='up-mixed',state=upstate)
-            sol_int_up += contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed-mixed-up',state=downstate)
-            sol_int_updown += contractNO(eta_int_down,Hintupdown,method=method,pair='down-mixed',state=downstate)
-            sol_int_down += contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed-mixed-down',state=upstate)
-            sol_int_updown += contractNO(eta_int_updown,Hintup,method=method,pair='mixed-up',state=upstate)
-            sol_int_updown += contractNO(eta_int_updown,Hintdown,method=method,pair='mixed-down',state=downstate)
+        #     # sol_int_updown += contractNO(eta_int_up,Hintupdown,method=method,pair='up-mixed',state=upstate)
+        #     sol_int_up += contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed-mixed-up',state=downstate)
+        #     # sol_int_updown += contractNO(eta_int_down,Hintupdown,method=method,pair='down-mixed',state=downstate)
+        #     sol_int_down += contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed-mixed-down',state=upstate)
+        #     # sol_int_updown += contractNO(eta_int_updown,Hintup,method=method,pair='mixed-up',state=upstate)
+        #     # sol_int_updown += contractNO(eta_int_updown,Hintdown,method=method,pair='mixed-down',state=downstate)
 
-            test = contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed-mixed-up',state=downstate)
-            # print('Hupdn',Hintupdown[1,1,2,2],Hintupdown[2,2,1,1])
-            # print(test[1,1,2,2],test[2,2,1,1])
+        #     # test = contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed-mixed-up',state=downstate)
+        #     # print('Hupdn',Hintupdown[1,1,2,2],Hintupdown[2,2,1,1])
+        #     # print(test[1,1,2,2],test[2,2,1,1])
 
-            # sol_int_updown += contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed',upstate=upstate,downstate=downstate)
+        #     # sol_int_updown += contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed',upstate=upstate,downstate=downstate)
 
-            # print(contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed',upstate=upstate,downstate=downstate))
+        #     # print(contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed',upstate=upstate,downstate=downstate))
 
         # Assemble output array
         sol0 = np.zeros(2*n**2+3*n**4)
@@ -1407,6 +1407,8 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
                     
                 HFint_updown[i,j] = Hint_updown[i,i,j,j]
 
+        print(H0_diag_up)
+        print(H0_diag_down)
         print(HFint_up)
         print(HFint_down)
         print(HFint_updown)

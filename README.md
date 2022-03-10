@@ -19,7 +19,10 @@ The other files are as follows:
 * `core/diag.py` : main body of the flow equation code, handles integration and computes RHS of differential equations.
 * `core/contract.py` : tensor contraction routines, using several different methods ('einsum', 'tendordot', 'jit', 'vec').
 * `core/init.py` : utility functions, e.g. generating Hamiltonian matrices/tensors and making directory to save data in.
+* `core/utility.py` : various utility functions. **To do: move other helper fns from diag.py to here.**
 * `tests/con_method_test.py` : test to check different contraction methods return same answer, to within numerical precision.
+* `models/models.py` : contains model classes and initialisation functions. **To be cleaned up.**
+* `examples/` : empty folder which will contain example scripts at a later date.
 
 # Required Packages
 
@@ -51,7 +54,7 @@ The other files are as follows:
 * Add bosons: comes down to changing a few minus signs in contract.py. **In progress.**
 * Merge GPU code (via CuPy/PyTorch) into main.
 * Benchmark against ED and tensor networks for finding ground state energy, non-equilibrium dynamics?
-* Test code for normal ordering?
+* Test code for normal ordering? **In progress, bugs fixed.**
 * Add Floquet functionality? (Following https://www.scipost.org/SciPostPhys.11.2.028.)
 * Possibility to study dissipative systems by using non-Hermitian Hamiltonians?
 * Add Majorana functionality. (Done in different codebase...)

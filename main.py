@@ -64,10 +64,10 @@ J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
 dis = [5.0]                    
 # List of disorder strengths
-lmax = 100                      # Flow time max
-qmax = 500                     # Max number of flow time steps
+lmax = 0.1                      # Flow time max
+qmax = 5                     # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
-norm = False                      # Normal-ordering, can be true or false
+norm = True                      # Normal-ordering, can be true or false
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
                                 # Storing H(l) allows SciPy ODE integration to add extra flow time steps
                                 # Storing eta(l) reduces number of tensor contractions, at cost of accuracy
