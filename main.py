@@ -59,13 +59,13 @@ L = int(sys.argv[1])            # Linear system size
 dim = 1                         # Spatial dimension
 n = L**dim                      # Total number of sites
 species = 'spinful fermion'     # Type of particle
-delta = 0.1                     # Nearest-neighbour interaction strength
+delta = .15                     # Nearest-neighbour interaction strength
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
 dis = [5.0]                    
 # List of disorder strengths
-lmax = 0.1                      # Flow time max
-qmax = 5                     # Max number of flow time steps
+lmax = 10                      # Flow time max
+qmax = 250                     # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
 norm = True                      # Normal-ordering, can be true or false
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
@@ -117,6 +117,9 @@ if Hflow == False:
     print('*** Warning: Setting Hflow=False requires small flow time steps in order for backwards transform to be accurate. ***')
 if intr == False and norm == True:
     print('Normal ordering is only for interacting systems.')
+    norm = False
+if norm == True and n%2 != 0:
+    print('Normal ordering is only for even system sizes')
     norm = False
 # if species == 'spinful fermion' and norm == True:
 #     print('Normal ordering not implemented for spinful fermions.')

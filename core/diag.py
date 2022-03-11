@@ -293,10 +293,32 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
         for i in range(n):              # Load Hint0 with values
             for j in range(n):
                 if i != j:
+                    Hint[i,i,j,j] += Hint[j,j,i,i]
+                    Hint[i,i,j,j] *= 0.5
+                    Hint[i,i,j,j] += -Hint[i,j,j,i]
+                    Hint[i,i,j,j] += -Hint[j,i,i,j]
+                    Hint[i,j,j,i] = 0.
                     # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                     Hint0[i,i,j,j] = Hint[i,i,j,j]
-                    Hint0[i,j,j,i] = Hint[i,j,j,i]
+                    # Hint0[i,i,j,j] += Hint[j,j,i,i]
+                    # Hint0[i,j,j,i] = Hint[i,j,j,i]
+                    # Hint0[i,i,j,j] += -Hint[i,j,j,i]
+                    # Hint0[i,j,j,i] = Hint[i,j,j,i]
+                    # Hint0[i,i,j,j] += -Hint[j,i,i,j]
+                    # Hint0[i,i,j,j] *= 0.5
+        # for i in range(n):
+        #     for j in range(n):
+        #             Hint[i,j,j,i] = 0
+        #             Hint[j,j,i,i] = 0
+                    
         Vint = Hint-Hint0
+        # for i in range(n):
+        #     for j in range(n):
+        #         for k in range(n):
+        #             for q in range(n):
+        #                 # print(Vint[i,j,k,q],Vint[q,k,j,i])
+        #                 Vint[i,j,k,q] += Vint[q,k,j,i]
+        #                 Vint[i,j,k,q] *= 0.5
 
         if norm == True:
             state=nstate(n,'CDW')
@@ -328,6 +350,14 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
         else:
             eta0 = (eta[:n**2]).reshape(n,n)
             eta_int = (eta[n**2:]).reshape(n,n,n,n)
+
+        # for i in range(n):
+        #     for j in range(n):
+        #         for k in range(n):
+        #             for q in range(n):
+        #                 # print(eta_int[i,j,k,q],eta_int[q,k,j,i])
+        #                 eta_int[i,j,k,q] += -eta_int[q,k,j,i]
+        #                 eta_int[i,j,k,q] *= 0.5
    
         # Compute the RHS of the flow equation dH/dl = [\eta,H]
         sol = contract(eta0,H0+V0,method=method)
@@ -385,12 +415,16 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         # Start with the quadratic part of the spin-up fermions
         Hup = y[0:n**2]
         Hup = Hup.reshape(n,n)
+        Hup += Hup.T
+        Hup *= 0.5
         H0up = np.diag(np.diag(Hup))
         V0up = Hup - H0up
         
         # Now the quadratic part of the spin-down fermions
         Hdown = y[n**2:2*n**2]
         Hdown = Hdown.reshape(n,n)
+        Hdown += Hdown.T
+        Hdown *= 0.5
         H0down = np.diag(np.diag(Hdown))
         V0down = Hdown - H0down
 
@@ -402,9 +436,14 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         for i in range(n):
             for j in range(n):
                 if i != j:
+                    Hintup[i,i,j,j] += Hintup[j,j,i,i]
+                    Hintup[i,i,j,j] *= 0.5
+                    Hintup[i,i,j,j] += -Hintup[i,j,j,i]
+                    # Hintup[i,i,j,j] += -Hintup[j,i,i,j]
+                    Hintup[i,j,j,i] = 0.
                     # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                     Hint0up[i,i,j,j] = Hintup[i,i,j,j]
-                    Hint0up[i,j,j,i] = Hintup[i,j,j,i]
+                    # Hint0up[i,j,j,i] = Hintup[i,j,j,i]
         Vintup = Hintup-Hint0up
         
         # The same for spin-down fermions
@@ -414,9 +453,14 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         for i in range(n):
             for j in range(n):
                 if i != j:
+                    Hintdown[i,i,j,j] += Hintdown[j,j,i,i]
+                    Hintdown[i,i,j,j] *= 0.5
+                    Hintdown[i,i,j,j] += -Hintdown[i,j,j,i]
+                    # Hintdown[i,i,j,j] += -Hintdown[j,i,i,j]
+                    Hintdown[i,j,j,i] = 0.
                     # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                     Hint0down[i,i,j,j] = Hintdown[i,i,j,j]
-                    Hint0down[i,j,j,i] = Hintdown[i,j,j,i]
+                    # Hint0down[i,j,j,i] = Hintdown[i,j,j,i]
         Vintdown = Hintdown-Hint0down
 
         # And the same for the mixed quartic term, with 2 spin-up fermion operators and 2 spin-down fermion operators
@@ -425,16 +469,21 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         Hint0updown = np.zeros((n,n,n,n))
         for i in range(n):
             for j in range(n):
-                # if i != j:
+                if i != j:
+                    Hintupdown[i,i,j,j] += Hintupdown[j,j,i,i]
+                    Hintupdown[i,i,j,j] *= 0.5
                     # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                 Hint0updown[i,i,j,j] = Hintupdown[i,i,j,j]
-                    # Hint0updown[i,j,j,i] = Hintupdown[i,j,j,i]
+                Hint0updown[i,j,j,i] = Hintupdown[i,j,j,i]
         Vintupdown = Hintupdown-Hint0updown
         # print(max(Hintupdown.reshape(n**4)))                    
         
         upstate=nstate(n,'CDW')
         downstate=np.array([np.abs(1-i) for i in upstate])
         # downstate = upstate
+        # print(n)
+        # print('up',upstate)
+        # print('down',downstate)
 
         # Compute all relevant generators
         eta0up = contract(H0up,V0up,method=method,eta=True)
@@ -444,6 +493,8 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         eta_int_updown = -contract(Vintupdown,H0up,method=method,eta=True,pair='first') - contract(Vintupdown,H0down,method=method,eta=True,pair='second')
         eta_int_updown += contract(Hint0updown,V0up,method=method,eta=True,pair='first') + contract(Hint0updown,V0down,method=method,eta=True,pair='second')
    
+        # print(eta_int_updown[0,1,2,3],eta_int_updown[1,0,2,3],eta_int_updown[0,1,3,2],eta_int_updown[1,0,3,2])
+
         if norm == True:
             eta0up += contractNO(Hint0up,V0up,method=method,eta=True,state=upstate)
             eta0up += contractNO(H0up,Vintup,method=method,eta=True,state=upstate)
@@ -454,6 +505,9 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
             eta0down += contractNO(Hint0updown,V0up,method=method,eta=True,state=upstate,pair='first')
             eta0down += contractNO(H0up,Vintupdown,method=method,eta=True,state=upstate,pair='first')
 
+            eta_int_up += contractNO(Hint0up,Vintup,method=method,eta=True,state=upstate)
+            eta_int_down += contractNO(Hint0down,Vintdown,method=method,eta=True,state=downstate)
+
             eta_int_updown += contractNO(Hint0up,Vintupdown,method=method,eta=True,pair='up-mixed',state=upstate)
             eta_int_up += contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed-mixed-up',state=downstate)
             eta_int_updown += contractNO(Hint0down,Vintupdown,method=method,eta=True,pair='down-mixed',state=downstate)
@@ -461,13 +515,8 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
             eta_int_updown += contractNO(Hint0updown,Vintup,method=method,eta=True,pair='mixed-up',state=upstate)
             eta_int_updown += contractNO(Hint0updown,Vintdown,method=method,eta=True,pair='mixed-down',state=downstate)
 
-            # test = contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed-mixed-up',state=downstate)
-        # test = eta_int_updown
-        # print('eta',test[0,1,2,3],test[3,2,1,0])
-            # eta_int_updown += contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed',upstate=upstate,downstate=downstate)
-            # print(contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed',upstate=upstate,downstate=downstate))
+            eta_int_updown += contractNO(Hint0updown,Vintupdown,method=method,eta=True,pair='mixed',upstate=upstate,downstate=downstate)
 
-            # print(eta_int_updown)
 
         # Then compute the RHS of the flow equations
         sol_up = contract(eta0up,H0up+V0up,method=method)
@@ -476,31 +525,31 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         sol_int_down = contract(eta_int_down,H0down+V0down,method=method) + contract(eta0down,Hintdown,method=method)
         sol_int_updown = contract(eta_int_updown,H0down+V0down,method=method,pair='second') + contract(eta0down,Hintupdown,method=method,pair='second')
         sol_int_updown += contract(eta_int_updown,H0up+V0up,method=method,pair='first') + contract(eta0up,Hintupdown,method=method,pair='first')
-        
-        # if norm == True:
-        #     sol_up += contractNO(eta_int_up,Hup,method=method,state=upstate)
-        #     sol_up += contractNO(eta0up,Hintup,method=method,state=upstate)
-        #     sol_down += contractNO(eta_int_down,Hdown,method=method,state=downstate)
-        #     sol_down += contractNO(eta0down,Hintdown,method=method,state=downstate)
-        #     sol_up += contractNO(eta_int_updown,Hdown,method=method,state=downstate,pair='second')
-        #     sol_up += contractNO(eta0down,Hintupdown,method=method,state=downstate,pair='second')
-        #     sol_down += contractNO(eta_int_updown,Hup,method=method,state=upstate,pair='first')
-        #     sol_down += contractNO(eta0up,Hintupdown,method=method,state=upstate,pair='first')
+        # print('first',sol_up)
+        if norm == True:
+            sol_up += contractNO(eta_int_up,Hup,method=method,state=upstate)
+            sol_up += contractNO(eta0up,Hintup,method=method,state=upstate)
+            sol_down += contractNO(eta_int_down,Hdown,method=method,state=downstate)
+            sol_down += contractNO(eta0down,Hintdown,method=method,state=downstate)
+            sol_up += contractNO(eta_int_updown,Hdown,method=method,state=downstate,pair='second')
+            sol_up += contractNO(eta0down,Hintupdown,method=method,state=downstate,pair='second')
+            sol_down += contractNO(eta_int_updown,Hup,method=method,state=upstate,pair='first')
+            sol_down += contractNO(eta0up,Hintupdown,method=method,state=upstate,pair='first')
 
-        #     # sol_int_updown += contractNO(eta_int_up,Hintupdown,method=method,pair='up-mixed',state=upstate)
-        #     sol_int_up += contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed-mixed-up',state=downstate)
-        #     # sol_int_updown += contractNO(eta_int_down,Hintupdown,method=method,pair='down-mixed',state=downstate)
-        #     sol_int_down += contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed-mixed-down',state=upstate)
-        #     # sol_int_updown += contractNO(eta_int_updown,Hintup,method=method,pair='mixed-up',state=upstate)
-        #     # sol_int_updown += contractNO(eta_int_updown,Hintdown,method=method,pair='mixed-down',state=downstate)
+            sol_int_up += contractNO(eta_int_up,Hintup,method=method,state=upstate)
+            sol_int_down += contractNO(eta_int_down,Hintdown,method=method,state=downstate)
 
-        #     # test = contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed-mixed-up',state=downstate)
-        #     # print('Hupdn',Hintupdown[1,1,2,2],Hintupdown[2,2,1,1])
-        #     # print(test[1,1,2,2],test[2,2,1,1])
+            sol_int_updown += contractNO(eta_int_up,Hintupdown,method=method,pair='up-mixed',state=upstate)
+            sol_int_up += contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed-mixed-up',state=downstate)
+            sol_int_updown += contractNO(eta_int_down,Hintupdown,method=method,pair='down-mixed',state=downstate)
+            sol_int_down += contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed-mixed-down',state=upstate)
+            sol_int_updown += contractNO(eta_int_updown,Hintup,method=method,pair='mixed-up',state=upstate)
+            sol_int_updown += contractNO(eta_int_updown,Hintdown,method=method,pair='mixed-down',state=downstate)
 
-        #     # sol_int_updown += contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed',upstate=upstate,downstate=downstate)
+            sol_int_updown += contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed',upstate=upstate,downstate=downstate)
 
-        #     # print(contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed',upstate=upstate,downstate=downstate))
+        # if check_symmetric(sol_up) == False:
+        #     print(sol_up)
 
         # Assemble output array
         sol0 = np.zeros(2*n**2+3*n**4)
@@ -511,6 +560,9 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         sol0[2*n**2+2*n**4:] = sol_int_updown.reshape(n**4)
 
         return sol0
+
+def check_symmetric(a, rtol=1e-05, atol=1e-08):
+    return np.allclose(a, a.T, rtol=rtol, atol=atol)
 
 def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=True,norm=False):
     """ Generate the flow equation for density operators of the interacting systems.
@@ -1400,12 +1452,13 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
                     HFint_up[i,j] = Hint_up[i,i,j,j]
                     HFint_up[i,j] += -Hint_up[i,j,j,i]
 
-                    print(i,j,Hint_up[i,i,j,j],Hint_up[j,j,i,i],-Hint_up[i,j,j,i],-Hint_up[j,i,i,j])
+                    # print(i,j,Hint_up[i,i,j,j],Hint_up[j,j,i,i],-Hint_up[i,j,j,i],-Hint_up[j,i,i,j])
                     
                     HFint_down[i,j] = Hint_down[i,i,j,j]
                     HFint_down[i,j] += -Hint_down[i,j,j,i]
                     
                 HFint_updown[i,j] = Hint_updown[i,i,j,j]
+                print(i,j,Hint_updown[i,i,j,j],Hint_updown[j,j,i,i])
 
         print(H0_diag_up)
         print(H0_diag_down)
@@ -1455,11 +1508,11 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
  
             k0 += 1
 
-        plt.plot(lbits_up,'r')
-        plt.plot(lbits_down,'b')
-        plt.plot(lbits_updown,'k--')
+        # plt.plot(lbits_up,'r')
+        # plt.plot(lbits_down,'b')
+        # plt.plot(lbits_updown,'k--')
         plt.plot(lbits_charge)
-        plt.plot(lbits_spin)
+        plt.plot(lbits_spin,'--')
         plt.show()
         plt.close()
 
@@ -2169,7 +2222,7 @@ def flow_levels_spin(n,flow,intr=True):
                             flevels[count] += Hint_down[j,q]*int(lev1[j])*int(lev1[q]) 
                             # flevels[i] += -Hint_down[j,q,q,j]*int(lev1[j])*int(lev1[q]) 
                             
-                        flevels[count] += Hint_up[j,q]*int(lev1[j])*int(lev0[q]) 
+                        flevels[count] += Hint_updown[j,q]*int(lev0[j])*int(lev1[q]) 
             count += 1
 
     
