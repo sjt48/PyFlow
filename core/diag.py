@@ -41,7 +41,7 @@ import gc
 from .contract import contract,contractNO,contractNO2
 from .utility import nstate
 from scipy.integrate import ode
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 #------------------------------------------------------------------------------ 
 def CUT(params,hamiltonian,num,num_int):
@@ -293,32 +293,17 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
         for i in range(n):              # Load Hint0 with values
             for j in range(n):
                 if i != j:
-                    Hint[i,i,j,j] += Hint[j,j,i,i]
-                    Hint[i,i,j,j] *= 0.5
-                    Hint[i,i,j,j] += -Hint[i,j,j,i]
-                    Hint[i,i,j,j] += -Hint[j,i,i,j]
-                    Hint[i,j,j,i] = 0.
+                    if norm == True:
+                        # Symmetrise (for normal-ordering)
+                        Hint[i,i,j,j] += Hint[j,j,i,i]
+                        Hint[i,i,j,j] *= 0.5
+                        Hint[i,i,j,j] += -Hint[i,j,j,i]
+                        Hint[i,i,j,j] += -Hint[j,i,i,j]
+                        Hint[i,j,j,i] = 0.
                     # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                     Hint0[i,i,j,j] = Hint[i,i,j,j]
-                    # Hint0[i,i,j,j] += Hint[j,j,i,i]
-                    # Hint0[i,j,j,i] = Hint[i,j,j,i]
-                    # Hint0[i,i,j,j] += -Hint[i,j,j,i]
-                    # Hint0[i,j,j,i] = Hint[i,j,j,i]
-                    # Hint0[i,i,j,j] += -Hint[j,i,i,j]
-                    # Hint0[i,i,j,j] *= 0.5
-        # for i in range(n):
-        #     for j in range(n):
-        #             Hint[i,j,j,i] = 0
-        #             Hint[j,j,i,i] = 0
                     
         Vint = Hint-Hint0
-        # for i in range(n):
-        #     for j in range(n):
-        #         for k in range(n):
-        #             for q in range(n):
-        #                 # print(Vint[i,j,k,q],Vint[q,k,j,i])
-        #                 Vint[i,j,k,q] += Vint[q,k,j,i]
-        #                 Vint[i,j,k,q] *= 0.5
 
         if norm == True:
             state=nstate(n,'CDW')
@@ -350,14 +335,6 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
         else:
             eta0 = (eta[:n**2]).reshape(n,n)
             eta_int = (eta[n**2:]).reshape(n,n,n,n)
-
-        # for i in range(n):
-        #     for j in range(n):
-        #         for k in range(n):
-        #             for q in range(n):
-        #                 # print(eta_int[i,j,k,q],eta_int[q,k,j,i])
-        #                 eta_int[i,j,k,q] += -eta_int[q,k,j,i]
-        #                 eta_int[i,j,k,q] *= 0.5
    
         # Compute the RHS of the flow equation dH/dl = [\eta,H]
         sol = contract(eta0,H0+V0,method=method)
@@ -415,16 +392,20 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         # Start with the quadratic part of the spin-up fermions
         Hup = y[0:n**2]
         Hup = Hup.reshape(n,n)
-        Hup += Hup.T
-        Hup *= 0.5
+        if norm == True:
+            # Symmetrise
+            Hup += Hup.T
+            Hup *= 0.5
         H0up = np.diag(np.diag(Hup))
         V0up = Hup - H0up
         
         # Now the quadratic part of the spin-down fermions
         Hdown = y[n**2:2*n**2]
         Hdown = Hdown.reshape(n,n)
-        Hdown += Hdown.T
-        Hdown *= 0.5
+        if norm == True:
+            # Symmetrise
+            Hdown += Hdown.T
+            Hdown *= 0.5
         H0down = np.diag(np.diag(Hdown))
         V0down = Hdown - H0down
 
@@ -432,15 +413,16 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         Hintup = y[2*n**2:2*n**2+n**4]
         Hintup = Hintup.reshape(n,n,n,n)
         Hint0up = np.zeros((n,n,n,n))
-        
         for i in range(n):
             for j in range(n):
                 if i != j:
-                    Hintup[i,i,j,j] += Hintup[j,j,i,i]
-                    Hintup[i,i,j,j] *= 0.5
-                    Hintup[i,i,j,j] += -Hintup[i,j,j,i]
-                    # Hintup[i,i,j,j] += -Hintup[j,i,i,j]
-                    Hintup[i,j,j,i] = 0.
+                    if norm == True:
+                        # Re-order interaction terms
+                        Hintup[i,i,j,j] += Hintup[j,j,i,i]
+                        Hintup[i,i,j,j] *= 0.5
+                        Hintup[i,i,j,j] += -Hintup[i,j,j,i]
+                        Hintup[i,j,j,i] = 0.
+
                     # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                     Hint0up[i,i,j,j] = Hintup[i,i,j,j]
                     # Hint0up[i,j,j,i] = Hintup[i,j,j,i]
@@ -453,11 +435,13 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         for i in range(n):
             for j in range(n):
                 if i != j:
-                    Hintdown[i,i,j,j] += Hintdown[j,j,i,i]
-                    Hintdown[i,i,j,j] *= 0.5
-                    Hintdown[i,i,j,j] += -Hintdown[i,j,j,i]
-                    # Hintdown[i,i,j,j] += -Hintdown[j,i,i,j]
-                    Hintdown[i,j,j,i] = 0.
+                    if norm == True:
+                        # Re-order interaction terms
+                        Hintdown[i,i,j,j] += Hintdown[j,j,i,i]
+                        Hintdown[i,i,j,j] *= 0.5
+                        Hintdown[i,i,j,j] += -Hintdown[i,j,j,i]
+                        Hintdown[i,j,j,i] = 0.
+
                     # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                     Hint0down[i,i,j,j] = Hintdown[i,i,j,j]
                     # Hint0down[i,j,j,i] = Hintdown[i,j,j,i]
@@ -470,20 +454,19 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         for i in range(n):
             for j in range(n):
                 if i != j:
-                    Hintupdown[i,i,j,j] += Hintupdown[j,j,i,i]
-                    Hintupdown[i,i,j,j] *= 0.5
+                    if norm == True:
+                        # Re-order interaction terms
+                        Hintupdown[i,i,j,j] += Hintupdown[j,j,i,i]
+                        Hintupdown[i,i,j,j] *= 0.5
+
                     # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                 Hint0updown[i,i,j,j] = Hintupdown[i,i,j,j]
-                Hint0updown[i,j,j,i] = Hintupdown[i,j,j,i]
-        Vintupdown = Hintupdown-Hint0updown
-        # print(max(Hintupdown.reshape(n**4)))                    
+                # Hint0updown[i,j,j,i] = Hintupdown[i,j,j,i]
+        Vintupdown = Hintupdown-Hint0updown                 
         
         upstate=nstate(n,'CDW')
         downstate=np.array([np.abs(1-i) for i in upstate])
         # downstate = upstate
-        # print(n)
-        # print('up',upstate)
-        # print('down',downstate)
 
         # Compute all relevant generators
         eta0up = contract(H0up,V0up,method=method,eta=True)
@@ -493,8 +476,6 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         eta_int_updown = -contract(Vintupdown,H0up,method=method,eta=True,pair='first') - contract(Vintupdown,H0down,method=method,eta=True,pair='second')
         eta_int_updown += contract(Hint0updown,V0up,method=method,eta=True,pair='first') + contract(Hint0updown,V0down,method=method,eta=True,pair='second')
    
-        # print(eta_int_updown[0,1,2,3],eta_int_updown[1,0,2,3],eta_int_updown[0,1,3,2],eta_int_updown[1,0,3,2])
-
         if norm == True:
             eta0up += contractNO(Hint0up,V0up,method=method,eta=True,state=upstate)
             eta0up += contractNO(H0up,Vintup,method=method,eta=True,state=upstate)
@@ -548,9 +529,6 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
 
             sol_int_updown += contractNO(eta_int_updown,Hintupdown,method=method,pair='mixed',upstate=upstate,downstate=downstate)
 
-        # if check_symmetric(sol_up) == False:
-        #     print(sol_up)
-
         # Assemble output array
         sol0 = np.zeros(2*n**2+3*n**4)
         sol0[:n**2] = sol_up.reshape(n**2)
@@ -560,9 +538,6 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         sol0[2*n**2+2*n**4:] = sol_int_updown.reshape(n**4)
 
         return sol0
-
-def check_symmetric(a, rtol=1e-05, atol=1e-08):
-    return np.allclose(a, a.T, rtol=rtol, atol=atol)
 
 def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=True,norm=False):
     """ Generate the flow equation for density operators of the interacting systems.
@@ -687,11 +662,19 @@ def liom_spin(l,nlist,y,n,method='jit',comp=False,norm=False):
 
     Hup = y[0:n**2]
     Hup = Hup.reshape(n,n)
+    if norm == True:
+        # Symmetrise
+        Hup += Hup.T
+        Hup *= 0.5
     H0up = np.diag(np.diag(Hup))
     V0up = Hup - H0up
     
     Hdown = y[n**2:2*n**2]
     Hdown = Hdown.reshape(n,n)
+    if norm == True:
+        # Symmetrise
+        Hdown += Hdown.T
+        Hdown *= 0.5
     H0down = np.diag(np.diag(Hdown))
     V0down = Hdown - H0down
 
@@ -702,6 +685,13 @@ def liom_spin(l,nlist,y,n,method='jit',comp=False,norm=False):
     for i in range(n):
         for j in range(n):
             if i != j:
+                if norm == True:
+                        # Re-order interaction terms
+                        Hintup[i,i,j,j] += Hintup[j,j,i,i]
+                        Hintup[i,i,j,j] *= 0.5
+                        Hintup[i,i,j,j] += -Hintup[i,j,j,i]
+                        Hintup[i,j,j,i] = 0.
+
                 # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                 Hint0up[i,i,j,j] = Hintup[i,i,j,j]
                 Hint0up[i,j,j,i] = Hintup[i,j,j,i]
@@ -713,6 +703,12 @@ def liom_spin(l,nlist,y,n,method='jit',comp=False,norm=False):
     for i in range(n):
         for j in range(n):
             if i != j:
+                if norm == True:
+                        # Re-order interaction terms
+                        Hintdown[i,i,j,j] += Hintdown[j,j,i,i]
+                        Hintdown[i,i,j,j] *= 0.5
+                        Hintdown[i,i,j,j] += -Hintdown[i,j,j,i]
+                        Hintdown[i,j,j,i] = 0.
                 # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                 Hint0down[i,i,j,j] = Hintdown[i,i,j,j]
                 Hint0down[i,j,j,i] = Hintdown[i,j,j,i]
@@ -724,12 +720,16 @@ def liom_spin(l,nlist,y,n,method='jit',comp=False,norm=False):
     Hint0updown = np.zeros((n,n,n,n))
     for i in range(n):
         for j in range(n):
-            # if i != j:
+            if i != j:
+                if norm == True:
+                        # Re-order interaction terms
+                        Hintupdown[i,i,j,j] += Hintupdown[j,j,i,i]
+                        Hintupdown[i,i,j,j] *= 0.5
+
                 # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
             Hint0updown[i,i,j,j] = Hintupdown[i,i,j,j]
-                # Hint0updown[i,j,j,i] = Hintupdown[i,j,j,i]
-    Vintupdown = Hintupdown-Hint0updown
-    # print(max(Hintupdown.reshape(n**4)))                    
+            # Hint0updown[i,j,j,i] = Hintupdown[i,j,j,i]
+    Vintupdown = Hintupdown-Hint0updown               
     
     eta0up = contract(H0up,V0up,method=method,eta=True)
     eta0down = contract(H0down,V0down,method=method,eta=True)
@@ -1430,19 +1430,11 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
   
         H0_diag_up = sol_int[-1,:n**2].reshape(n,n)
         H0_diag_down = sol_int[-1,n**2:2*n**2].reshape(n,n)
-
-        # print(H0_diag_up)
-        # print(H0_diag_down)
         
         Hint_up = sol_int[-1,2*n**2:2*n**2+n**4].reshape(n,n,n,n)
         Hint_down = sol_int[-1,2*n**2+n**4:2*n**2+2*n**4].reshape(n,n,n,n) 
         Hint_updown = sol_int[-1,2*n**2+2*n**4:].reshape(n,n,n,n)  
               
-        print('***')
-        print(Hint_up)
-        print(np.sum(Hint_up.reshape(n**4)))
-        print(np.mean(np.abs(Hint_up.reshape(n**4))))
-        print('***')
         HFint_up = np.zeros(n**2).reshape(n,n)
         HFint_down = np.zeros(n**2).reshape(n,n)
         HFint_updown = np.zeros(n**2).reshape(n,n)
@@ -1452,19 +1444,10 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
                     HFint_up[i,j] = Hint_up[i,i,j,j]
                     HFint_up[i,j] += -Hint_up[i,j,j,i]
 
-                    # print(i,j,Hint_up[i,i,j,j],Hint_up[j,j,i,i],-Hint_up[i,j,j,i],-Hint_up[j,i,i,j])
-                    
                     HFint_down[i,j] = Hint_down[i,i,j,j]
                     HFint_down[i,j] += -Hint_down[i,j,j,i]
                     
                 HFint_updown[i,j] = Hint_updown[i,i,j,j]
-                print(i,j,Hint_updown[i,i,j,j],Hint_updown[j,j,i,i])
-
-        print(H0_diag_up)
-        print(H0_diag_down)
-        print(HFint_up)
-        print(HFint_down)
-        print(HFint_updown)
 
         charge = HFint_up+HFint_down+HFint_updown
         spin = HFint_up+HFint_down-HFint_updown
@@ -1476,14 +1459,18 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
         lbits_spin = np.zeros(n-1)
 
         for q in range(1,n):
-            # print('NOT AVERAGING ALL ij COMBINATIONS, i>j ONLY')
-            # print(q,np.diag(HFint_up,q),np.diag(HFint_up,-q)/2.)
+
             lbits_up[q-1] = np.median(np.log10(np.abs(np.diag(HFint_up,q)+np.diag(HFint_up,-q))/2.))
             lbits_down[q-1] = np.median(np.log10(np.abs(np.diag(HFint_down,q)+np.diag(HFint_down,-q))/2.))
             lbits_updown[q-1] = np.median(np.log10(np.abs(np.diag(HFint_updown,q)+np.diag(HFint_updown,-q))/2.))
 
             lbits_charge[q-1] = np.median(np.log10(np.abs(np.diag(charge,q)+np.diag(charge,-q))/2.))
             lbits_spin[q-1] = np.median(np.log10(np.abs(np.diag(spin,q)+np.diag(spin,-q))/2.))
+
+        # plt.plot(lbits_charge)
+        # plt.plot(lbits_spin,'--')
+        # plt.show()
+        # plt.close()
 
         r_int.set_initial_value(init,dl_list[0])
         init = np.zeros(2*n**2+3*n**4,dtype=np.float64)
@@ -1508,28 +1495,8 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
  
             k0 += 1
 
-        # plt.plot(lbits_up,'r')
-        # plt.plot(lbits_down,'b')
-        # plt.plot(lbits_updown,'k--')
-        plt.plot(lbits_charge)
-        plt.plot(lbits_spin,'--')
-        plt.show()
-        plt.close()
-
-        print('up',lbits_up)
-        print('dn',lbits_down)
-        print('mix',lbits_updown)
-
-        # liom_up = liom[:n**2]
-        # liom_down = liom[n**2:2*n**2]
-        # plt.plot(np.abs(liom_up+liom_down))
-        # plt.plot(np.abs(liom_up - liom_down),'--')
-        # plt.yscale('log')
-        # plt.show()
-        # plt.close()
-
         output = {"H0_diag":[H0_diag_up,H0_diag_down],"Hint":[Hint_up,Hint_down,Hint_updown],
-                    "LIOM":liom,"LIOM Interactions":[lbits_up,lbits_down,lbits_updown],"Invariant":0}
+                    "LIOM":liom,"LIOM Interactions":[lbits_up,lbits_down,lbits_updown,lbits_charge,lbits_spin],"Invariant":0}
         if store_flow == True:
             output["flow"] = sol_int
             output["dl_list"] = dl_list

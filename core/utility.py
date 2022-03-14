@@ -29,13 +29,13 @@ This file contains various helper functions.
 import os
 import numpy as np
 
-def namevar(dis_type,dyn,norm,n,LIOM,species):
+def namevar(dis_type,dsymm,dyn,norm,n,LIOM,species):
     if norm == True:
         nm = 'NO'
     else:
         nm = 'PT'
     if species == 'spinful fermion':
-        spec = 'spin_fermion'
+        spec = 'spin_fermion/%s' %(dsymm)
     elif species == 'spinless fermion':
         spec = 'fermion'
      # Make directory to store data

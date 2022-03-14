@@ -59,13 +59,14 @@ L = int(sys.argv[1])            # Linear system size
 dim = 1                         # Spatial dimension
 n = L**dim                      # Total number of sites
 species = 'spinful fermion'     # Type of particle
-delta = .15                     # Nearest-neighbour interaction strength
+dsymm = 'charge'                # Type of disorder (spinful fermions only)
+delta = 0.1                     # Nearest-neighbour interaction strength
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
 dis = [5.0]                    
 # List of disorder strengths
-lmax = 10                      # Flow time max
-qmax = 250                     # Max number of flow time steps
+lmax = 75                      # Flow time max
+qmax = 1500                     # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
 norm = True                      # Normal-ordering, can be true or false
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
@@ -106,12 +107,12 @@ if n > 12 or qmax > 2000:
 tlist = [0.01*i for i in range(31)]
 
 # Create dictionary of parameters to pass to functions; avoids having to have too many function args
-params = {"n":n,"delta":delta,"J":J,"cutoff":cutoff,"dis":dis,"lmax":lmax,"qmax":qmax,"reps":reps,"norm":norm,
+params = {"n":n,"delta":delta,"J":J,"cutoff":cutoff,"dis":dis,"dsymm":dsymm,"lmax":lmax,"qmax":qmax,"reps":reps,"norm":norm,
             "Hflow":Hflow,"precision":precision,"method":method, "intr":intr,"dyn":dyn,"imbalance":imbalance,"species":species,
                 "LIOM":LIOM, "dyn_MF":dyn_MF,"logflow":logflow,"dis_type":dis_type,"x":x,"tlist":tlist,"store_flow":store_flow}
 
 # Make directory to store data
-nvar = utility.namevar(dis_type,dyn,norm,n,LIOM,species)
+nvar = utility.namevar(dis_type,dsymm,dyn,norm,n,LIOM,species)
 
 if Hflow == False:
     print('*** Warning: Setting Hflow=False requires small flow time steps in order for backwards transform to be accurate. ***')
@@ -147,7 +148,7 @@ if __name__ == '__main__':
                 # print('** NOTE **: Using different disorder strengths for up and down fermions.')
                 # list1 = np.random.uniform(-d,d,n)
                 # list2 = np.random.uniform(-d/10,d/10,n)
-                ham.build(n,dim,d,J,dis_type,delta_onsite=delta,delta_up=0.,delta_down=0.,dsymm='charge')
+                ham.build(n,dim,d,J,dis_type,delta_onsite=delta,delta_up=0.,delta_down=0.,dsymm=dsymm)
             
             # Initialise the number operator on the central lattice site
             num = np.zeros((n,n))
@@ -199,10 +200,10 @@ if __name__ == '__main__':
                 flevels=np.zeros(n)
                 ed=np.zeros(n)
 
-            plt.plot(flevels)
-            plt.plot(ed,'--')
-            plt.show()
-            plt.close()
+            # plt.plot(flevels)
+            # plt.plot(ed,'--')
+            # plt.show()
+            # plt.close()
 
             if intr == False or n <= ncut:
                 lsr = diag.level_stat(flevels)
