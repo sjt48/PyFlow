@@ -26,6 +26,8 @@ The other files are as follows:
 * `models/models.py` : contains model classes and initialisation functions. **To be cleaned up.**
 * `examples/` : empty folder which will contain example scripts at a later date.
 
+**GPU files have been added but are not yet fully tested.**
+
 # Required Packages
 
 * NumPy
@@ -41,6 +43,10 @@ The other files are as follows:
 * psutil (can replace with `multiprocessing` if necessary)
 * datetime 
 
+For the GPU implementation, the following additional packages (and their dependencies) are required:
+
+* PyTorch
+* torchdiffeq
 
 # To do 
 

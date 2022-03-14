@@ -293,13 +293,13 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
         for i in range(n):              # Load Hint0 with values
             for j in range(n):
                 if i != j:
-                    if norm == True:
-                        # Symmetrise (for normal-ordering)
+                    # if norm == True:
+                        # # Symmetrise (for normal-ordering)
                         # Hint[i,i,j,j] += Hint[j,j,i,i]
                         # Hint[i,i,j,j] *= 0.5
-                        Hint[i,i,j,j] += -Hint[i,j,j,i]
-                        # Hint[i,i,j,j] += -Hint[j,i,i,j]
-                        Hint[i,j,j,i] = 0.
+                        # Hint[i,i,j,j] += -Hint[i,j,j,i]
+                        # # Hint[i,i,j,j] += -Hint[j,i,i,j]
+                        # Hint[i,j,j,i] = 0.
                     # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                     Hint0[i,i,j,j] = Hint[i,i,j,j]
                     
