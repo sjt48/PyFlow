@@ -295,10 +295,10 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
                 if i != j:
                     if norm == True:
                         # Symmetrise (for normal-ordering)
-                        Hint[i,i,j,j] += Hint[j,j,i,i]
-                        Hint[i,i,j,j] *= 0.5
+                        # Hint[i,i,j,j] += Hint[j,j,i,i]
+                        # Hint[i,i,j,j] *= 0.5
                         Hint[i,i,j,j] += -Hint[i,j,j,i]
-                        Hint[i,i,j,j] += -Hint[j,i,i,j]
+                        # Hint[i,i,j,j] += -Hint[j,i,i,j]
                         Hint[i,j,j,i] = 0.
                     # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                     Hint0[i,i,j,j] = Hint[i,i,j,j]
@@ -506,7 +506,7 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         sol_int_down = contract(eta_int_down,H0down+V0down,method=method) + contract(eta0down,Hintdown,method=method)
         sol_int_updown = contract(eta_int_updown,H0down+V0down,method=method,pair='second') + contract(eta0down,Hintupdown,method=method,pair='second')
         sol_int_updown += contract(eta_int_updown,H0up+V0up,method=method,pair='first') + contract(eta0up,Hintupdown,method=method,pair='first')
-        # print('first',sol_up)
+
         if norm == True:
             sol_up += contractNO(eta_int_up,Hup,method=method,state=upstate)
             sol_up += contractNO(eta0up,Hintup,method=method,state=upstate)

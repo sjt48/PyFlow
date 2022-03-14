@@ -12,7 +12,7 @@ python main.py 4 linear tensordot
 
 will run the simulation for a system size `L=4` and a linear potential, using NumPy's `tensordot` method. To change other parameters (interaction strength, disorder strength, etc) you will need to edit the file `main.py`. All editable parameters are at the top of the file before the line `# Run Program` - in general, nothing below this line needs to be edited.
 
-In general, `tensordot` is the best method to use for small systems if you don't require normal ordering or other advanced ffeatures. I find `vec` to be faster, particularly when running on a single thread, but as it's explicitly typed it can throw errors if you pass a dtype it's not expecting. For large systems and/or normal-ordering, use `jit`, but beware the compilation overhead on the first call to the contraction functions.
+In general, `tensordot` is the best method to use for small systems if you don't require normal ordering or other advanced features. I find `vec` to be faster, particularly when running on a single thread, but as it's explicitly typed it can throw errors if you pass a dtype it's not expecting. For large systems and/or normal-ordering, use `jit`, but beware the compilation overhead on the first call to the contraction functions.
 
 The other files are as follows:
 
@@ -46,7 +46,7 @@ The other files are as follows:
 
 * ~~Update non-equilibrium dynamics code to match syntax used for static functions.~~ (**Done, can be tidied up.**)
 * Write more tests for non-interacting systems.
-* Normal-ordering for Hubbard models can introduce small deviations from Hermitian matrices. Why?
+* ~~Normal-ordering for Hubbard models can introduce small deviations from Hermitian matrices. Why?~~ (**Mostly fixed: reason is due to normal ordering with respect to a product state that isn't the same on every lattice site.**)
 * For non-interacting systems, compute LIOMs with ED as a comparison/test? 
 * ~~Add long-range couplings from earlier code versions.~~ **Done, to be tested thoroughly.**
 * ~~Add 2D and 3D code.~~ **Done, passed tests in 2D.**
