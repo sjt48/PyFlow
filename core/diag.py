@@ -41,6 +41,7 @@ import gc
 from .contract import contract,contractNO,contractNO2
 from .utility import nstate
 from scipy.integrate import ode
+from numba import jit,prange,float64,boolean
 # import matplotlib.pyplot as plt
 
 #------------------------------------------------------------------------------ 
@@ -239,6 +240,24 @@ def eta_con(y,n,method='jit',norm=False):
 
 #------------------------------------------------------------------------------
 
+# @jit(float64[:,:,:,:](float64[:,:,:,:],boolean[:]),nopython=True,parallel=True,fastmath=False,cache=True)
+@jit('UniTuple(float64[:,:,:,:],2)(float64[:,:,:,:],boolean)',nopython=True,parallel=True,fastmath=False,cache=True)
+def extract_diag(A,norm=False):
+    B = np.zeros(A.shape,dtype=np.float64)
+    n,_,_,_ = A.shape
+    for i in prange(n): 
+        for j in range(n):
+            if i != j:
+                if norm == True:
+                    # Symmetrise (for normal-ordering wrt inhomogeneous states)
+                    A[i,i,j,j] += A[j,j,i,i]
+                    A[i,i,j,j] *= 0.5
+                    A[i,i,j,j] += -A[i,j,j,i]
+                    A[i,j,j,i] = 0.
+                # Load new array with diagonal values
+                B[i,i,j,j] = A[i,i,j,j]
+    return B,A
+
 def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
         """ Generate the flow equation for the interacting systems.
 
@@ -293,31 +312,33 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
         for i in range(n):              # Load Hint0 with values
             for j in range(n):
                 if i != j:
-                    # if norm == True:
-                        # # Symmetrise (for normal-ordering)
-                        # Hint[i,i,j,j] += Hint[j,j,i,i]
-                        # Hint[i,i,j,j] *= 0.5
-                        # Hint[i,i,j,j] += -Hint[i,j,j,i]
+                    if norm == True:
+                        # Symmetrise (for normal-ordering)
+                        Hint[i,i,j,j] += Hint[j,j,i,i]
+                        Hint[i,i,j,j] *= 0.5
+                        Hint[i,i,j,j] += -Hint[i,j,j,i]
                         # # Hint[i,i,j,j] += -Hint[j,i,i,j]
-                        # Hint[i,j,j,i] = 0.
+                        Hint[i,j,j,i] = 0.
                     # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                     Hint0[i,i,j,j] = Hint[i,i,j,j]
-                    
+        Hint0,Hint = extract_diag(Hint,norm=norm)
         Vint = Hint-Hint0
 
         if norm == True:
             state=nstate(n,'CDW')
 
-            ## The below is an attempt at scale-dependent normal-ordering: not yet working reliably.
-            # _,V1 = np.linalg.eigh(H)
-            # state = np.zeros(n)
-            # sites = np.array([i for i in range(n)])
+            # The below is an attempt at scale-dependent normal-ordering: not yet working reliably.
+            _,V1 = np.linalg.eigh(H)
+            state = np.zeros(n)
+            sites = np.array([i for i in range(n)])
             # random = np.random.choice(sites,n//2)
-            # for i in random:
-            #     psi = V1[:,i]
-            #     state += np.array([v**2 for v in psi])
-            # state = np.round(state,decimals=3)
-            # # print(np.dot(state,state))
+            random = range(0,n,2)
+            for i in random:
+                psi = V1[:,i]/np.sqrt(len(random))
+                state += np.array([v**2 for v in psi])
+            state = np.round(state,decimals=6)
+            if np.round(np.sum(state),3) != 1.0:
+                print('NORMALISATION ERROR - CHECK N/O STATE')
 
         if Hflow == True:
             # Compute the generator eta
@@ -464,9 +485,28 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
                 # Hint0updown[i,j,j,i] = Hintupdown[i,j,j,i]
         Vintupdown = Hintupdown-Hint0updown                 
         
-        upstate=nstate(n,'CDW')
-        downstate=np.array([np.abs(1-i) for i in upstate])
+        # upstate=nstate(n,'CDW')
+        # downstate=np.array([np.abs(1-i) for i in upstate])
         # downstate = upstate
+
+        # # The below is an attempt at scale-dependent normal-ordering: not yet working reliably.
+        _,V1 = np.linalg.eigh(Hup)
+        upstate = np.zeros(n)
+        random = range(0,n,2)
+        for i in random:
+            psi = V1[:,i]/np.sqrt(2*len(random))
+            upstate += np.array([v**2 for v in psi])
+        upstate = np.round(upstate,decimals=6)
+        # The below is an attempt at scale-dependent normal-ordering: not yet working reliably.
+        _,V1 = np.linalg.eigh(Hdown)
+        downstate = np.zeros(n)
+        random = range(1,n,2)
+        for i in random:
+            psi = V1[:,i]/np.sqrt(2*len(random))
+            downstate += np.array([v**2 for v in psi])
+        downstate = np.round(downstate,decimals=6)
+        if np.round(np.sum(upstate)+np.sum(downstate),3) != 1.0:
+            print('NORMALISATION ERROR - CHECK N/O STATE')
 
         # Compute all relevant generators
         eta0up = contract(H0up,V0up,method=method,eta=True)
@@ -1023,7 +1063,7 @@ def proc(mat,cutoff):
             mat[i] = 0.
     return mat
 
-def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',precision=np.float32,norm=True,Hflow=False,store_flow=False):
+def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',precision=np.float64,norm=True,Hflow=False,store_flow=False):
     """
     Diagonalise an initial interacting Hamiltonian and compute the integrals of motion.
 
@@ -1083,7 +1123,7 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',precision=np.
     r_int = ode(int_ode).set_integrator('dopri5',nsteps=100,rtol=10**(-6),atol=10**(-12))
     
     # Set initial conditions
-    init = np.zeros(n**2+n**4,dtype=np.float32)
+    init = np.zeros(n**2+n**4,dtype=np.float64)
     init[:n**2] = ((H2)).reshape(n**2)
     init[n**2:] = (Hint).reshape(n**4)
     r_int.set_initial_value(init,dl_list[0])
@@ -1452,6 +1492,12 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
         charge = HFint_up+HFint_down+HFint_updown
         spin = HFint_up+HFint_down-HFint_updown
 
+        print(H0_diag_up)
+        print(H0_diag_down)
+        print(HFint_up)
+        print(HFint_down)
+        print(HFint_updown)
+
         lbits_up = np.zeros(n-1)
         lbits_down = np.zeros(n-1)
         lbits_updown = np.zeros(n-1)
@@ -1467,10 +1513,11 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
             lbits_charge[q-1] = np.median(np.log10(np.abs(np.diag(charge,q)+np.diag(charge,-q))/2.))
             lbits_spin[q-1] = np.median(np.log10(np.abs(np.diag(spin,q)+np.diag(spin,-q))/2.))
 
-        # plt.plot(lbits_charge)
-        # plt.plot(lbits_spin,'--')
-        # plt.show()
-        # plt.close()
+        import matplotlib.pyplot as plt
+        plt.plot(lbits_charge)
+        plt.plot(lbits_spin,'--')
+        plt.show()
+        plt.close()
 
         r_int.set_initial_value(init,dl_list[0])
         init = np.zeros(2*n**2+3*n**4,dtype=np.float64)

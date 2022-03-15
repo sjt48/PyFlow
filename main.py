@@ -58,17 +58,17 @@ mpl.rcParams['mathtext.rm'] = 'serif'
 L = int(sys.argv[1])            # Linear system size
 dim = 1                         # Spatial dimension
 n = L**dim                      # Total number of sites
-species = 'spinless fermion'     # Type of particle
+species = 'spinful fermion'     # Type of particle
 dsymm = 'charge'                # Type of disorder (spinful fermions only)
 delta = 0.1                     # Nearest-neighbour interaction strength
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
 dis = [5.0]                    
 # List of disorder strengths
-lmax = 75                      # Flow time max
+lmax = 75                       # Flow time max
 qmax = 1500                     # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
-norm = True                      # Normal-ordering, can be true or false
+norm = False                     # Normal-ordering, can be true or false
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
                                 # Storing H(l) allows SciPy ODE integration to add extra flow time steps
                                 # Storing eta(l) reduces number of tensor contractions, at cost of accuracy
@@ -98,7 +98,7 @@ if intr == False:               # Zero the interactions if set to False (for ED 
     delta = 0
 if dis_type != 'curved':
     x = 0.0
-if n > 12 or qmax > 2000:
+if (species == 'spinless fermion' and n > 12) or (species == 'spinful fermion' and n > 6) or qmax > 2000:
     print('SETTING store_flow = False DUE TO TOO MANY VARIABLES AND/OR FLOW TIME STEPS')
     store_flow = False
 
@@ -200,10 +200,10 @@ if __name__ == '__main__':
                 flevels=np.zeros(n)
                 ed=np.zeros(n)
 
-            # plt.plot(flevels)
-            # plt.plot(ed,'--')
-            # plt.show()
-            # plt.close()
+            plt.plot(flevels)
+            plt.plot(ed,'--')
+            plt.show()
+            plt.close()
 
             if intr == False or n <= ncut:
                 lsr = diag.level_stat(flevels)

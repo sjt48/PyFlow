@@ -9,9 +9,6 @@ import numpy as np
 #import cupy as np
 import torch
 from numba import jit,prange,guvectorize,float64,complex64, complex128
-#import numba
-#from numba import prange
-# from con import con_cython,con_cython42
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 #------------------------------------------------------------------------------
