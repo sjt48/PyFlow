@@ -58,15 +58,15 @@ mpl.rcParams['mathtext.rm'] = 'serif'
 L = int(sys.argv[1])            # Linear system size
 dim = 1                         # Spatial dimension
 n = L**dim                      # Total number of sites
-species = 'spinful fermion'     # Type of particle
+species = 'spinless fermion'     # Type of particle
 dsymm = 'charge'                # Type of disorder (spinful fermions only)
 delta = 0.1                     # Nearest-neighbour interaction strength
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
 dis = [5.0]                    
 # List of disorder strengths
-lmax = 75                       # Flow time max
-qmax = 1500                     # Max number of flow time steps
+lmax = 50                       # Flow time max
+qmax = 5000                      # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
 norm = False                     # Normal-ordering, can be true or false
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
@@ -74,7 +74,7 @@ Hflow = True                    # Whether to store the flowing Hamiltonian (true
                                 # Storing eta(l) reduces number of tensor contractions, at cost of accuracy
                                 # NB: if the flow step dl is too large, this can lead to Vint diverging!
 precision = np.float64          # Precision with which to store running Hamiltonian/generator
-                                # Default throughout is single precision (np.float32)
+                                # Default throughout is double precision (np.float64)
                                 # Using np.float16 will half the memory cost, at loss of precision
                                 # Only affects the backwards transform, not the forward transform
 method = str(sys.argv[3])       # Method for computing tensor contractions

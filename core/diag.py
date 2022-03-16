@@ -35,13 +35,13 @@ os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False)))       # Set nu
 os.environ['NUMBA_NUM_THREADS'] = str(int(cpu_count(logical=False)))    # Set number of Numba threads
 import numpy as np
 from datetime import datetime
-from .dynamics import dyn_con,dyn_exact,dyn_mf
+from .dynamics import dyn_con,dyn_exact
 from numba import jit,prange
 import gc
 from .contract import contract,contractNO,contractNO2
 from .utility import nstate
 from scipy.integrate import ode
-from numba import jit,prange,float64,boolean
+from numba import jit,prange
 # import matplotlib.pyplot as plt
 
 #------------------------------------------------------------------------------ 
@@ -71,12 +71,6 @@ def CUT(params,hamiltonian,num,num_int):
         dl = np.logspace(np.log10(0.01), np.log10(lmax),qmax,endpoint=True,base=10)
 
     if hamiltonian.species == 'spinless fermion':
-        H2 = hamiltonian.H2_spinless
-
-        # Fix this later:
-        H0 = np.diag(np.diag(H2))
-        V0 = H2 - H0
-        Vint = np.zeros((n,n,n,n))
         
         if dyn == True:
             if intr == True:
@@ -95,15 +89,10 @@ def CUT(params,hamiltonian,num,num_int):
                     flow = flow_static_int_fwd(n,hamiltonian,dl,qmax,cutoff,method=method,precision=precision,norm=norm,Hflow=Hflow,store_flow=store_flow)
             elif intr == False:
                 flow = flow_static(n,hamiltonian,dl,qmax,cutoff,method=method,store_flow=store_flow)
-
         return flow
-
     elif hamiltonian.species == 'spinful fermion':
-
         flow = flow_static_int_spin(n,hamiltonian,dl,qmax,cutoff,method=method,store_flow=store_flow,norm=norm)
-
         return flow
-
     else:
         print('ERROR: Unknown type of particle.')
 
@@ -122,6 +111,7 @@ def indices(n):
 
     return indices
 
+@jit(nopython=True,parallel=True,fastmath=False,cache=True)
 def cut(y,n,cutoff,indices):
     """ Checks if ALL quadratic off-diagonal parts have decayed below cutoff*10e-3 and TYPICAL (median) off-diag quartic term have decayed below cutoff. """
     mat2 = y[:n**2].reshape(n,n)
@@ -132,6 +122,34 @@ def cut(y,n,cutoff,indices):
         mat4_od = np.zeros(n**4)            # Define diagonal quartic part 
         for i in indices:                   # Load Hint0 with values
             mat4_od[i] = mat4[i]
+        mat4_od = mat4_od[mat4_od != 0]
+        if np.median(np.abs(mat4_od)) < cutoff:
+            return 0 
+        else:
+            return 1
+    else:
+        return 1
+
+@jit(nopython=True,parallel=True,fastmath=False,cache=True)
+def cut_spin(y,n,cutoff,indices):
+    """ Checks if ALL quadratic off-diagonal parts have decayed below cutoff*10e-3 and TYPICAL (median) off-diag quartic term have decayed below cutoff. """
+    mat2 = y[:n**2].reshape(n,n)
+    mat3 = y[n**2:2*n**2].reshape(n,n)
+    mat2_od = mat2-np.diag(np.diag(mat2))
+    mat3_od = mat2-np.diag(np.diag(mat3))
+    mat_od = np.zeros(2*n**2)
+    mat_od[:n**2] = mat2_od.reshape(n**2)
+    mat_od[n**2:] = mat3_od.reshape(n**2)
+
+    if np.max(np.abs(mat_od)) < cutoff*10**(-3):
+        mat4 = y[2*n**2:2*n**2+n**4]
+        mat5 = y[2*n**2+n**4:2*n**2+2*n**4]
+        mat6 = y[2*n**2+2*n**2:2*n**2+3*n**4]
+        mat4_od = np.zeros(3*n**4)           # Define diagonal quartic part 
+        for i in indices:                   # Load Hint0 with values
+            mat4_od[i] = mat4[i]
+            mat4_od[i+n**4] = mat5[i]
+            mat4_od[i+2*n**4] = mat6[i]
         mat4_od = mat4_od[mat4_od != 0]
         if np.median(np.abs(mat4_od)) < cutoff:
             return 0 
@@ -240,7 +258,6 @@ def eta_con(y,n,method='jit',norm=False):
 
 #------------------------------------------------------------------------------
 
-# @jit(float64[:,:,:,:](float64[:,:,:,:],boolean[:]),nopython=True,parallel=True,fastmath=False,cache=True)
 @jit('UniTuple(float64[:,:,:,:],2)(float64[:,:,:,:],boolean)',nopython=True,parallel=True,fastmath=False,cache=True)
 def extract_diag(A,norm=False):
     B = np.zeros(A.shape,dtype=np.float64)
@@ -1447,7 +1464,9 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
    
         k = 1
         J0 = 10.
-        while r_int.successful() and k < qmax-1 and J0 > cutoff:
+        decay = 1
+        index_list = indices(n)
+        while r_int.successful() and k < qmax-1 and J0 > cutoff and decay == 1:
             r_int.integrate(dl_list[k])
             # sim = proc(r_int.y,n,cutoff)
             # sol_int[k] = sim
@@ -1459,7 +1478,8 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
             J0_up = max(np.abs(off_diag_up).reshape(n**2))
             J0_down = max(np.abs(off_diag_down).reshape(n**2))
             J0=max(J0_up,J0_down)
-            # print(mat_up)
+
+            decay = cut_spin(sol_int[k],n,cutoff,index_list)
 
             k += 1
         print(k,J0)   
@@ -1492,12 +1512,6 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
         charge = HFint_up+HFint_down+HFint_updown
         spin = HFint_up+HFint_down-HFint_updown
 
-        print(H0_diag_up)
-        print(H0_diag_down)
-        print(HFint_up)
-        print(HFint_down)
-        print(HFint_updown)
-
         lbits_up = np.zeros(n-1)
         lbits_down = np.zeros(n-1)
         lbits_updown = np.zeros(n-1)
@@ -1513,19 +1527,12 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
             lbits_charge[q-1] = np.median(np.log10(np.abs(np.diag(charge,q)+np.diag(charge,-q))/2.))
             lbits_spin[q-1] = np.median(np.log10(np.abs(np.diag(spin,q)+np.diag(spin,-q))/2.))
 
-        import matplotlib.pyplot as plt
-        plt.plot(lbits_charge)
-        plt.plot(lbits_spin,'--')
-        plt.show()
-        plt.close()
-
         r_int.set_initial_value(init,dl_list[0])
         init = np.zeros(2*n**2+3*n**4,dtype=np.float64)
         temp = np.zeros((n,n))
         temp[n//2,n//2] = 1.0
         init[:n**2] = temp.reshape(n**2)
         init[n**2:2*n**2] = temp.reshape(n**2)
-
 
         dl_list = dl_list[::-1]
 
@@ -1549,7 +1556,6 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
             output["dl_list"] = dl_list
 
         return output
-    
     
 def flow_dyn(n,hamiltonian,num,dl_list,qmax,cutoff,tlist,method='jit',store_flow=False):
     """
