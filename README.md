@@ -54,6 +54,7 @@ For the GPU implementation, the following additional packages (and their depende
 * Write more tests for non-interacting systems.
 * ~~Normal-ordering for Hubbard models can introduce small deviations from Hermitian matrices. Why?~~ (**Mostly fixed: reason is due to normal ordering with respect to a product state that isn't the same on every lattice site.**)
 * For non-interacting systems, compute LIOMs with ED as a comparison/test? 
+* Add creation/annihilation operators (factor of N cheaper than number operators to compute).
 * ~~Add long-range couplings from earlier code versions.~~ **Done, to be tested thoroughly.**
 * ~~Add 2D and 3D code.~~ **Done, passed tests in 2D.**
 * Figure out better solution for filenames for various models.

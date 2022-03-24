@@ -33,8 +33,8 @@ os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number o
 os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of MKL threads
 os.environ['NUMBA_NUM_THREADS'] = str(int(cpu_count(logical=False))) # Set number of Numba threads
 import numpy as np
-from numba import jit,prange,guvectorize,float32,float64,complex128
-
+from numba import jit,prange,guvectorize,float64,complex128
+# from numba import get_num_threads,threading_layer
 #------------------------------------------------------------------------------
 # Tensor contraction subroutines
 
@@ -62,6 +62,8 @@ def contract(A,B,method='jit',comp=False,eta=False,pair=None):
                     con = con24_firstpair(A,B,method,comp)
                 elif pair == 'second':
                     con = con24_secondpair(A,B,method,comp)
+    # print(get_num_threads())
+    # print("Threading layer: %s" % threading_layer())
     return con
 
 # Normal-ordering contraction function
@@ -310,7 +312,7 @@ def con42_NO(A,B,method='jit',comp=False,state=[],pair=None):
     elif method == 'vec' and comp == False:
         con = np.zeros(B.shape,dtype=np.float64)
         if pair == None:
-            con_vec42_NO(A,B,state,con)
+            con=con_jit42_NO(A,B,state)
         elif pair == 'first':
             con_vec42_NO_firstpair(A,B,state,con)
         elif pair == 'second':
@@ -388,7 +390,7 @@ def con42_firstpair(A,B,method='jit',comp=False,eta=False):
         con = con_jit42_firstpair(A,B)
     elif method == 'vec':
         con = np.zeros(A.shape,dtype=np.float64)
-        con_vec42_firstpair(A,B,con)
+        con = con_vec42_firstpair(A,B,con)
     return con
 
 # Contract rank-4 tensor with square matrix
@@ -422,31 +424,30 @@ def con24_secondpair(A,B,method='jit',comp=False,eta=False):
 #------------------------------------------------------------------------------
 # jit functions which return a matrix
     
-@jit(float64[:,:](float64[:,:],float64[:,:],float64[:,:]),nopython=True,parallel=True,fastmath=False,cache=True,nogil=True)
-# @jit(nopython=True,parallel=True,fastmath=False,cache=True)
+@jit(float64[:,:](float64[:,:],float64[:,:],float64[:,:]),nopython=True,parallel=True,fastmath=True,cache=True,nogil=True)
+# @jit(nopython=True,parallel=True,fastmath=True,cache=True)
 def con_jit(A,B,C):
     """ Contract two square matrices. Computes upper half only and then symmetrises. """
     m,_=A.shape
     for i in prange(m):
-        for j in range(i,m):
+        for j in range(m):
             for k in range(m):
                 C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-            C[j,i] = C[i,j]
 
     return C
 
-@jit(float64[:,:](float64[:,:],float64[:,:],float64[:,:]),nopython=True,parallel=True,fastmath=False,cache=True,nogil=True)
+@jit(float64[:,:](float64[:,:],float64[:,:],float64[:,:]),nopython=True,parallel=True,fastmath=True,cache=True,nogil=True)
 def con_jit_anti(A,B,C):
     """ Contract two square matrices. Computes upper half only and then anti-symmetrises. """
     m,_=A.shape
     for i in prange(m):
-        for j in range(i,m):
+        for j in range(m):
             for k in range(m):
                 C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-            C[j,i] = -C[i,j]
+            # C[j,i] = -C[i,j]
     return C
 
-@jit(nopython=True,parallel=True,fastmath=False,cache=True)
+@jit(nopython=True,parallel=True,fastmath=True,cache=True)
 def con_jit_comp(A,B):
     """ Contract two square complex matrices. Computes upper half only and then symmetrises. """
     C = np.zeros(A.shape,dtype=np.complex64)
@@ -459,7 +460,7 @@ def con_jit_comp(A,B):
 
     return C
 
-@jit(nopython=True,parallel=True,fastmath=False,cache=True)
+@jit(nopython=True,parallel=True,fastmath=True,cache=True)
 def con_jit_anti_comp(A,B):
     """ Contract two square complex matrices. Computes upper half only and then anti-symmetrises. """
     C = np.zeros(A.shape,dtype=np.complex64)
@@ -472,12 +473,12 @@ def con_jit_anti_comp(A,B):
 
     return C
 
-@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
+@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
 def con_jit42_NO(A,B,state):
     """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
     C = np.zeros(B.shape,dtype=np.float64)
     m,_=B.shape
-    for i in prange(m):
+    for i in range(m):
         for j in range(m):
             for k in range(m):
                 for q in range(m):
@@ -489,7 +490,7 @@ def con_jit42_NO(A,B,state):
 
     return C
 
-@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
+@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
 def con_jit42_NO_secondpair(A,B,state):
     """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
     C = np.zeros(B.shape,dtype=np.float64)
@@ -503,7 +504,7 @@ def con_jit42_NO_secondpair(A,B,state):
 
     return C
 
-@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
+@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
 def con_jit42_NO_firstpair(A,B,state):
     """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
     C = np.zeros(B.shape,dtype=np.float64)
@@ -516,7 +517,7 @@ def con_jit42_NO_firstpair(A,B,state):
                         C[i,j] += A[i,j,k,q]*B[q,k]*(state[k]-state[q])
     return C
 
-@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
+@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
 def con_jit42_comp_NO(A,B,state):
     """ 2-point contractions of a (complex) rank-4 tensor with a (complex) square matrix. Computes upper half only and then symmetrises. """
     C = np.zeros(B.shape,dtype=np.float64)
@@ -537,7 +538,7 @@ def con_jit42_comp_NO(A,B,state):
 #------------------------------------------------------------------------------
 # jit functions which return a rank-4 tensor
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:]),nopython=True,parallel=True,fastmath=False,cache=True,nogil=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:]),nopython=True,parallel=True,fastmath=True,cache=True,nogil=True)
 def con_jit42(A,B):
     C = np.zeros(A.shape,dtype=np.float64)
     m,_,_,_=A.shape
@@ -554,7 +555,7 @@ def con_jit42(A,B):
 
     return C
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:]),nopython=True,parallel=True,fastmath=False,cache=True,nogil=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:]),nopython=True,parallel=True,fastmath=True,cache=True,nogil=True)
 def con_jit42_firstpair(A,B):
     C = np.zeros(A.shape,dtype=np.float64)
     m,_,_,_=A.shape
@@ -569,7 +570,7 @@ def con_jit42_firstpair(A,B):
 
     return C
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:]),nopython=True,parallel=True,fastmath=False,cache=True,nogil=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:]),nopython=True,parallel=True,fastmath=True,cache=True,nogil=True)
 def con_jit42_secondpair(A,B):
     C = np.zeros(A.shape,dtype=np.float64)
     m,_,_,_=A.shape
@@ -584,7 +585,7 @@ def con_jit42_secondpair(A,B):
 
     return C
 
-@jit(nopython=True,parallel=True,fastmath=False,cache=True)
+@jit(nopython=True,parallel=True,fastmath=True,cache=True)
 def con_jit42_comp(A,B):
     C = np.zeros(A.shape,dtype=np.complex64)
     m,_,_,_=A.shape
@@ -600,7 +601,7 @@ def con_jit42_comp(A,B):
 
     return C
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
 def con_jit44_NO(A,B,state):
     C = np.zeros(A.shape,dtype=np.float64)
     m0,_,_,_=A.shape
@@ -621,7 +622,7 @@ def con_jit44_NO(A,B,state):
        
     return C
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
 def con_jit44_NO_up_mixed(A,B,state):
     C = np.zeros(A.shape,dtype=np.float64)
     m0,_,_,_=A.shape
@@ -641,7 +642,7 @@ def con_jit44_NO_up_mixed(A,B,state):
 
     return C
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
 def con_jit44_NO_down_mixed(A,B,state):
     C = np.zeros(A.shape,dtype=np.float64)
     m0,_,_,_=A.shape
@@ -660,7 +661,7 @@ def con_jit44_NO_down_mixed(A,B,state):
                                 
     return C
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
 def con_jit44_NO_mixed(A,B,upstate,downstate):
     C = np.zeros(A.shape,dtype=np.float64)
     m0,_,_,_=A.shape
@@ -680,7 +681,7 @@ def con_jit44_NO_mixed(A,B,upstate,downstate):
                                 
     return C
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
 def con_jit44_NO_mixed_mixed_up(A,B,state):
     C = np.zeros(A.shape,dtype=np.float64)
     m0,_,_,_=A.shape
@@ -695,7 +696,7 @@ def con_jit44_NO_mixed_mixed_up(A,B,state):
                                     C[i,j,k,q] += A[i,j,l,m]*(B[k,q,m,l])*(state[l]-state[m]) #+               
     return C
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
 def con_jit44_NO_mixed_mixed_down(A,B,state):
     C = np.zeros(A.shape,dtype=np.float64)
     m0,_,_,_=A.shape
@@ -712,7 +713,7 @@ def con_jit44_NO_mixed_mixed_down(A,B,state):
 
     return C
 
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=False,cache=True)
+@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
 def con_jit44_anti_NO(A,B,state):
     C = np.zeros(A.shape,dtype=np.float64)
     m0,_,_,_=A.shape
@@ -742,9 +743,9 @@ def con_vec(A,B,C):
     m,_=A.shape
     for i in range(m):
         for j in range(m):
+            C[i,j] = 0.
             for k in range(m):
                 C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-
 
 @guvectorize([(float64[:,:],complex128[:,:],complex128[:,:])],'(n,n),(n,n)->(n,n)',target='cpu',nopython=True)
 def con_vec_comp(A,B,C):
@@ -759,6 +760,7 @@ def con_vec_comp2(A,B,C):
     m,_=A.shape
     for i in range(m):
         for j in range(m):
+            C[i,j] = 0.
             for k in range(m):
                 C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
     
@@ -767,6 +769,7 @@ def con_vec_comp3(A,B,C):
     m,_=A.shape
     for i in range(m):
         for j in range(m):
+            C[i,j] = 0.
             for k in range(m):
                 C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
 
@@ -777,6 +780,7 @@ def con_vec42(A,B,C):
         for j in range(m):
             for k in range(m):
                 for q in range(m):
+                    C[i,j,k,q] = 0.
                     for l in range(m):
                         C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
                         C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
@@ -791,6 +795,7 @@ def con_vec42_comp(A,B,C):
         for j in range(m):
             for k in range(m):
                 for q in range(m):
+                    C[i,j,k,q] = 0.
                     for l in range(m):
                         C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
                         C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
@@ -804,6 +809,7 @@ def con_vec42_comp2(A,B,C):
         for j in range(m):
             for k in range(m):
                 for q in range(m):
+                    C[i,j,k,q] = 0.
                     for l in range(m):
                         C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
                         C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
@@ -817,6 +823,7 @@ def con_vec42_comp3(A,B,C):
         for j in range(m):
             for k in range(m):
                 for q in range(m):
+                    C[i,j,k,q] = 0.
                     for l in range(m):
                         C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
                         C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
@@ -852,8 +859,10 @@ def con_vec42_secondpair(A,B,C):
 def con_vec42_NO(A,B,state,C):
     """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
     m,_=B.shape
+    C = np.zeros(B.shape,dtype=np.float64)
     for i in range(m):
         for j in range(m):
+            # C[i,j] = 0.
             for k in range(m):
                 for q in range(m):
                     if state[k] != state[q]:
@@ -868,6 +877,7 @@ def con_vec42_NO_secondpair(A,B,state,C):
     m,_=B.shape
     for i in range(m):
         for j in range(m):
+            C[i,j] = 0.
             for k in range(m):
                 for q in range(m):
                     if state[k] != state[q]:
@@ -879,6 +889,7 @@ def con_vec42_NO_firstpair(A,B,state,C):
     m,_=B.shape
     for i in range(m):
         for j in range(m):
+            C[i,j] = 0.
             for k in range(m):
                 for q in range(m):
                     if state[k] != state[q]:
@@ -892,6 +903,7 @@ def con_vec44_NO(A,B,state,C):
             for k in range(m0):
                 for q in range(m0):
                         # Indices to be summed over
+                        C[i,j,k,q] = 0.
                         for l in range(m0):
                             for m in range(m0):
                                 if state[l] != state[m]:
@@ -901,7 +913,6 @@ def con_vec44_NO(A,B,state,C):
                                     C[i,j,k,q] += -A[i,l,m,j]*(B[k,m,l,q]+B[k,q,l,m]+B[l,m,k,q]-B[l,q,k,m])*(state[l]-state[m]) #-
                                 C[i,j,k,q] +=  A[l,j,m,q]*(B[i,m,k,l]+B[i,l,k,m])*(state[l]+state[m]) #--
                                 C[i,j,k,q] +=  A[i,l,k,m]*(B[m,j,l,q]+B[l,j,m,q])*(state[l]+state[m]) #--
-
 
 @guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
 def con_vec44_NO_up_mixed(A,B,state,C):

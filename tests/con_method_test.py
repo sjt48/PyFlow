@@ -91,8 +91,40 @@ if __name__ == '__main__':
         #     print('SUCCESS: RESULT FROM %s EQUALS %s' %(method1,method2))
 
         return error_count
+
+    def test_NO(A,B,method1,method2,eta):
+        """ Tests if methods agree to 6 decimal places. """
+
+        list1 = np.array([1. for i in range(n//2)])
+        list2 = np.array([0. for i in range(n//2)])
+        state = np.array([val for pair in zip(list1,list2) for val in pair])
+        a = (con.contractNO(A,B,method=method1,eta=eta,state=state,upstate=state,downstate=state))
+        b = (con.contractNO(A,B,method=method2,eta=eta,state=state,upstate=state,downstate=state))
+
+        a=a.reshape(len(a)**dim(a))
+        a=a.astype(np.float32)
+        a=np.array([round(var,8) for var in a])
+        b=b.reshape(len(b)**dim(b))
+        b=b.astype(np.float32)
+        b=np.array([round(var,8) for var in b])
+
+        error_count = 0
+        for i in range(len(a)):
+            if a[i] != b[i]:
+                # Only flags errors above a certain threshold, 
+                # to avoid rounding errors being mistaken for 'real' errors
+                if 2*(a[i]-b[i])/(a[i]+b[i])>1.0001:
+                    print(i,a[i],b[i])
+                    error_count += 1
+
+        if error_count > 0:
+            print('*** WARNING: RESULT FROM %s DOES NOT EQUAL %s' %(method1,method2))
+        # if error_count == 0:
+        #     print('SUCCESS: RESULT FROM %s EQUALS %s' %(method1,method2))
+
+        return error_count
             
-    #-----------------------------------------------------------------
+    # #-----------------------------------------------------------------
     # Generate SYMMETRIC matrices/tensors
 
     A2 = np.random.uniform(-1,1,n**2).reshape(n,n)
@@ -166,6 +198,36 @@ if __name__ == '__main__':
     for i in range(len(loop)):
         for m1,m2 in loop[i]:
             test(A4,B2,m1,m2,eta=True)
+
+    gc.collect()
+    print('****************')
+    print('Time taken for one run:',datetime.now()-startTime)
+    print('****************')
+
+    #-----------------------------------------------------------------
+    # NORMAL-ORDERING jit/vec COMPARISON
+
+    A2 = np.random.uniform(-1,1,n**2).reshape(n,n)
+    A2 = ((A2-A2.T)/2)
+    B2 = np.random.uniform(-1,1,n**2).reshape(n,n)
+    B2 = ((B2-B2.T)/2)
+    A4 = np.random.uniform(-1,1,n**4).reshape(n,n,n,n)
+    B4 = np.random.uniform(-1,1,n**4).reshape(n,n,n,n)
+
+    methods = ['jit','vec']
+    loop = [list(zip(permutation, methods)) for permutation in permutations(methods, len(methods))]
+
+    for i in range(len(loop)):
+        for m1,m2 in loop[i]:
+            test_NO(A2,B4,m1,m2,eta=True)
+
+    for i in range(len(loop)):
+        for m1,m2 in loop[i]:
+            test_NO(A4,B2,m1,m2,eta=True)
+
+    for i in range(len(loop)):
+        for m1,m2 in loop[i]:
+            test_NO(A4,B4,m1,m2,eta=True)
 
     gc.collect()
     print('****************')

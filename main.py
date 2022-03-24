@@ -58,17 +58,19 @@ mpl.rcParams['mathtext.rm'] = 'serif'
 L = int(sys.argv[1])            # Linear system size
 dim = 1                         # Spatial dimension
 n = L**dim                      # Total number of sites
-species = 'spinless fermion'     # Type of particle
+species = 'spinful fermion'    # Type of particle
 dsymm = 'charge'                # Type of disorder (spinful fermions only)
-delta = 0.1                     # Nearest-neighbour interaction strength
+Ulist = [0.5]
+# List of interaction strengths
 J = 1.0                         # Nearest-neighbour hopping amplitude
-cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
-dis = [5.0]                    
+cutoff = J*10**(-3)            # Cutoff for the off-diagonal elements to be considered zero
+dis = [0.7+0.01*i for i in range(11)]    
+dis = [3.0]                
 # List of disorder strengths
-lmax = 50                       # Flow time max
-qmax = 5000                      # Max number of flow time steps
+lmax = 50                      # Flow time max
+qmax = 500                     # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
-norm = False                     # Normal-ordering, can be true or false
+norm = True                     # Normal-ordering, can be true or false
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
                                 # Storing H(l) allows SciPy ODE integration to add extra flow time steps
                                 # Storing eta(l) reduces number of tensor contractions, at cost of accuracy
@@ -93,11 +95,12 @@ logflow = True                  # Use logarithmically spaced steps in flow time
 store_flow = True               # Store the full flow of the Hamiltonian and LIOMs
 dis_type = str(sys.argv[2])     # Options: 'random', 'QPgolden', 'QPsilver', 'QPbronze', 'QPrandom', 'linear', 'curved', 'prime'
                                 # Also contains 'test' and 'QPtest', potentials that do not change from run to run
-x = 0.1                         # For 'dis_type = curved', controls the gradient of the curvature
+xlist = [0.1*i for i in range(1,10)]
+# For 'dis_type = curved', controls the gradient of the curvature
 if intr == False:               # Zero the interactions if set to False (for ED comparison and filename)
     delta = 0
 if dis_type != 'curved':
-    x = 0.0
+    xlist = [0.0]
 if (species == 'spinless fermion' and n > 12) or (species == 'spinful fermion' and n > 6) or qmax > 2000:
     print('SETTING store_flow = False DUE TO TOO MANY VARIABLES AND/OR FLOW TIME STEPS')
     store_flow = False
@@ -105,11 +108,6 @@ if (species == 'spinless fermion' and n > 12) or (species == 'spinful fermion' a
 # Define list of timesteps for non-equilibrium dynamics
 # Only used if 'dyn = True'
 tlist = [0.01*i for i in range(31)]
-
-# Create dictionary of parameters to pass to functions; avoids having to have too many function args
-params = {"n":n,"delta":delta,"J":J,"cutoff":cutoff,"dis":dis,"dsymm":dsymm,"lmax":lmax,"qmax":qmax,"reps":reps,"norm":norm,
-            "Hflow":Hflow,"precision":precision,"method":method, "intr":intr,"dyn":dyn,"imbalance":imbalance,"species":species,
-                "LIOM":LIOM, "dyn_MF":dyn_MF,"logflow":logflow,"dis_type":dis_type,"x":x,"tlist":tlist,"store_flow":store_flow}
 
 # Make directory to store data
 nvar = utility.namevar(dis_type,dsymm,dyn,norm,n,LIOM,species)
@@ -135,145 +133,137 @@ if __name__ == '__main__':
     print('Start time: ', startTime)
 
     for p in range(reps):
-        lbit_list = np.zeros((reps,len(dis),n-1))
-        dcount = 0
-        for d in dis:
-            
-            #-----------------------------------------------------------------
-            # Initialise Hamiltonian
-            ham = models.hamiltonian(species,dis_type,intr=intr)
-            if species == 'spinless fermion':
-                ham.build(n,dim,d,J,dis_type,delta=delta)
-            elif species == 'spinful fermion':
-                # print('** NOTE **: Using different disorder strengths for up and down fermions.')
-                # list1 = np.random.uniform(-d,d,n)
-                # list2 = np.random.uniform(-d/10,d/10,n)
-                ham.build(n,dim,d,J,dis_type,delta_onsite=delta,delta_up=0.,delta_down=0.,dsymm=dsymm)
-            
-            # Initialise the number operator on the central lattice site
-            num = np.zeros((n,n))
-            num[n//2,n//2] = 1.0
-            
-            # Initialise higher-order parts of number operator (empty)
-            num_int=np.zeros((n,n,n,n),dtype=np.float32)
-            
-            #-----------------------------------------------------------------
-            
-            # Diag non-interacting system w/NumPy
-            startTime = datetime.now()
-            # print(np.sort(np.linalg.eigvalsh(ham.H2_spinless)))
-            # print('NumPy diag time',datetime.now()-startTime)
+        for x in xlist:
+            for d in dis:
+                for delta in Ulist:
 
-            #-----------------------------------------------------------------
+                    # Create dictionary of parameters to pass to functions; avoids having to have too many function args
+                    params = {"n":n,"delta":delta,"J":J,"cutoff":cutoff,"dis":dis,"dsymm":dsymm,"lmax":lmax,"qmax":qmax,"reps":reps,"norm":norm,
+                                "Hflow":Hflow,"precision":precision,"method":method, "intr":intr,"dyn":dyn,"imbalance":imbalance,"species":species,
+                                    "LIOM":LIOM, "dyn_MF":dyn_MF,"logflow":logflow,"dis_type":dis_type,"x":x,"tlist":tlist,"store_flow":store_flow}
 
-            # Diagonalise with flow equations
-            flow = diag.CUT(params,ham,num,num_int)
-
-            print('Time after flow finishes: ',datetime.now()-startTime)
-            # print(np.sort(np.diag(flow["H0_diag"])))
-
-            if species == 'spinless fermion':
-                ncut = 12
-            elif species == 'spinful fermion':
-                ncut = 6
-
-            # Diagonalise with ED
-            if n <= ncut and dyn == True:
-                ed=ED(n,ham,tlist,dyn,imbalance)
-                ed_dyn=ed[1]
-            elif n <= ncut and dyn == False:
-                ed=ED(n,ham,np.ones(2),dyn,imbalance)
-            else:
-                ed = np.zeros(n)
-            print('Time after ED: ',datetime.now()-startTime)
-
-            if intr == False or n <= ncut:
-                if species == 'spinless fermion':
-                    flevels = diag.flow_levels(n,flow,intr)
-                elif species == 'spinful fermion':
+                    #-----------------------------------------------------------------
+                    # Initialise Hamiltonian
+                    ham = models.hamiltonian(species,dis_type,intr=intr)
+                    if species == 'spinless fermion':
+                        ham.build(n,dim,d,J,dis_type,delta=delta)
+                    elif species == 'spinful fermion':
+                        ham.build(n,dim,d,J,dis_type,delta_onsite=delta,delta_up=0.,delta_down=0.,dsymm=dsymm)
                     
-                    flevels = diag.flow_levels_spin(n,flow,intr)
-                flevels = flevels-np.median(flevels)
-                ed = ed[0] - np.median(ed[0])
-            
-            else:
-                flevels=np.zeros(n)
-                ed=np.zeros(n)
+                    # Initialise the number operator on the central lattice site
+                    num = np.zeros((n,n))
+                    num[n//2,n//2] = 1.0
+                    
+                    # Initialise higher-order parts of number operator (empty)
+                    num_int=np.zeros((n,n,n,n),dtype=np.float32)
+                    
+                    #-----------------------------------------------------------------
+                    
+                    # Diag non-interacting system w/NumPy
+                    startTime = datetime.now()
+                    # print(np.sort(np.linalg.eigvalsh(ham.H2_spinless)))
+                    # print('NumPy diag time',datetime.now()-startTime)
 
-            plt.plot(flevels)
-            plt.plot(ed,'--')
-            plt.show()
-            plt.close()
+                    #-----------------------------------------------------------------
 
-            if intr == False or n <= ncut:
-                lsr = diag.level_stat(flevels)
-                lsr2 = diag.level_stat(ed)
+                    # Diagonalise with flow equations
+                    flow = diag.CUT(params,ham,num,num_int)
 
-                errlist = np.zeros(len(ed))
-                for i in range(len(ed)):
-                    if np.round(ed[i],10)!=0.:
-                        errlist[i] = np.abs((ed[i]-flevels[i])/ed[i])
+                    print('Time after flow finishes: ',datetime.now()-startTime)
 
-                print('***** ERROR *****: ', np.median(errlist))  
+                    if species == 'spinless fermion':
+                        ncut = 12
+                    elif species == 'spinful fermion':
+                        ncut = 6
 
-            if dyn == True:
-                plt.plot(tlist,ed_dyn,label=r'ED')
-                if imbalance == True:
-                    plt.plot(tlist,flow["Imbalance"],'o')
-                    plt.ylabel(r'$\mathcal{I}(t)$')
-                else:
-                    plt.plot(tlist,flow["Density Dynamics"],'o',label='Flow')
-                    plt.ylabel(r'$\langle n_i(t) \rangle$')
-                plt.xlabel(r'$t$')
-                plt.legend()
-                plt.show()
-                plt.close()
-
-            lbit_list[p,dcount] = (flow["LIOM Interactions"])[-1]
-            dcount += 1
-
-            #==============================================================
-            # Export data   
-            with h5py.File('%s/tflow-d%.2f-x%.2f-Jz%.2f-p%s.h5' %(nvar,d,x,delta,p),'w') as hf:
-                hf.create_dataset('params',data=str(params))
-
-                # if species == 'spinless fermion':
-                hf.create_dataset('H2_diag',data=flow["H0_diag"])
-                if species == 'spinless fermion':
-                    hf.create_dataset('H2_initial',data=ham.H2_spinless)
-                elif species == 'spinless fermion':
-                    hf.create_dataset('H2_up',data=ham.H2_spinup)
-                    hf.create_dataset('H2_dn',data=ham.H2_spindown)
-
-                if n <= ncut:
-                    hf.create_dataset('flevels', data = flevels,compression='gzip', compression_opts=9)
-                    hf.create_dataset('ed', data = ed, compression='gzip', compression_opts=9)
-                    hf.create_dataset('lsr', data = [lsr,lsr2])
-                    hf.create_dataset('err',data = errlist)
-                    if store_flow == True:
-                        hf.create_dataset('flow',data=flow["flow"])
-                        hf.create_dataset('dl_list',data=flow["dl_list"])
-                if intr == True:
-                        hf.create_dataset('lbits', data = flow["LIOM Interactions"])
-                        hf.create_dataset('Hint', data = flow["Hint"], compression='gzip', compression_opts=9)
-                        hf.create_dataset('liom', data = flow["LIOM"], compression='gzip', compression_opts=9)
-                        hf.create_dataset('inv',data=flow["Invariant"])
-                if dyn == True:
-                    hf.create_dataset('tlist', data = tlist)
-                    if imbalance == True:
-                        hf.create_dataset('imbalance',data=flow["Imbalance"])
+                    # Diagonalise with ED
+                    if n <= ncut and dyn == True:
+                        ed=ED(n,ham,tlist,dyn,imbalance)
+                        ed_dyn=ed[1]
+                    elif n <= ncut and dyn == False:
+                        ed=ED(n,ham,np.ones(2),dyn,imbalance)
                     else:
-                        hf.create_dataset('flow_dyn', data = flow["Density Dynamics"])
-                    if n <= ncut:
-                        hf.create_dataset('ed_dyn', data = ed_dyn)
-                            
-        gc.collect()
-        print('****************')
-        print('Time taken for one run:',datetime.now()-startTime)
-        print('****************')
+                        ed = np.zeros(n)
+                    print('Time after ED: ',datetime.now()-startTime)
 
-    # lbits = np.mean(lbit_list,axis=0)
-    # for i in range(len(dis)):
-    #     plt.plot(lbits[i])
-    # plt.show()
-    # plt.close()
+                    if intr == False or n <= ncut:
+                        if species == 'spinless fermion':
+                            flevels = diag.flow_levels(n,flow,intr)
+                        elif species == 'spinful fermion':
+                            
+                            flevels = diag.flow_levels_spin(n,flow,intr)
+                        flevels = flevels-np.median(flevels)
+                        ed = ed[0] - np.median(ed[0])
+                    
+                    else:
+                        flevels=np.zeros(n)
+                        ed=np.zeros(n)
+
+                    # plt.plot(flevels)
+                    # plt.plot(ed,'--')
+                    # plt.show()
+                    # plt.close()
+
+                    if intr == False or n <= ncut:
+                        lsr = diag.level_stat(flevels)
+                        lsr2 = diag.level_stat(ed)
+
+                        errlist = np.zeros(len(ed))
+                        for i in range(len(ed)):
+                            if np.round(ed[i],10)!=0.:
+                                errlist[i] = np.abs((ed[i]-flevels[i])/ed[i])
+
+                        print('***** ERROR *****: ', np.median(errlist))  
+
+                    if dyn == True:
+                        plt.plot(tlist,ed_dyn,label=r'ED')
+                        if imbalance == True:
+                            plt.plot(tlist,flow["Imbalance"],'o')
+                            plt.ylabel(r'$\mathcal{I}(t)$')
+                        else:
+                            plt.plot(tlist,flow["Density Dynamics"],'o',label='Flow')
+                            plt.ylabel(r'$\langle n_i(t) \rangle$')
+                        plt.xlabel(r'$t$')
+                        plt.legend()
+                        plt.show()
+                        plt.close()
+
+                    #==============================================================
+                    # Export data   
+                    with h5py.File('%s/tflow-d%.2f-x%.2f-Jz%.2f-p%s.h5' %(nvar,d,x,delta,p),'w') as hf:
+                        hf.create_dataset('params',data=str(params))
+
+                        # if species == 'spinless fermion':
+                        hf.create_dataset('H2_diag',data=flow["H0_diag"])
+                        if species == 'spinless fermion':
+                            hf.create_dataset('H2_initial',data=ham.H2_spinless)
+                        elif species == 'spinless fermion':
+                            hf.create_dataset('H2_up',data=ham.H2_spinup)
+                            hf.create_dataset('H2_dn',data=ham.H2_spindown)
+
+                        if n <= ncut:
+                            hf.create_dataset('flevels', data = flevels,compression='gzip', compression_opts=9)
+                            hf.create_dataset('ed', data = ed, compression='gzip', compression_opts=9)
+                            hf.create_dataset('lsr', data = [lsr,lsr2])
+                            hf.create_dataset('err',data = errlist)
+                            if store_flow == True:
+                                hf.create_dataset('flow',data=flow["flow"])
+                                hf.create_dataset('dl_list',data=flow["dl_list"])
+                        if intr == True:
+                                hf.create_dataset('lbits', data = flow["LIOM Interactions"])
+                                hf.create_dataset('Hint', data = flow["Hint"], compression='gzip', compression_opts=9)
+                                hf.create_dataset('liom', data = flow["LIOM"], compression='gzip', compression_opts=9)
+                                hf.create_dataset('inv',data=flow["Invariant"])
+                        if dyn == True:
+                            hf.create_dataset('tlist', data = tlist)
+                            if imbalance == True:
+                                hf.create_dataset('imbalance',data=flow["Imbalance"])
+                            else:
+                                hf.create_dataset('flow_dyn', data = flow["Density Dynamics"])
+                            if n <= ncut:
+                                hf.create_dataset('ed_dyn', data = ed_dyn)
+                                    
+                gc.collect()
+                print('****************')
+                print('Time taken for one run:',datetime.now()-startTime)
+                print('****************')
