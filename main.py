@@ -58,19 +58,19 @@ mpl.rcParams['mathtext.rm'] = 'serif'
 L = int(sys.argv[1])            # Linear system size
 dim = 1                         # Spatial dimension
 n = L**dim                      # Total number of sites
-species = 'spinful fermion'    # Type of particle
+species = 'spinless fermion'     # Type of particle
 dsymm = 'charge'                # Type of disorder (spinful fermions only)
-Ulist = [0.5]
+Ulist = [0.1]
 # List of interaction strengths
 J = 1.0                         # Nearest-neighbour hopping amplitude
-cutoff = J*10**(-3)            # Cutoff for the off-diagonal elements to be considered zero
+cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
 dis = [0.7+0.01*i for i in range(11)]    
 dis = [3.0]                
 # List of disorder strengths
 lmax = 50                      # Flow time max
 qmax = 500                     # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
-norm = True                     # Normal-ordering, can be true or false
+norm = False                     # Normal-ordering, can be true or false
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
                                 # Storing H(l) allows SciPy ODE integration to add extra flow time steps
                                 # Storing eta(l) reduces number of tensor contractions, at cost of accuracy
@@ -95,7 +95,7 @@ logflow = True                  # Use logarithmically spaced steps in flow time
 store_flow = True               # Store the full flow of the Hamiltonian and LIOMs
 dis_type = str(sys.argv[2])     # Options: 'random', 'QPgolden', 'QPsilver', 'QPbronze', 'QPrandom', 'linear', 'curved', 'prime'
                                 # Also contains 'test' and 'QPtest', potentials that do not change from run to run
-xlist = [0.1*i for i in range(1,10)]
+xlist = [1.]
 # For 'dis_type = curved', controls the gradient of the curvature
 if intr == False:               # Zero the interactions if set to False (for ED comparison and filename)
     delta = 0
@@ -146,10 +146,9 @@ if __name__ == '__main__':
                     # Initialise Hamiltonian
                     ham = models.hamiltonian(species,dis_type,intr=intr)
                     if species == 'spinless fermion':
-                        ham.build(n,dim,d,J,x,dis_type,delta=delta)
+                        ham.build(n,dim,d,J,x,delta=delta)
                     elif species == 'spinful fermion':
-                        ham.build(n,dim,d,J,x,dis_type,delta_onsite=delta,delta_up=0.,delta_down=0.,dsymm=dsymm)
-                    
+                        ham.build(n,dim,d,J,x,delta_onsite=delta,delta_up=0.,delta_down=0.,dsymm=dsymm)
                     # Initialise the number operator on the central lattice site
                     num = np.zeros((n,n))
                     num[n//2,n//2] = 1.0

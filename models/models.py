@@ -27,6 +27,7 @@ This file contains the code used to initialise the Hamiltonian classes for a var
 """
 
 import core.init as init
+import numpy as np
 
 class hamiltonian:
     def __init__(self,species,dis_type,intr,pwrhop=False,pwrint=False):
@@ -36,9 +37,10 @@ class hamiltonian:
         self.pwrhop = pwrhop
         self.pwrint = pwrint
 
-    def build(self,n,dim,d,J,dis_type,delta=0,delta_up=0,delta_down=0,delta_mixed=0,delta_onsite=0,alpha=0,beta=0,U=0,dsymm='charge'):
+    def build(self,n,dim,d,J,x,delta=0,delta_up=0,delta_down=0,delta_mixed=0,delta_onsite=0,alpha=0,beta=0,U=0,dsymm='charge'):
         self.n = n
         self.dim = dim
+        self.x = x
 
         if dim == 1:
             self.L = n
@@ -50,7 +52,7 @@ class hamiltonian:
         if self.species == 'spinless fermion':
             self.d = d
             self.J = J
-            self.H2_spinless = init.Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dim=dim)
+            self.H2_spinless = init.Hinit(n,d,J,self.dis_type,x,pwrhop=False,alpha=0,Fourier=False,dim=dim)
             if self.intr == True:
                 self.delta = delta
                 self.H4_spinless = init.Hint_init(n,delta,pwrint=False,beta=0,dim=dim)
@@ -59,7 +61,7 @@ class hamiltonian:
             self.d = d
             self.J = J
             self.dsymm = dsymm
-            H2up,H2dn = init.H2_spin_init(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dsymm=dsymm)
+            H2up,H2dn = init.H2_spin_init(n,d,J,self.dis_type,x,pwrhop=False,alpha=0,Fourier=False,dsymm=dsymm)
             self.H2_spinup = H2up
             self.H2_spindown = H2dn
             if self.intr == True:
@@ -77,7 +79,7 @@ class hamiltonian:
             self.d = d
             self.J = J
             self.U = U
-            self.boson = init.Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dim=dim)
+            self.boson = init.Hinit(n,d,J,self.dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dim=dim)
             if self.intr == True:
                 self.H4_boson = init.Hint_init(n,0,pwrint=False,beta=0,dim=dim,U=U)
         elif self.species =='hard core boson':
