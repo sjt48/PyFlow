@@ -36,9 +36,10 @@ class hamiltonian:
         self.pwrhop = pwrhop
         self.pwrint = pwrint
 
-    def build(self,n,dim,d,J,dis_type,delta=0,delta_up=0,delta_down=0,delta_mixed=0,delta_onsite=0,alpha=0,beta=0,U=0,dsymm='charge'):
+    def build(self,n,dim,d,J,x=0,dis_type,delta=0,delta_up=0,delta_down=0,delta_mixed=0,delta_onsite=0,alpha=0,beta=0,U=0,dsymm='charge'):
         self.n = n
         self.dim = dim
+        self.x = x
 
         if dim == 1:
             self.L = n
@@ -50,7 +51,7 @@ class hamiltonian:
         if self.species == 'spinless fermion':
             self.d = d
             self.J = J
-            self.H2_spinless = init.Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dim=dim)
+            self.H2_spinless = init.Hinit(n,d,J,dis_type,x,pwrhop=False,alpha=0,Fourier=False,dim=dim)
             if self.intr == True:
                 self.delta = delta
                 self.H4_spinless = init.Hint_init(n,delta,pwrint=False,beta=0,dim=dim)

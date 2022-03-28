@@ -146,9 +146,9 @@ if __name__ == '__main__':
                     # Initialise Hamiltonian
                     ham = models.hamiltonian(species,dis_type,intr=intr)
                     if species == 'spinless fermion':
-                        ham.build(n,dim,d,J,dis_type,delta=delta)
+                        ham.build(n,dim,d,J,x,dis_type,delta=delta)
                     elif species == 'spinful fermion':
-                        ham.build(n,dim,d,J,dis_type,delta_onsite=delta,delta_up=0.,delta_down=0.,dsymm=dsymm)
+                        ham.build(n,dim,d,J,x,dis_type,delta_onsite=delta,delta_up=0.,delta_down=0.,dsymm=dsymm)
                     
                     # Initialise the number operator on the central lattice site
                     num = np.zeros((n,n))
