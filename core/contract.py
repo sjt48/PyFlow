@@ -613,13 +613,37 @@ def con_jit44_NO(A,B,state):
                         for l in range(m0):
                             for m in range(m0):
                                 if state[l] != state[m]:
-                                    C[i,j,k,q] += A[i,j,l,m]*(B[m,l,k,q]+B[k,q,m,l]-B[m,q,k,l]+B[k,l,m,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += A[l,m,i,j]*(B[m,l,k,q]+B[k,q,m,l]-B[m,q,k,l]+B[k,l,m,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -A[l,j,i,m]*(B[m,l,k,q]+B[k,l,m,q]-B[m,q,k,l]+B[k,q,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += -A[i,l,m,j]*(B[k,m,l,q]+B[k,q,l,m]+B[l,m,k,q]-B[l,q,k,m])*(state[l]-state[m]) #-
-                                C[i,j,k,q] +=  A[l,j,m,q]*(B[i,m,k,l]+B[i,l,k,m])*(state[l]+state[m]) #--
-                                C[i,j,k,q] +=  A[i,l,k,m]*(B[m,j,l,q]+B[l,j,m,q])*(state[l]+state[m]) #--
-       
+                                    C[i,j,k,q] += 0.25*A[i,j,l,m]*(B[m,l,k,q]+B[k,q,m,l]-B[m,q,k,l]+B[k,l,m,q])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,m,i,j]*(B[m,l,k,q]+B[k,q,m,l]-B[m,q,k,l]+B[k,l,m,q])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,j,i,m]*(B[m,l,k,q]+B[k,l,m,q]-B[m,q,k,l]+B[k,q,m,l])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += -0.25*A[i,l,m,j]*(B[k,m,l,q]+B[k,q,l,m]+B[l,m,k,q]-B[l,q,k,m])*(state[l]-state[m]) #-
+                                C[i,j,k,q] +=  0.25*A[l,j,m,q]*(B[i,m,k,l]+B[i,l,k,m])*(state[l]+state[m]) #--
+                                C[i,j,k,q] +=  0.25*A[i,l,k,m]*(B[m,j,l,q]+B[l,j,m,q])*(state[l]+state[m]) #--
+
+                                if state[l] != state[m]:
+                                    C[i,j,k,q] += -0.25*A[i,q,l,m]*(B[m,l,k,j]+B[k,j,m,l]-B[m,j,k,l]+B[k,l,m,j])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,m,i,q]*(B[m,l,k,j]+B[k,j,m,l]-B[m,j,k,l]+B[k,l,m,j])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,q,i,m]*(B[m,l,k,j]+B[k,l,m,j]-B[m,j,k,l]+B[k,j,m,l])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += 0.25*A[i,l,m,q]*(B[k,m,l,j]+B[k,j,l,m]+B[l,m,k,j]-B[l,j,k,m])*(state[l]-state[m]) #-
+                                C[i,j,k,q] +=  -0.25*A[l,q,m,j]*(B[i,m,k,l]+B[i,l,k,m])*(state[l]+state[m]) #--
+                                C[i,j,k,q] +=  -0.25*A[i,l,k,m]*(B[m,q,l,j]+B[l,q,m,j])*(state[l]+state[m]) #--
+
+                                if state[l] != state[m]:
+                                    C[i,j,k,q] += -0.25*A[k,j,l,m]*(B[m,l,i,q]+B[i,q,m,l]-B[m,q,i,l]+B[i,l,m,q])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,m,k,j]*(B[m,l,i,q]+B[i,q,m,l]-B[m,q,i,l]+B[i,l,m,q])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,j,k,m]*(B[m,l,i,q]+B[i,l,m,q]-B[m,q,i,l]+B[i,q,m,l])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += 0.25*A[k,l,m,j]*(B[i,m,l,q]+B[i,q,l,m]+B[l,m,i,q]-B[l,q,i,m])*(state[l]-state[m]) #-
+                                C[i,j,k,q] +=  -0.25*A[l,j,m,q]*(B[k,m,i,l]+B[k,l,i,m])*(state[l]+state[m]) #--
+                                C[i,j,k,q] +=  -0.25*A[k,l,i,m]*(B[m,j,l,q]+B[l,j,m,q])*(state[l]+state[m]) #--
+
+                                if state[l] != state[m]:
+                                    C[i,j,k,q] += 0.25*A[k,q,l,m]*(B[m,l,i,j]+B[i,j,m,l]-B[m,j,i,l]+B[i,l,m,j])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[m,l,i,j]+B[i,j,m,l]-B[m,j,i,l]+B[i,l,m,j])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,q,k,m]*(B[m,l,i,j]+B[i,l,m,j]-B[m,j,i,l]+B[i,j,m,l])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += -0.25*A[k,l,m,q]*(B[i,m,l,j]+B[i,j,l,m]+B[l,m,i,j]-B[l,j,i,m])*(state[l]-state[m]) #-
+                                C[i,j,k,q] +=  0.25*A[l,q,m,j]*(B[k,m,i,l]+B[k,l,i,m])*(state[l]+state[m]) #--
+                                C[i,j,k,q] +=  0.25*A[k,l,i,m]*(B[m,q,l,j]+B[l,q,m,j])*(state[l]+state[m]) #--
+
     return C
 
 @jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
