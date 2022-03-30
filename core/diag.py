@@ -331,8 +331,8 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
         Hint = y[n**2:]                 # Define quartic part of Hamiltonian
         Hint = Hint.reshape(n,n,n,n)    # Reshape into rank-4 tensor
         Hint0 = np.zeros((n,n,n,n))     # Define diagonal quartic part 
-        # for i in range(n):              # Load Hint0 with values
-        #     for j in range(n):
+        for i in range(n):              # Load Hint0 with values
+            for j in range(n):
         #         if i != j:
         #             # if norm == True:
         #                 # Symmetrise (for normal-ordering)
@@ -341,33 +341,33 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
         #                 # Hint[i,i,j,j] += -Hint[i,j,j,i]
         #                 # # # Hint[i,i,j,j] += -Hint[j,i,i,j]
         #                 # Hint[i,j,j,i] = 0.
-        #             # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
-        #             Hint0[i,i,j,j] = Hint[i,i,j,j]
-        Hint0,Hint = extract_diag(Hint,norm=norm)
+                    # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
+                    Hint0[i,i,j,j] = Hint[i,i,j,j]
+        # Hint0,Hint = extract_diag(Hint,norm=norm)
         Vint = Hint-Hint0
 
         if norm == True:
             state=nstate(n,'CDW')
             state = np.array([s/(n//2) for s in np.array(state)])
 
-            # # The below is an attempt at scale-dependent normal-ordering: not yet working reliably.
-            # _,V1 = np.linalg.eigh(H)
-            # state = np.zeros(n)
-            # sites = np.array([i for i in range(n)])
-            # random = np.random.choice(sites,n//2)
-            # count = 0
-            # random = range(0,n,2)
-            # for site in random:
-            #     for i in range(n):
-            #         if np.argmax(np.abs(V1[:,i])) == site:
-            #             psi = V1[:,i]
-            #             state += np.array([v**2 for v in psi])
-            #             count += 1
-            # state *= 1/count
-            # state = np.round(state,decimals=6)
-            # if np.round(np.sum(state),3) != 1.0:
-            #     print('NORMALISATION ERROR - CHECK N/O STATE')
-            #     print(state)
+            # The below is an attempt at scale-dependent normal-ordering: not yet working reliably.
+            _,V1 = np.linalg.eigh(H)
+            state = np.zeros(n)
+            sites = np.array([i for i in range(n)])
+            random = np.random.choice(sites,n//2)
+            count = 0
+            random = range(0,n,2)
+            for site in random:
+                for i in range(n):
+                    if np.argmax(np.abs(V1[:,i])) == site:
+                        psi = V1[:,i]
+                        state += np.array([v**2 for v in psi])
+                        count += 1
+            state *= 1/count
+            state = np.round(state,decimals=6)
+            if np.round(np.sum(state),3) != 1.0:
+                print('NORMALISATION ERROR - CHECK N/O STATE')
+                print(state)
 
         if Hflow == True:
             # Compute the generator eta
@@ -442,20 +442,20 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         # Start with the quadratic part of the spin-up fermions
         Hup = y[0:n**2]
         Hup = Hup.reshape(n,n)
-        if norm == True:
-            # Symmetrise
-            Hup += Hup.T
-            Hup *= 0.5
+        # if norm == True:
+        #     # Symmetrise
+        #     Hup += Hup.T
+        #     Hup *= 0.5
         H0up = np.diag(np.diag(Hup))
         V0up = Hup - H0up
         
         # Now the quadratic part of the spin-down fermions
         Hdown = y[n**2:2*n**2]
         Hdown = Hdown.reshape(n,n)
-        if norm == True:
-            # Symmetrise
-            Hdown += Hdown.T
-            Hdown *= 0.5
+        # if norm == True:
+        #     # Symmetrise
+        #     Hdown += Hdown.T
+        #     Hdown *= 0.5
         H0down = np.diag(np.diag(Hdown))
         V0down = Hdown - H0down
 
@@ -465,13 +465,13 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         Hint0up = np.zeros((n,n,n,n))
         for i in range(n):
             for j in range(n):
-                if i != j:
-                    if norm == True:
-                        # Re-order interaction terms
-                        Hintup[i,i,j,j] += Hintup[j,j,i,i]
-                        Hintup[i,i,j,j] *= 0.5
-                        Hintup[i,i,j,j] += -Hintup[i,j,j,i]
-                        Hintup[i,j,j,i] = 0.
+                # if i != j:
+                #     if norm == True:
+                #         # Re-order interaction terms
+                #         Hintup[i,i,j,j] += Hintup[j,j,i,i]
+                #         Hintup[i,i,j,j] *= 0.5
+                #         Hintup[i,i,j,j] += -Hintup[i,j,j,i]
+                #         Hintup[i,j,j,i] = 0.
 
                     # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                     Hint0up[i,i,j,j] = Hintup[i,i,j,j]
@@ -484,13 +484,13 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         Hint0down = np.zeros((n,n,n,n))
         for i in range(n):
             for j in range(n):
-                if i != j:
-                    if norm == True:
-                        # Re-order interaction terms
-                        Hintdown[i,i,j,j] += Hintdown[j,j,i,i]
-                        Hintdown[i,i,j,j] *= 0.5
-                        Hintdown[i,i,j,j] += -Hintdown[i,j,j,i]
-                        Hintdown[i,j,j,i] = 0.
+                # if i != j:
+                #     if norm == True:
+                #         # Re-order interaction terms
+                #         Hintdown[i,i,j,j] += Hintdown[j,j,i,i]
+                #         Hintdown[i,i,j,j] *= 0.5
+                #         Hintdown[i,i,j,j] += -Hintdown[i,j,j,i]
+                #         Hintdown[i,j,j,i] = 0.
 
                     # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                     Hint0down[i,i,j,j] = Hintdown[i,i,j,j]
@@ -503,11 +503,11 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         Hint0updown = np.zeros((n,n,n,n))
         for i in range(n):
             for j in range(n):
-                if i != j:
-                    if norm == True:
-                        # Re-order interaction terms
-                        Hintupdown[i,i,j,j] += Hintupdown[j,j,i,i]
-                        Hintupdown[i,i,j,j] *= 0.5
+                # if i != j:
+                #     if norm == True:
+                #         # Re-order interaction terms
+                #         Hintupdown[i,i,j,j] += Hintupdown[j,j,i,i]
+                #         Hintupdown[i,i,j,j] *= 0.5
 
                     # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                 Hint0updown[i,i,j,j] = Hintupdown[i,i,j,j]
@@ -1228,6 +1228,7 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',precision=np.
     # Compute the difference in the second invariant of the flow at start and end
     # This acts as a measure of the unitarity of the transform
     Hflat = HFint.reshape(n**2)
+    # print(H0_diag)
     # print(HFint)
     inv = 2*np.sum([d**2 for d in Hflat])
     e2 = np.trace(np.dot(H0_diag,H0_diag))
@@ -1540,6 +1541,11 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
         charge = HFint_up+HFint_down+HFint_updown
         spin = HFint_up+HFint_down-HFint_updown
 
+        # print(H0_diag_up)
+        # print(H0_diag_down)
+        # print(HFint_up)
+        # print(HFint_down)
+
         lbits_up = np.zeros(n-1)
         lbits_down = np.zeros(n-1)
         lbits_updown = np.zeros(n-1)
@@ -1555,13 +1561,13 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
             lbits_charge[q-1] = np.median(np.log10(np.abs(np.diag(charge,q)+np.diag(charge,-q))/2.))
             lbits_spin[q-1] = np.median(np.log10(np.abs(np.diag(spin,q)+np.diag(spin,-q))/2.))
 
-        import matplotlib.pyplot as plt
-        plt.plot(lbits_up)
-        plt.plot(lbits_down,'--')
-        plt.plot(lbits_charge)
-        plt.plot(lbits_spin,'--')
-        plt.show()
-        plt.close()
+        # import matplotlib.pyplot as plt
+        # plt.plot(lbits_up)
+        # plt.plot(lbits_down,'--')
+        # plt.plot(lbits_charge)
+        # plt.plot(lbits_spin,'--')
+        # plt.show()
+        # plt.close()
 
         r_int.set_initial_value(init,dl_list[0])
         init = np.zeros(2*n**2+3*n**4,dtype=np.float64)
