@@ -235,7 +235,6 @@ def Hint_init(n,delta,pwrint=False,beta=0,dim=1,U=0):
                     Hint[i,i,j,j] = 0.5*delta*k**(-beta)
             Hint[j,j,i,i] = Hint[i,i,j,j]
 
-    
     # Initialise off-diagonal quartic tensor (empty)
     Vint = np.zeros((n,n,n,n),dtype=np.float32)
 

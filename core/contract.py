@@ -635,10 +635,25 @@ def con_jit44_NO_up_mixed(A,B,state):
                         for l in range(m0):
                             for m in range(m0):
                                 if state[l] != state[m]:
-                                    C[i,j,k,q] += A[i,j,l,m]*(B[m,l,k,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += A[l,m,i,j]*(B[m,l,k,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -A[l,j,i,m]*(B[m,l,k,q])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += -A[i,l,m,j]*(B[l,m,k,q])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += 0.25*A[i,j,l,m]*(B[m,l,k,q])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,m,i,j]*(B[m,l,k,q])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,j,i,m]*(B[m,l,k,q])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += -0.25*A[i,l,m,j]*(B[l,m,k,q])*(state[l]-state[m]) #-
+
+                                    C[i,j,k,q] += -0.25*A[i,q,l,m]*(B[m,l,k,j])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,m,i,q]*(B[m,l,k,j])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,q,i,m]*(B[m,l,k,j])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += 0.25*A[i,l,m,q]*(B[l,m,k,j])*(state[l]-state[m]) #-
+
+                                    C[i,j,k,q] += -0.25*A[k,j,l,m]*(B[m,l,i,q])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,m,k,j]*(B[m,l,i,q])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,j,k,m]*(B[m,l,i,q])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += 0.25*A[k,l,m,j]*(B[l,m,i,q])*(state[l]-state[m]) #-
+
+                                    C[i,j,k,q] += 0.25*A[k,q,l,m]*(B[m,l,i,j])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[m,l,i,j])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,q,k,m]*(B[m,l,i,j])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += -0.25*A[k,l,m,q]*(B[l,m,i,j])*(state[l]-state[m]) #-
 
     return C
 
@@ -654,11 +669,26 @@ def con_jit44_NO_down_mixed(A,B,state):
                         for l in range(m0):
                             for m in range(m0):
                                 if state[l] != state[m]:
-                                    C[i,j,k,q] += A[i,j,l,m]*(B[k,q,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += A[l,m,i,j]*(B[k,q,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -A[l,j,i,m]*(B[k,q,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += -A[i,l,m,j]*(B[k,q,l,m])*(state[l]-state[m]) #-
-                                
+                                    C[i,j,k,q] += 0.25*A[i,j,l,m]*(B[k,q,m,l])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,m,i,j]*(B[k,q,m,l])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,j,i,m]*(B[k,q,m,l])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += -0.25*A[i,l,m,j]*(B[k,q,l,m])*(state[l]-state[m]) #-
+
+                                    C[i,j,k,q] += -0.25*A[i,q,l,m]*(B[k,j,m,l])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,m,i,q]*(B[k,j,m,l])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,q,i,m]*(B[k,j,m,l])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += 0.25*A[i,l,m,q]*(B[k,j,l,m])*(state[l]-state[m]) #-
+
+                                    C[i,j,k,q] += -0.25*A[k,j,l,m]*(B[i,q,m,l])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,m,k,j]*(B[i,q,m,l])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,j,k,m]*(B[i,q,m,l])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += 0.25*A[k,l,m,j]*(B[i,q,l,m])*(state[l]-state[m]) #-
+
+                                    C[i,j,k,q] += 0.25*A[k,q,l,m]*(B[i,j,m,l])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[i,j,m,l])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,q,k,m]*(B[i,j,m,l])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += -0.25*A[k,l,m,q]*(B[i,j,l,m])*(state[l]-state[m]) #-
+
     return C
 
 @jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
@@ -693,7 +723,11 @@ def con_jit44_NO_mixed_mixed_up(A,B,state):
                         for l in range(m0):
                             for m in range(m0):
                                 if state[l] != state[m]:
-                                    C[i,j,k,q] += A[i,j,l,m]*(B[k,q,m,l])*(state[l]-state[m]) #+               
+                                    C[i,j,k,q] += 0.25*A[i,j,l,m]*(B[k,q,m,l])*(state[l]-state[m]) #+ 
+                                    C[i,j,k,q] += -0.25*A[i,q,l,m]*B[k,j,m,l]*(state[l]-state[m])
+                                    C[i,j,k,q] += -0.25*A[k,j,l,m]*(B[i,q,m,l])*(state[l]-state[m]) 
+                                    C[i,j,k,q] += 0.25*A[k,q,l,m]*(B[i,j,m,l])*(state[l]-state[m])
+               
     return C
 
 @jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
@@ -709,7 +743,11 @@ def con_jit44_NO_mixed_mixed_down(A,B,state):
                         for l in range(m0):
                             for m in range(m0):
                                 if state[l] != state[m]:
-                                    C[i,j,k,q] += A[l,m,i,j]*(B[m,l,k,q])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,m,i,j]*(B[m,l,k,q])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,m,i,q]*(B[m,l,k,j])*(state[l]-state[m])
+                                    C[i,j,k,q] += -0.25*A[l,m,k,j]*(B[m,l,i,q])*(state[l]-state[m])
+                                    C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[m,l,i,j])*(state[l]-state[m])
+
 
     return C
 
@@ -925,10 +963,25 @@ def con_vec44_NO_up_mixed(A,B,state,C):
                         for l in range(m0):
                             for m in range(m0):
                                 if state[l] != state[m]:
-                                    C[i,j,k,q] += A[i,j,l,m]*(B[m,l,k,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += A[l,m,i,j]*(B[m,l,k,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -A[l,j,i,m]*(B[m,l,k,q])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += -A[i,l,m,j]*(B[l,m,k,q])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += 0.25*A[i,j,l,m]*(B[m,l,k,q])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,m,i,j]*(B[m,l,k,q])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,j,i,m]*(B[m,l,k,q])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += -0.25*A[i,l,m,j]*(B[l,m,k,q])*(state[l]-state[m]) #-
+
+                                    C[i,j,k,q] += -0.25*A[i,q,l,m]*(B[m,l,k,j])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,m,i,q]*(B[m,l,k,j])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,q,i,m]*(B[m,l,k,j])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += 0.25*A[i,l,m,q]*(B[l,m,k,j])*(state[l]-state[m]) #-
+
+                                    C[i,j,k,q] += -0.25*A[k,j,l,m]*(B[m,l,i,q])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,m,k,j]*(B[m,l,i,q])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,j,k,m]*(B[m,l,i,q])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += 0.25*A[k,l,m,j]*(B[l,m,i,q])*(state[l]-state[m]) #-
+
+                                    C[i,j,k,q] += 0.25*A[k,q,l,m]*(B[m,l,i,j])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[m,l,i,j])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,q,k,m]*(B[m,l,i,j])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += -0.25*A[k,l,m,q]*(B[l,m,i,j])*(state[l]-state[m]) #-
 
 @guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
 def con_vec44_NO_down_mixed(A,B,state,C):
@@ -941,10 +994,25 @@ def con_vec44_NO_down_mixed(A,B,state,C):
                         for l in range(m0):
                             for m in range(m0):
                                 if state[l] != state[m]:
-                                    C[i,j,k,q] += A[i,j,l,m]*(B[k,q,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += A[l,m,i,j]*(B[k,q,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -A[l,j,i,m]*(B[k,q,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += -A[i,l,m,j]*(B[k,q,l,m])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += 0.25*A[i,j,l,m]*(B[k,q,m,l])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,m,i,j]*(B[k,q,m,l])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,j,i,m]*(B[k,q,m,l])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += -0.25*A[i,l,m,j]*(B[k,q,l,m])*(state[l]-state[m]) #-
+
+                                    C[i,j,k,q] += -0.25*A[i,q,l,m]*(B[k,j,m,l])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,m,i,q]*(B[k,j,m,l])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,q,i,m]*(B[k,j,m,l])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += 0.25*A[i,l,m,q]*(B[k,j,l,m])*(state[l]-state[m]) #-
+
+                                    C[i,j,k,q] += -0.25*A[k,j,l,m]*(B[i,q,m,l])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,m,k,j]*(B[i,q,m,l])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,j,k,m]*(B[i,q,m,l])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += 0.25*A[k,l,m,j]*(B[i,q,l,m])*(state[l]-state[m]) #-
+
+                                    C[i,j,k,q] += 0.25*A[k,q,l,m]*(B[i,j,m,l])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[i,j,m,l])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,q,k,m]*(B[i,j,m,l])*(state[l]-state[m]) #-
+                                    C[i,j,k,q] += -0.25*A[k,l,m,q]*(B[i,j,l,m])*(state[l]-state[m]) #-
 
 @guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n),(n)->(n,n,n,n)',target='cpu',nopython=True)
 def con_vec44_NO_mixed(A,B,upstate,downstate,C):
@@ -972,7 +1040,25 @@ def con_vec44_NO_mixed_mixed_up(A,B,state,C):
                         for l in range(m0):
                             for m in range(m0):
                                 if state[l] != state[m]:
-                                    C[i,j,k,q] += A[i,j,l,m]*(B[k,q,m,l])*(state[l]-state[m]) #+               
+                                    C[i,j,k,q] += 0.25*A[i,j,l,m]*(B[k,q,m,l])*(state[l]-state[m]) #+ 
+                                    C[i,j,k,q] += -0.25*A[i,q,l,m]*B[k,j,m,l]*(state[l]-state[m])
+                                    C[i,j,k,q] += -0.25*A[k,j,l,m]*(B[i,q,m,l])*(state[l]-state[m]) 
+                                    C[i,j,k,q] += 0.25*A[k,q,l,m]*(B[i,j,m,l])*(state[l]-state[m])
+
+                                    # C[i,j,k,q] += 0.125*A[i,j,m,l]*(B[k,q,l,m])*(state[m]-state[l]) #+ 
+                                    # C[i,j,k,q] += -0.125*A[i,q,m,l]*B[k,j,l,m]*(state[m]-state[l])
+                                    # C[i,j,k,q] += -0.125*A[k,j,m,l]*(B[i,q,l,m])*(state[m]-state[l])
+                                    # C[i,j,k,q] += 0.125*A[k,q,m,l]*(B[i,j,l,m])*(state[m]-state[l])
+    # for i in range(m0):
+    #     for j in range(m0):
+    #         # if i != j:
+    #         #     # Re-order interaction terms
+    #         #     C[i,i,j,j] += C[j,j,i,i]
+    #         #     C[i,i,j,j] *= 0.5
+    #         #     C[i,i,j,j] += -C[i,j,j,i]
+    #         #     C[i,j,j,i] = 0.
+    #         print('mmu',i,j,C[i,i,j,j],C[j,j,i,i],C[i,j,j,i],C[j,i,i,j])     
+    
 
 @guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
 def con_vec44_NO_mixed_mixed_down(A,B,state,C):
@@ -985,4 +1071,24 @@ def con_vec44_NO_mixed_mixed_down(A,B,state,C):
                         for l in range(m0):
                             for m in range(m0):
                                 if state[l] != state[m]:
-                                    C[i,j,k,q] += A[l,m,i,j]*(B[m,l,k,q])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += 0.25*A[l,m,i,j]*(B[m,l,k,q])*(state[l]-state[m]) #+
+                                    C[i,j,k,q] += -0.25*A[l,m,i,q]*(B[m,l,k,j])*(state[l]-state[m])
+                                    C[i,j,k,q] += -0.25*A[l,m,k,j]*(B[m,l,i,q])*(state[l]-state[m])
+                                    C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[m,l,i,j])*(state[l]-state[m])
+
+                                    # C[i,j,k,q] += 0.125*A[m,l,i,j]*(B[l,m,k,q])*(state[m]-state[l]) #+
+                                    # C[i,j,k,q] += -0.125*A[m,l,i,q]*(B[l,m,k,j])*(state[m]-state[l])
+                                    # C[i,j,k,q] += -0.125*A[m,l,k,j]*(B[l,m,i,q])*(state[m]-state[l])
+                                    # C[i,j,k,q] += 0.125*A[m,l,k,q]*(B[l,m,i,j])*(state[m]-state[l])
+
+    # for i in range(m0):
+    #     for j in range(m0):
+    #         if i != j:
+    #             # Re-order interaction terms
+    #             C[i,i,j,j] += C[j,j,i,i]
+    #             C[i,i,j,j] *= 0.5
+    #             C[i,i,j,j] += -C[i,j,j,i]
+    #             C[i,j,j,i] = 0.
+    # for i in range(m0):
+    #     for j in range(m0):
+    #         print('mmd',i,j,C[i,i,j,j],C[j,j,i,i],C[i,j,j,i],C[j,i,i,j])

@@ -351,24 +351,27 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
             state = np.array([s/(n//2) for s in np.array(state)])
 
             # # The below is an attempt at scale-dependent normal-ordering: not yet working reliably.
-            _,V1 = np.linalg.eigh(H)
-            state = np.zeros(n)
+            # _,V1 = np.linalg.eigh(H)
+            # state = np.zeros(n)
             # sites = np.array([i for i in range(n)])
             # random = np.random.choice(sites,n//2)
-            random = range(0,n,2)
-            for site in random:
-                for i in range(n):
-                    if np.argmax(np.abs(V1[:,i])) == site:
-                        psi = V1[:,i]/np.sqrt(len(random))
-                        state += np.array([v**2 for v in psi])
-            state = np.round(state,decimals=6)
-            if np.round(np.sum(state),3) != 1.0:
-                print('NORMALISATION ERROR - CHECK N/O STATE')
-                print(state)
+            # count = 0
+            # random = range(0,n,2)
+            # for site in random:
+            #     for i in range(n):
+            #         if np.argmax(np.abs(V1[:,i])) == site:
+            #             psi = V1[:,i]
+            #             state += np.array([v**2 for v in psi])
+            #             count += 1
+            # state *= 1/count
+            # state = np.round(state,decimals=6)
+            # if np.round(np.sum(state),3) != 1.0:
+            #     print('NORMALISATION ERROR - CHECK N/O STATE')
+            #     print(state)
 
         if Hflow == True:
             # Compute the generator eta
-            eta0 = contract(H0,V0,method='vec',eta=True)
+            eta0 = contract(H0,V0,method=method,eta=True)
             eta_int = contract(Hint0,V0,method=method,eta=True) + contract(H0,Vint,method=method,eta=True)
 
             # Add normal-ordering corrections into generator eta, if norm == True
@@ -511,33 +514,44 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
                 # Hint0updown[i,j,j,i] = Hintupdown[i,j,j,i]
         Vintupdown = Hintupdown-Hint0updown                 
         
-        # upstate=nstate(n,'CDW')
-        # downstate=np.array([np.abs(1-i) for i in upstate])
+        upstate=nstate(n,'CDW')
+        downstate=np.array([np.abs(1-i) for i in upstate])
         # downstate = upstate
 
-        # # The below is an attempt at scale-dependent normal-ordering: not yet working reliably.
+        # The below is an attempt at scale-dependent normal-ordering: not yet working reliably.
         _,V1 = np.linalg.eigh(Hup)
         upstate = np.zeros(n)
         random = range(0,n,2)
+        count = 0
         for site in random:
             for i in range(n):
                 if np.argmax(np.abs(V1[:,i]))==site:
-                    psi = V1[:,i]/np.sqrt(2*len(random))
+                    psi = V1[:,i]
                     upstate += np.array([v**2 for v in psi])
+                    count += 1
+        upstate *= 1/(2*count)
         upstate = np.round(upstate,decimals=6)
         # The below is an attempt at scale-dependent normal-ordering: not yet working reliably.
         _,V1 = np.linalg.eigh(Hdown)
         downstate = np.zeros(n)
         # random = range(1,n,2)
+        count = 0
         for site in random:
             for i in range(n):
                 if np.argmax(np.abs(V1[:,i]))==site:
-                    psi = V1[:,i]/np.sqrt(2*len(random))
+                    psi = V1[:,i]
                     downstate += np.array([v**2 for v in psi])
+                    count += 1
+        downstate *= 1/(2*count)
         downstate = np.round(downstate,decimals=6)
         if np.round(np.sum(upstate)+np.sum(downstate),3) != 1.0:
             print('NORMALISATION ERROR - CHECK N/O STATE')
+            print(np.round(np.sum(upstate)+np.sum(downstate),3))
             print(upstate,downstate)
+        # if np.round((upstate),3) != np.round((downstate),3):
+        #     print('UP AND DOWN STATES NOT SAME - CHECK N/O STATE')
+        # print(upstate,downstate)
+        # downstate = upstate
 
         # Compute all relevant generators
         eta0up = contract(H0up,V0up,method=method,eta=True)
@@ -1214,7 +1228,7 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',precision=np.
     # Compute the difference in the second invariant of the flow at start and end
     # This acts as a measure of the unitarity of the transform
     Hflat = HFint.reshape(n**2)
-    print(HFint)
+    # print(HFint)
     inv = 2*np.sum([d**2 for d in Hflat])
     e2 = np.trace(np.dot(H0_diag,H0_diag))
     inv2 = np.abs(e1 - e2 + ((2*delta)**2)*(n-1) - inv)/np.abs(e2+((2*delta)**2)*(n-1))
@@ -1542,6 +1556,8 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
             lbits_spin[q-1] = np.median(np.log10(np.abs(np.diag(spin,q)+np.diag(spin,-q))/2.))
 
         import matplotlib.pyplot as plt
+        plt.plot(lbits_up)
+        plt.plot(lbits_down,'--')
         plt.plot(lbits_charge)
         plt.plot(lbits_spin,'--')
         plt.show()
