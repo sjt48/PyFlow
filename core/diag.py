@@ -71,7 +71,6 @@ def CUT(params,hamiltonian,num,num_int):
         dl = np.logspace(np.log10(0.01), np.log10(lmax),qmax,endpoint=True,base=10)
 
     if hamiltonian.species == 'spinless fermion':
-        
         if dyn == True:
             if intr == True:
                 # Hint = hamiltonian.H4_spinless
@@ -245,7 +244,6 @@ def eta_con(y,n,method='jit',norm=False):
 
         eta_no2 = contractNO(Hint,V0,method=method,eta=True,state=state) + contractNO(H0,Vint,method=method,eta=True,state=state)
         eta2 += eta_no2
-        # print(eta_no2)
         eta_no4 = contractNO(Hint0,Vint,method=method,eta=True,state=state)
         eta4 += eta_no4
 
@@ -321,10 +319,10 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
         """
  
         # Extract various components of the Hamiltonian from the input array 'y'
-        H = y[0:n**2]                   # Define quadratic part of Hamiltonian
-        H = H.reshape(n,n)              # Reshape into matrix
-        H0 = np.diag(np.diag(H))        # Define diagonal quadratic part H0
-        V0 = H - H0                     # Define off-diagonal quadratic part B
+        H2 = y[0:n**2]                   # Define quadratic part of Hamiltonian
+        H2 = H2.reshape(n,n)              # Reshape into matrix
+        H2_0 = np.diag(np.diag(H2))        # Define diagonal quadratic part H0
+        V0 = H2 - H2_0                     # Define off-diagonal quadratic part B
 
         Hint = y[n**2:]                 # Define quartic part of Hamiltonian
         Hint = Hint.reshape(n,n,n,n)    # Reshape into rank-4 tensor
@@ -340,13 +338,13 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
 
         if Hflow == True:
             # Compute the generator eta
-            eta0 = contract(H0,V0,method=method,eta=True)
-            eta_int = contract(Hint0,V0,method=method,eta=True) + contract(H0,Vint,method=method,eta=True)
+            eta0 = contract(H2_0,V0,method=method,eta=True)
+            eta_int = contract(Hint0,V0,method=method,eta=True) + contract(H2_0,Vint,method=method,eta=True)
 
             # Add normal-ordering corrections into generator eta, if norm == True
             if norm == True:
 
-                eta_no2 = contractNO(Hint,V0,method=method,eta=True,state=state) + contractNO(H0,Vint,method=method,eta=True,state=state)
+                eta_no2 = contractNO(Hint,V0,method=method,eta=True,state=state) + contractNO(H2_0,Vint,method=method,eta=True,state=state)
                 eta0 += eta_no2
 
                 eta_no4 = contractNO(Hint0,Vint,method=method,eta=True,state=state)
@@ -1218,8 +1216,8 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
             # sim = proc(r_int.y,n,cutoff)
             # sol_int[k] = sim
             sol_int[k] = r_int.y
-            mat_up = (r_int.y)[k,0:n**2].reshape(n,n)
-            mat_down = (r_int.y)[k,n**2:2*n**2].reshape(n,n)
+            mat_up = (r_int.y)[0:n**2].reshape(n,n)
+            mat_down = (r_int.y)[n**2:2*n**2].reshape(n,n)
             off_diag_up = mat_up-np.diag(np.diag(mat_up))
             off_diag_down = mat_down-np.diag(np.diag(mat_down))
             J0_up = max(np.abs(off_diag_up).reshape(n**2))
@@ -1920,91 +1918,6 @@ def flow_tensordot_nonint(H0,V0,dl):
     print('Max off diagonal element: ', np.max(np.abs(V0)))
     print(np.sort(np.diag(H0)))
 
-#------------------------------------------------------------------------------
-        
-def flow_levels(n,array,intr):
-    """ Function to compute the many-body eigenvalues from the Hamiltonian returned by the TFE method. """
-    H0 = array["H0_diag"]
-    if intr == True:
-        Hint = array["Hint"]
-    flevels = np.zeros(2**n)
 
-    for i in range(2**n):
-        lev0 = bin(i)[2::].rjust(n,'0') # Generate the many-body states
-        # Compute the energies of each state from the fixed point Hamiltonian
-        # if lev0.count('1')==n//2:
-        for j in range(n):
-            flevels[i] += H0[j,j]*int(lev0[j])
-            if intr == True:
-                for q in range(n):
-                    if q !=j:
-                        # flevels[i] += Hint[j,j,q,q]*int(lev0[j])
-                        flevels[i] += Hint[j,j,q,q]*int(lev0[j])*int(lev0[q]) 
-                        flevels[i] += -Hint[j,q,q,j]*int(lev0[j])*int(lev0[q]) 
 
-    # flevels=flevels[flevels != 0]
-    return np.sort(flevels)
 
-def flow_levels_spin(n,flow,intr=True):
-
-    H0 = flow["H0_diag"]
-    Hint = flow["Hint"]
-    H0_up = H0[0]
-    H0_down = H0[1]
-    Hint_up_full = Hint[0]
-    Hint_down_full = Hint[1]
-    Hint_updown_full = Hint[2]
-
-    Hint_up = np.zeros((n,n))
-    Hint_down = np.zeros((n,n))
-    Hint_updown = np.zeros((n,n))
-    for i in range(n):
-        for j in range(n):
-            Hint_up[i,j] += Hint_up_full[i,i,j,j]
-            Hint_up[i,j] += -Hint_up_full[i,j,j,i]
-            Hint_down[i,j] += Hint_down_full[i,i,j,j]
-            Hint_down[i,j] += -Hint_down_full[i,j,j,i]
-            Hint_updown[i,j] += Hint_updown_full[i,i,j,j]
-            Hint_updown[i,j] += -Hint_updown_full[i,j,j,i]
-    
-    flevels = np.zeros(4**n)
-    
-    count = 0
-    for i in range(2**n):
-        lev0 = bin(i)[2::].rjust(n,'0') # Generate the many-body states
-        for i1 in range(2**n):
-            lev1 = bin(i1)[2::].rjust(n,'0') # Generate the many-body states
-            
-            # Compute the energies of each state from the fixed point Hamiltonian
-            for j in range(n):
-                flevels[count] += H0_up[j,j]*int(lev0[j])+H0_down[j,j]*int(lev1[j])
-                
-                if intr == True:
-                    for q in range(n):
-                        if q !=j:
-                            # flevels[i] += Hint[j,j,q,q]*int(lev0[j])
-                            flevels[count] += Hint_up[j,q]*int(lev0[j])*int(lev0[q]) 
-                            # flevels[i] += -Hint_up[j,q,q,j]*int(lev0[j])*int(lev0[q]) 
-                            
-                            flevels[count] += Hint_down[j,q]*int(lev1[j])*int(lev1[q]) 
-                            # flevels[i] += -Hint_down[j,q,q,j]*int(lev1[j])*int(lev1[q]) 
-                            
-                        flevels[count] += Hint_updown[j,q]*int(lev0[j])*int(lev1[q]) 
-            count += 1
-
-    
-    return np.sort(flevels)
-
-#------------------------------------------------------------------------------
-# Compute averaged level spacing ratio
-def level_stat(levels):
-    """ Function to compute the level spacing statistics."""
-    list1 = np.zeros(len(levels))
-    lsr = 0.
-    for i in range(1,len(levels)):
-        list1[i-1] = levels[i] - levels[i-1]
-    for j in range(len(levels)-2):
-        lsr += min(list1[j],list1[j+1])/max(list1[j],list1[j+1])
-    lsr *= 1/(len(levels)-2)
-    
-    return lsr

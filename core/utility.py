@@ -238,3 +238,87 @@ def eta_spin(y,state='CDW',norm=False,method='vec'):
         eta4updn += contractNO(H4updn_0,V4updn,method=method,eta=True,pair='mixed',upstate=upstate,downstate=downstate)
 
     return eta2up,eta2dn,eta4up,eta4dn,eta4updn,upstate,downstate
+
+
+#------------------------------------------------------------------------------
+        
+def flow_levels(n,array,intr):
+    """ Function to compute the many-body eigenvalues from the Hamiltonian returned by the TFE method. """
+    H0 = array["H0_diag"]
+    if intr == True:
+        Hint = array["Hint"]
+    flevels = np.zeros(2**n)
+
+    for i in range(2**n):
+        lev0 = bin(i)[2::].rjust(n,'0') # Generate the many-body states
+        # Compute the energies of each state from the fixed point Hamiltonian
+        # if lev0.count('1')==n//2:
+        for j in range(n):
+            flevels[i] += H0[j,j]*int(lev0[j])
+            if intr == True:
+                for q in range(n):
+                    if q !=j:
+                        # flevels[i] += Hint[j,j,q,q]*int(lev0[j])
+                        flevels[i] += Hint[j,j,q,q]*int(lev0[j])*int(lev0[q]) 
+                        flevels[i] += -Hint[j,q,q,j]*int(lev0[j])*int(lev0[q]) 
+
+    # flevels=flevels[flevels != 0]
+    return np.sort(flevels)
+
+def flow_levels_spin(n,flow,intr=True):
+
+    H0 = flow["H0_diag"]
+    Hint = flow["Hint"]
+    H0_up = H0[0]
+    H0_down = H0[1]
+    Hint_up_full = Hint[0]
+    Hint_down_full = Hint[1]
+    Hint_updown_full = Hint[2]
+
+    Hint_up = np.zeros((n,n))
+    Hint_down = np.zeros((n,n))
+    Hint_updown = np.zeros((n,n))
+    for i in range(n):
+        for j in range(n):
+            Hint_up[i,j] += Hint_up_full[i,i,j,j]
+            Hint_up[i,j] += -Hint_up_full[i,j,j,i]
+            Hint_down[i,j] += Hint_down_full[i,i,j,j]
+            Hint_down[i,j] += -Hint_down_full[i,j,j,i]
+            Hint_updown[i,j] += Hint_updown_full[i,i,j,j]
+            Hint_updown[i,j] += -Hint_updown_full[i,j,j,i]
+    
+    flevels = np.zeros(4**n)
+    
+    count = 0
+    for i in range(2**n):
+        lev0 = bin(i)[2::].rjust(n,'0') # Generate the many-body states
+        for i1 in range(2**n):
+            lev1 = bin(i1)[2::].rjust(n,'0') # Generate the many-body states
+            
+            # Compute the energies of each state from the fixed point Hamiltonian
+            for j in range(n):
+                flevels[count] += H0_up[j,j]*int(lev0[j])+H0_down[j,j]*int(lev1[j])
+                
+                if intr == True:
+                    for q in range(n):
+                        if q !=j:
+                            flevels[count] += Hint_up[j,q]*int(lev0[j])*int(lev0[q]) 
+                            flevels[count] += Hint_down[j,q]*int(lev1[j])*int(lev1[q])                             
+                        flevels[count] += Hint_updown[j,q]*int(lev0[j])*int(lev1[q]) 
+            count += 1
+
+    return np.sort(flevels)
+
+#------------------------------------------------------------------------------
+# Compute averaged level spacing ratio
+def level_stat(levels):
+    """ Function to compute the level spacing statistics."""
+    list1 = np.zeros(len(levels))
+    lsr = 0.
+    for i in range(1,len(levels)):
+        list1[i-1] = levels[i] - levels[i-1]
+    for j in range(len(levels)-2):
+        lsr += min(list1[j],list1[j+1])/max(list1[j],list1[j+1])
+    lsr *= 1/(len(levels)-2)
+    
+    return lsr

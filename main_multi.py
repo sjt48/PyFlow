@@ -190,10 +190,9 @@ def run(p):
 
                 if intr == False or n <= ncut:
                     if species == 'spinless fermion':
-                        flevels = diag.flow_levels(n,flow,intr)
+                        flevels = utility.flow_levels(n,flow,intr)
                     elif species == 'spinful fermion':
-                        
-                        flevels = diag.flow_levels_spin(n,flow,intr)
+                        flevels = utility.flow_levels_spin(n,flow,intr)
                     flevels = flevels-np.median(flevels)
                     ed = ed[0] - np.median(ed[0])
                 
@@ -201,14 +200,9 @@ def run(p):
                     flevels=np.zeros(n)
                     ed=np.zeros(n)
 
-                # plt.plot(flevels)
-                # plt.plot(ed,'--')
-                # plt.show()
-                # plt.close()
-
                 if intr == False or n <= ncut:
-                    lsr = diag.level_stat(flevels)
-                    lsr2 = diag.level_stat(ed)
+                    lsr = utility.level_stat(flevels)
+                    lsr2 = utility.level_stat(ed)
 
                     errlist = np.zeros(len(ed))
                     for i in range(len(ed)):
@@ -230,17 +224,11 @@ def run(p):
                     plt.show()
                     plt.close()
 
-
-                # plt.plot(np.log10(np.abs(np.diag((flow["flow"][-1,n**2+n**4:2*n**2+n**4]).reshape(n,n)))))
-                # plt.show()
-                # plt.close()
-
                 #==============================================================
                 # Export data   
                 with h5py.File('%s/tflow-d%.2f-x%.2f-Jz%.2f-p%s.h5' %(nvar,d,x,delta,p),'w') as hf:
                     hf.create_dataset('params',data=str(params))
 
-                    # if species == 'spinless fermion':
                     hf.create_dataset('H2_diag',data=flow["H0_diag"])
                     if species == 'spinless fermion':
                         hf.create_dataset('H2_initial',data=ham.H2_spinless)
