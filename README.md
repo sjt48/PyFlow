@@ -52,14 +52,14 @@ For the GPU implementation, the following additional packages (and their depende
 
 * ~~Update non-equilibrium dynamics code to match syntax used for static functions.~~ (**Done, can be tidied up.**)
 * Write more tests for non-interacting systems.
-* ~~Normal-ordering for Hubbard models can introduce small deviations from Hermitian matrices. Why?~~ (**Mostly fixed: reason is due to normal ordering with respect to a product state that isn't the same on every lattice site.**)
+* ~~Normal-ordering for Hubbard models can introduce small deviations from Hermitian matrices. Why?~~ (**Fixed!**)
 * For non-interacting systems, compute LIOMs with ED as a comparison/test? 
 * Add creation/annihilation operators (factor of N cheaper than number operators to compute).
 * ~~Add long-range couplings from earlier code versions.~~ **Done, to be tested thoroughly.**
 * ~~Add 2D and 3D code.~~ **Done, passed tests in 2D.**
 * Figure out better solution for filenames for various models.
 * ~~Implement model classes?~~ **Done, to be tested thoroughly.**
-* ~~Merge with spinful fermion (Hubbard model) code.~~ **Done, to be tested thoroughly.**
+* ~~Merge with spinful fermion (Hubbard model) code.~~ **Done, works for static properties.**
 * Add bosons: comes down to changing a few minus signs in contract.py. **In progress.**
 * Merge GPU code (via CuPy/PyTorch) into main.
 * Benchmark against ED and tensor networks for finding ground state energy, non-equilibrium dynamics?
