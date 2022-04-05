@@ -430,10 +430,10 @@ def con_jit(A,B,C):
     """ Contract two square matrices. Computes upper half only and then symmetrises. """
     m,_=A.shape
     for i in prange(m):
-        for j in range(m):
+        for j in range(i,m):
             for k in range(m):
                 C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-
+            C[j,i] = C[i,j]
     return C
 
 @jit(float64[:,:](float64[:,:],float64[:,:],float64[:,:]),nopython=True,parallel=True,fastmath=True,cache=True,nogil=True)
@@ -441,10 +441,10 @@ def con_jit_anti(A,B,C):
     """ Contract two square matrices. Computes upper half only and then anti-symmetrises. """
     m,_=A.shape
     for i in prange(m):
-        for j in range(m):
+        for j in range(i,m):
             for k in range(m):
                 C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-            # C[j,i] = -C[i,j]
+            C[j,i] = -C[i,j]
     return C
 
 @jit(nopython=True,parallel=True,fastmath=True,cache=True)
@@ -808,6 +808,7 @@ def con_vec(A,B,C):
             C[i,j] = 0.
             for k in range(m):
                 C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
+            # C[j,i] = C[i,j]
 
 @guvectorize([(float64[:,:],complex128[:,:],complex128[:,:])],'(n,n),(n,n)->(n,n)',target='cpu',nopython=True)
 def con_vec_comp(A,B,C):

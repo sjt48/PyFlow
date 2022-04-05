@@ -48,6 +48,7 @@ import models.models as models
 import core.utility as utility
 from ED.ed import ED
 from multiprocessing import Pool, freeze_support
+from functools import partial
 
 import matplotlib.pyplot as plt
 # Part to change plotting system
@@ -63,8 +64,8 @@ mpl.rcParams['mathtext.rm'] = 'serif'
 L = int(sys.argv[1])            # Linear system size
 dim = 1                         # Spatial dimension
 n = L**dim                      # Total number of sites
-species = 'spinless fermion'     # Type of particle
-dsymm = 'spin'                # Type of disorder (spinful fermions only)
+species = 'spinful fermion'     # Type of particle
+dsymm = 'charge'                # Type of disorder (spinful fermions only)
 Ulist = [0.1]
 # List of interaction strengths
 J = 1.0                         # Nearest-neighbour hopping amplitude
@@ -72,7 +73,7 @@ cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be con
 # dis = [0.4+0.05*i for i in range(32)]    
 dis = [3.0,5.0]                
 # List of disorder strengths
-lmax = 100                       # Flow time max
+lmax = 100                      # Flow time max
 qmax = 750                      # Max number of flow time steps
 reps = 2                        # Number of disorder realisations
 norm = True                     # Normal-ordering, can be true or false
@@ -134,6 +135,7 @@ if norm == True and n%2 != 0:
 
 def run(p):
 
+    # n,dis,xlist,Ulist = [array[i] for i in range(len(array))]
     for x in xlist:
         for d in dis:
             for delta in Ulist:

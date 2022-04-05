@@ -58,7 +58,7 @@ mpl.rcParams['mathtext.rm'] = 'serif'
 L = int(sys.argv[1])            # Linear system size
 dim = 1                         # Spatial dimension
 n = L**dim                      # Total number of sites
-species = 'spinless fermion'     # Type of particle
+species = 'spinful fermion'     # Type of particle
 dsymm = 'spin'                # Type of disorder (spinful fermions only)
 Ulist = [0.1]
 # List of interaction strengths

@@ -238,13 +238,6 @@ def Hint_init(n,delta,pwrint=False,beta=0,dim=1,U=0):
     # Initialise off-diagonal quartic tensor (empty)
     Vint = np.zeros((n,n,n,n),dtype=np.float32)
 
-    # elif intr == True and dim ==2:
-    #     Dmat = np.diagflat(np.concatenate([[Jz for i in range(L-1)]+[0] for j in range(L)])[0:-1], 1)+np.diagflat([Jz for i in range(n-L)], L)
-    #     dlist = np.concatenate(list(map(lambda x: np.diag(Dmat, k = x), range(1,L**2))))
-    # elif intr == True and dim ==3:
-    #     Dmat = np.diagflat(np.concatenate([[Jz for i in range(L-1)]+[0] for j in range(L**2)])[0:-1], 1)+np.diagflat([Jz for i in range(n-L)], L)+np.diagflat([Jz for i in range(n-L**2)], L**2)
-    #     dlist = np.concatenate(list(map(lambda x: np.diag(Dmat, k = x), range(1,L**3))))
-
     return Hint+Vint
 
 def H4_spin_init(n,delta_up=0,delta_down=0,delta_updown=0,delta_onsite=0,delta_mixed=0):
@@ -261,10 +254,5 @@ def H4_spin_init(n,delta_up=0,delta_down=0,delta_updown=0,delta_onsite=0,delta_m
                 Hint_down[i,i,j,j] = 0.5*delta_down
                 Hint_updown[i,i,j,j] = 0.5*delta_updown
         Hint_updown [i,i,i,i] = delta_onsite
-
-    # Initialise off-diagonal quartic tensor (empty)
-    # Vint_up = np.zeros((n,n,n,n),dtype=np.float32)
-    # Vint_down = np.zeros((n,n,n,n),dtype=np.float32)
-    # Vint_updown = np.zeros((n,n,n,n),dtype=np.float32)
 
     return Hint_up,Hint_down,Hint_updown
