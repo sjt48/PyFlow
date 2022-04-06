@@ -71,6 +71,8 @@ lmax = 100                       # Flow time max
 qmax = 750                      # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
 norm = True                     # Normal-ordering, can be true or false
+no_state = 'CDW'                # State to use for normal-ordering, can be CDW or SDW
+                                # For vacuum normal-ordering, just set norm=False
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
                                 # Storing H(l) allows SciPy ODE integration to add extra flow time steps
                                 # Storing eta(l) reduces number of tensor contractions, at cost of accuracy
@@ -110,7 +112,7 @@ if (species == 'spinless fermion' and n > 12) or (species == 'spinful fermion' a
 tlist = [0.01*i for i in range(31)]
 
 # Make directory to store data
-nvar = utility.namevar(dis_type,dsymm,dyn,norm,n,LIOM,species)
+nvar = utility.namevar(dis_type,dsymm,no_state,dyn,norm,n,LIOM,species)
 
 if Hflow == False:
     print('*** Warning: Setting Hflow=False requires small flow time steps in order for backwards transform to be accurate. ***')
@@ -138,7 +140,7 @@ if __name__ == '__main__':
                 for delta in Ulist:
 
                     # Create dictionary of parameters to pass to functions; avoids having to have too many function args
-                    params = {"n":n,"delta":delta,"J":J,"cutoff":cutoff,"dis":dis,"dsymm":dsymm,"lmax":lmax,"qmax":qmax,"reps":reps,"norm":norm,
+                    params = {"n":n,"delta":delta,"J":J,"cutoff":cutoff,"dis":dis,"dsymm":dsymm,"NO_state":no_state,"lmax":lmax,"qmax":qmax,"reps":reps,"norm":norm,
                                 "Hflow":Hflow,"precision":precision,"method":method, "intr":intr,"dyn":dyn,"imbalance":imbalance,"species":species,
                                     "LIOM":LIOM, "dyn_MF":dyn_MF,"logflow":logflow,"dis_type":dis_type,"x":x,"tlist":tlist,"store_flow":store_flow}
 
@@ -155,7 +157,7 @@ if __name__ == '__main__':
                         if dsymm == 'spin':
                             if np.diag(ham.H2spinup) != -1*np.diag(ham.H2spindown):
                                 print('Error in Hamiltonian')
-                                
+
                     # Initialise the number operator on the central lattice site
                     num = np.zeros((n,n))
                     num[n//2,n//2] = 1.0

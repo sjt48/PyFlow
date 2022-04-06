@@ -30,9 +30,9 @@ import os
 import numpy as np
 from .contract import contract,contractNO 
 
-def namevar(dis_type,dsymm,dyn,norm,n,LIOM,species):
+def namevar(dis_type,dsymm,no_state,dyn,norm,n,LIOM,species):
     if norm == True:
-        nm = 'NO'
+        nm = 'NO/%s' %(no_state)
     else:
         nm = 'PT'
     if species == 'spinful fermion':
@@ -52,7 +52,7 @@ def namevar(dis_type,dsymm,dyn,norm,n,LIOM,species):
     return namevar
 
 
-    #------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # Generate the state vector used for normal-ordering
 def nstate(n,a):
     """ Generates a NumPy array that represents the state used to compute normal-ordering corrections.
@@ -192,7 +192,7 @@ def unpack_spin_hamiltonian(y,n):
             "H4up":H4up,"H4dn":H4dn,"H4updn":H4updn,"H4up_0":H4up_0,"H4dn_0":H4dn_0,"H4updn_0":H4updn_0,
                 "V4up":V4up,"V4dn":V4dn,"V4updn":V4updn}
 
-def eta_spin(y,state='CDW',norm=False,method='vec'):
+def eta_spin(y,state='CDW',norm=False,method='vec',no_state='CDW'):
 
     H2up_0 = y["H2up_0"]
     H2dn_0 = y["H2dn_0"]
@@ -205,7 +205,7 @@ def eta_spin(y,state='CDW',norm=False,method='vec'):
     V4dn = y["V4dn"]
     V4updn = y["V4updn"]
 
-    upstate,downstate = states_spin(y["H2up"],y["H2dn"],state=state)
+    upstate,downstate = states_spin(y["H2up"],y["H2dn"],state=no_state)
 
     # Compute all relevant generators
     eta2up = contract(H2up_0,V2up,method=method,eta=True)

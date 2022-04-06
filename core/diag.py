@@ -62,6 +62,7 @@ def CUT(params,hamiltonian,num,num_int):
     Hflow = params["Hflow"]
     LIOM = params["LIOM"]
     store_flow = params["store_flow"]
+    no_state = params["NO_state"]
 
     if logflow == False:
             dl = np.linspace(0,lmax,qmax,endpoint=True)
@@ -89,7 +90,7 @@ def CUT(params,hamiltonian,num,num_int):
                 flow = flow_static(n,hamiltonian,dl,qmax,cutoff,method=method,store_flow=store_flow)
         return flow
     elif hamiltonian.species == 'spinful fermion':
-        flow = flow_static_int_spin(n,hamiltonian,dl,qmax,cutoff,method=method,store_flow=store_flow,norm=norm)
+        flow = flow_static_int_spin(n,hamiltonian,dl,qmax,cutoff,method=method,store_flow=store_flow,norm=norm,no_state=no_state)
         return flow
     else:
         print('ERROR: Unknown type of particle.')
@@ -370,7 +371,7 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
 
         return sol0
 
-def int_ode_spin(l,y,n,method='jit',norm=True):
+def int_ode_spin(l,y,n,method='jit',norm=True,no_state='CDW'):
         """ Generate the flow equation for an interacting system of SPINFUL fermions.
 
         e.g. compute the RHS of dH/dl = [\eta,H] which will be used later to integrate H(l) -> H(l + dl)
@@ -405,7 +406,7 @@ def int_ode_spin(l,y,n,method='jit',norm=True):
         """
 
         ham = unpack_spin_hamiltonian(y,n)
-        eta0up,eta0down,eta_int_up,eta_int_down,eta_int_updown,upstate,downstate = eta_spin(ham,method=method,norm=norm)
+        eta0up,eta0down,eta_int_up,eta_int_down,eta_int_updown,upstate,downstate = eta_spin(ham,method=method,norm=norm,no_state=no_state)
 
         H2up = ham["H2up"]
         H2dn = ham["H2dn"]
