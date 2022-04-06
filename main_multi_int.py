@@ -59,23 +59,26 @@ plt.rcParams.update({'font.size': 24})
 plt.rc('text', usetex=True)
 mpl.rcParams['mathtext.fontset'] = 'cm'
 mpl.rcParams['mathtext.rm'] = 'serif'
+
+print('sys',sys.argv)
+
 #------------------------------------------------------------------------------  
 # Parameters
 L = int(sys.argv[1])            # Linear system size
 dim = 1                         # Spatial dimension
 n = L**dim                      # Total number of sites
 species = 'spinful fermion'     # Type of particle
-dsymm = 'charge'                # Type of disorder (spinful fermions only)
-Ulist = [0.1]
+dsymm = 'spin'                # Type of disorder (spinful fermions only)
+Ulist = [float(sys.argv[3])/10]
 # List of interaction strengths
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
-# dis = [0.4+0.05*i for i in range(32)]    
-dis = [3.0,5.0]                
+dis = [3.0]    
+#dis = [3.0,5.0]                
 # List of disorder strengths
-lmax = 100                      # Flow time max
-qmax = 750                      # Max number of flow time steps
-reps = 2                        # Number of disorder realisations
+lmax = 750                      # Flow time max
+qmax = 1500                     # Max number of flow time steps
+reps = 64                       # Number of disorder realisations
 norm = True                     # Normal-ordering, can be true or false
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
                                 # Storing H(l) allows SciPy ODE integration to add extra flow time steps
@@ -85,7 +88,7 @@ precision = np.float64          # Precision with which to store running Hamilton
                                 # Default throughout is double precision (np.float64)
                                 # Using np.float16 will half the memory cost, at loss of precision
                                 # Only affects the backwards transform, not the forward transform
-method = str(sys.argv[3])       # Method for computing tensor contractions
+method = 'vec'                  # Method for computing tensor contractions
                                 # Options are 'einsum', 'tensordot','jit' or 'vec'
                                 # In general 'tensordot' is fastest for small systems, 'jit' for large systems
                                 # (Note that 'jit' requires compilation on the first run, increasing run time.)
@@ -98,7 +101,7 @@ LIOM = 'bck'                    # Compute LIOMs with forward ('fwd') or backward
                                 # in the initial basis into the diagonal basis; backward does the reverse
 dyn_MF = True                   # Mean-field decoupling for dynamics (used only if dyn=True)
 logflow = True                  # Use logarithmically spaced steps in flow time
-store_flow = True               # Store the full flow of the Hamiltonian and LIOMs
+store_flow = False              # Store the full flow of the Hamiltonian and LIOMs
 dis_type = str(sys.argv[2])     # Options: 'random', 'QPgolden', 'QPsilver', 'QPbronze', 'QPrandom', 'linear', 'curved', 'prime'
                                 # Also contains 'test' and 'QPtest', potentials that do not change from run to run
 xlist = [1.]
@@ -190,9 +193,10 @@ def run(p):
 
                 if intr == False or n <= ncut:
                     if species == 'spinless fermion':
-                        flevels = utility.flow_levels(n,flow,intr)
+                        flevels = diag.flow_levels(n,flow,intr)
                     elif species == 'spinful fermion':
-                        flevels = utility.flow_levels_spin(n,flow,intr)
+                        
+                        flevels = diag.flow_levels_spin(n,flow,intr)
                     flevels = flevels-np.median(flevels)
                     ed = ed[0] - np.median(ed[0])
                 
@@ -200,9 +204,14 @@ def run(p):
                     flevels=np.zeros(n)
                     ed=np.zeros(n)
 
+                # plt.plot(flevels)
+                # plt.plot(ed,'--')
+                # plt.show()
+                # plt.close()
+
                 if intr == False or n <= ncut:
-                    lsr = utility.level_stat(flevels)
-                    lsr2 = utility.level_stat(ed)
+                    lsr = diag.level_stat(flevels)
+                    lsr2 = diag.level_stat(ed)
 
                     errlist = np.zeros(len(ed))
                     for i in range(len(ed)):
@@ -224,15 +233,21 @@ def run(p):
                     plt.show()
                     plt.close()
 
+
+                # plt.plot(np.log10(np.abs(np.diag((flow["flow"][-1,n**2+n**4:2*n**2+n**4]).reshape(n,n)))))
+                # plt.show()
+                # plt.close()
+
                 #==============================================================
                 # Export data   
                 with h5py.File('%s/tflow-d%.2f-x%.2f-Jz%.2f-p%s.h5' %(nvar,d,x,delta,p),'w') as hf:
                     hf.create_dataset('params',data=str(params))
 
+                    # if species == 'spinless fermion':
                     hf.create_dataset('H2_diag',data=flow["H0_diag"])
                     if species == 'spinless fermion':
                         hf.create_dataset('H2_initial',data=ham.H2_spinless)
-                    elif species == 'spinful fermion':
+                    elif species == 'spinless fermion':
                         hf.create_dataset('H2_up',data=ham.H2_spinup)
                         hf.create_dataset('H2_dn',data=ham.H2_spindown)
 
@@ -271,7 +286,7 @@ if __name__ == '__main__':
 
     freeze_support()
     print('Number of CPUs = %s' %(cpu_count()))
-    pool = Pool(processes = cpu_count())
+    pool = Pool(processes = 10)
 
     energies = pool.map(run,range(reps))
     pool.close()
