@@ -1272,16 +1272,17 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
             lbits_spin[q-1] = np.median(np.log10(np.abs(np.diag(spin,q)+np.diag(spin,-q))/2.))
 
         r_int.set_initial_value(init,dl_list[0])
-        init = np.zeros(2*n**2+3*n**4,dtype=np.float64)
+        init_up = np.zeros(2*n**2+3*n**4,dtype=np.float64)
+        init_dn = np.zeros(2*n**2+3*n**4,dtype=np.float64)
         temp = np.zeros((n,n))
         temp[n//2,n//2] = 1.0
-        init[:n**2] = temp.reshape(n**2)
-        init[n**2:2*n**2] = temp.reshape(n**2)
+        init_up[:n**2] = temp.reshape(n**2)
+        init_dn[n**2:2*n**2] = temp.reshape(n**2)
 
         dl_list = dl_list[::-1]
 
         r_int = ode(liom_spin).set_integrator('dopri5', nsteps=150,atol=10**(-6),rtol=10**(-3))
-        r_int.set_initial_value(init,dl_list[0])
+        r_int.set_initial_value(init_up,dl_list[0])
 
         k0 = 1
         while r_int.successful() and k0 < k-1:
@@ -1289,12 +1290,25 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
             r_int.integrate(dl_list[k0])
             # sim = proc(r_int.y,n,cutoff)
             # sol_int[k] = sim
-            liom = r_int.y
+            liom_up = r_int.y
+ 
+            k0 += 1
+
+        r_int = ode(liom_spin).set_integrator('dopri5', nsteps=150,atol=10**(-6),rtol=10**(-3))
+        r_int.set_initial_value(init_dn,dl_list[0])
+
+        k0 = 1
+        while r_int.successful() and k0 < k-1:
+            r_int.set_f_params(sol_int[-k0],n,method)
+            r_int.integrate(dl_list[k0])
+            # sim = proc(r_int.y,n,cutoff)
+            # sol_int[k] = sim
+            liom_dn = r_int.y
  
             k0 += 1
         
         output = {"H0_diag":[H0_diag_up,H0_diag_down],"Hint":[Hint_up,Hint_down,Hint_updown],
-                    "LIOM":liom,"LIOM Interactions":[lbits_up,lbits_down,lbits_updown,lbits_charge,lbits_spin],"Invariant":0}
+                    "LIOM":[liom_up,liom_dn],"LIOM Interactions":[lbits_up,lbits_down,lbits_updown,lbits_charge,lbits_spin],"Invariant":0}
         if store_flow == True:
             output["flow"] = sol_int
             output["dl_list"] = dl_list

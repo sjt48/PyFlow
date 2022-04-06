@@ -149,6 +149,13 @@ if __name__ == '__main__':
                         ham.build(n,dim,d,J,x,delta=delta)
                     elif species == 'spinful fermion':
                         ham.build(n,dim,d,J,x,delta_onsite=delta,delta_up=0.,delta_down=0.,dsymm=dsymm)
+                        if dsymm == 'charge':
+                            if np.diag(ham.H2spinup) != np.diag(ham.H2spindown):
+                                print('Error in Hamiltonian')
+                        if dsymm == 'spin':
+                            if np.diag(ham.H2spinup) != -1*np.diag(ham.H2spindown):
+                                print('Error in Hamiltonian')
+                                
                     # Initialise the number operator on the central lattice site
                     num = np.zeros((n,n))
                     num[n//2,n//2] = 1.0
@@ -230,7 +237,7 @@ if __name__ == '__main__':
                         hf.create_dataset('H2_diag',data=flow["H0_diag"])
                         if species == 'spinless fermion':
                             hf.create_dataset('H2_initial',data=ham.H2_spinless)
-                        elif species == 'spinless fermion':
+                        elif species == 'spinful fermion':
                             hf.create_dataset('H2_up',data=ham.H2_spinup)
                             hf.create_dataset('H2_dn',data=ham.H2_spindown)
 

@@ -34,6 +34,7 @@ os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number o
 os.environ['KMP_DUPLICATE_LIB_OK']="TRUE"
 import numpy as np
 from sympy import prime
+import copy
 
 def Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dim=1):
     """ Generate the non-interacting part of the Hamiltonian with the specified on-site potential. """
@@ -56,7 +57,7 @@ def Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dim=1):
         print('**** FIXED DISORDER REALISATION FOR TESTING - DISABLE FOR REAL DATA ****')
         randomlist = [2.4979359120556666, -4.477621238657079, -4.448810326437316, -3.6115452666436543, -1.2802110535766298, -3.336862075297363, -0.3370611440832194, -3.8232260796601523, -0.5134617674857918, 1.32895294857477]
         for i in range(n):
-            H0[i,i] = randomlist[i]
+            H0[i,i] = randomlist[i%n]
     elif dis_type == 'linear':
         for i in range(n):
             # Initialise Hamiltonian with linearly increasing on-site terms
@@ -193,7 +194,7 @@ def H2_spin_init(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dsymm='ch
         if dsymm == 'charge':
             H2_spin_down = H2_spin_up
         elif dsymm == 'spin':
-            H2_spin_down = H2_spin_up
+            H2_spin_down = copy.deepcopy(H2_spin_up)
             for i in range(len(H2_spin_down)):
                 H2_spin_down[i,i] = -H2_spin_up[i,i]
         elif dsymm == 'random':
