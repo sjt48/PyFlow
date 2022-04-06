@@ -42,7 +42,6 @@ from .contract import contract,contractNO,contractNO2
 from .utility import nstate, unpack_spin_hamiltonian, eta_spin, state_spinless
 from scipy.integrate import ode
 from numba import jit,prange
-# import matplotlib.pyplot as plt
 
 #------------------------------------------------------------------------------ 
 def CUT(params,hamiltonian,num,num_int):
@@ -102,7 +101,7 @@ def indices(n):
     for i in range(n):              
         for j in range(n):
             if i != j:
-                # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
+                # Zero the diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                 mat[i,i,j,j] = 0
                 mat[i,j,j,i] = 0
     mat = mat.reshape(n**4)
@@ -118,8 +117,8 @@ def cut(y,n,cutoff,indices):
 
     if np.max(np.abs(mat2_od)) < cutoff*10**(-3):
         mat4 = y[n**2:n**2+n**4]
-        mat4_od = np.zeros(n**4)            # Define diagonal quartic part 
-        for i in indices:                   # Load Hint0 with values
+        mat4_od = np.zeros(n**4)
+        for i in indices:               
             mat4_od[i] = mat4[i]
         mat4_od = mat4_od[mat4_od != 0]
         if np.median(np.abs(mat4_od)) < cutoff:
@@ -144,8 +143,8 @@ def cut_spin(y,n,cutoff,indices):
         mat4 = y[2*n**2:2*n**2+n**4]
         mat5 = y[2*n**2+n**4:2*n**2+2*n**4]
         mat6 = y[2*n**2+2*n**2:2*n**2+3*n**4]
-        mat4_od = np.zeros(3*n**4)           # Define diagonal quartic part 
-        for i in indices:                   # Load Hint0 with values
+        mat4_od = np.zeros(3*n**4)     
+        for i in indices:         
             mat4_od[i] = mat4[i]
             mat4_od[i+n**4] = mat5[i]
             mat4_od[i+2*n**4] = mat6[i]
