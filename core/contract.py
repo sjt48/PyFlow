@@ -33,8 +33,9 @@ os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number o
 os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of MKL threads
 os.environ['NUMBA_NUM_THREADS'] = str(int(cpu_count(logical=False))) # Set number of Numba threads
 import numpy as np
-from numba import jit,prange,guvectorize,float64,complex128
-# from numba import get_num_threads,threading_layer
+import contract_vec as cv
+import contract_jit as cj
+
 #------------------------------------------------------------------------------
 # Tensor contraction subroutines
 
@@ -76,46 +77,46 @@ def contractNO(A,B,method='jit',comp=False,eta=False,state=[],upstate=[],downsta
         if A.ndim == B.ndim == 4 and pair==None:
             con = con44_NO(A,B,method=method,comp=comp,eta=eta,state=state)
         elif A.ndim == B.ndim == 4 and pair=='up-mixed':
-            con = con_jit44_NO_up_mixed(A,B,state=state)
+            con = cj.con_jit44_NO_up_mixed(A,B,state=state)
         elif A.ndim == B.ndim == 4 and pair=='down-mixed':
-            con = con_jit44_NO_down_mixed(A,B,state=state)
+            con = cj.con_jit44_NO_down_mixed(A,B,state=state)
         elif A.ndim == B.ndim == 4 and pair=='mixed-mixed-up':
-            con = con_jit44_NO_mixed_mixed_up(A,B,state=state)
+            con = cj.con_jit44_NO_mixed_mixed_up(A,B,state=state)
         elif A.ndim == B.ndim == 4 and pair=='mixed-mixed-down':
-            con = con_jit44_NO_mixed_mixed_down(A,B,state=state)
+            con = cj.con_jit44_NO_mixed_mixed_down(A,B,state=state)
         elif A.ndim == B.ndim == 4 and pair=='mixed-up':
-            con = -1*con_jit44_NO_up_mixed(A,B,state=state)
+            con = -1*cj.con_jit44_NO_up_mixed(A,B,state=state)
         elif A.ndim == B.ndim == 4 and pair=='mixed-down':
-            con = -1*con_jit44_NO_down_mixed(A,B,state=state)
+            con = -1*cj.con_jit44_NO_down_mixed(A,B,state=state)
         elif A.ndim == B.ndim == 4 and pair=='mixed':
-            con = con_jit44_NO_mixed(A,B,upstate=upstate,downstate=downstate)
+            con = cj.con_jit44_NO_mixed(A,B,upstate=upstate,downstate=downstate)
         
     elif A.ndim == B.ndim == 4 and method == 'vec':
         if A.ndim == B.ndim == 4 and pair == None:
             con = con44_NO(A,B,method=method,comp=comp,eta=eta,state=state)
         elif A.ndim == B.ndim == 4 and pair=='up-mixed':
             con = np.zeros(A.shape,dtype=np.float64)
-            con_vec44_NO_up_mixed(A,B,state,con)
+            cv.con_vec44_NO_up_mixed(A,B,state,con)
         elif A.ndim == B.ndim == 4 and pair=='down-mixed':
             con = con = np.zeros(A.shape,dtype=np.float64)
-            con_vec44_NO_down_mixed(A,B,state,con)
+            cv.con_vec44_NO_down_mixed(A,B,state,con)
         elif A.ndim == B.ndim == 4 and pair=='mixed-mixed-up':
             con = np.zeros(A.shape,dtype=np.float64)
-            con_vec44_NO_mixed_mixed_up(A,B,state,con)
+            cv.con_vec44_NO_mixed_mixed_up(A,B,state,con)
         elif A.ndim == B.ndim == 4 and pair=='mixed-mixed-down':
             con = np.zeros(A.shape,dtype=np.float64)
-            con_vec44_NO_mixed_mixed_down(A,B,state,con)
+            cv.con_vec44_NO_mixed_mixed_down(A,B,state,con)
         elif A.ndim == B.ndim == 4 and pair=='mixed-up':
             con = np.zeros(A.shape,dtype=np.float64)
-            con_vec44_NO_up_mixed(A,B,state,con)
+            cv.con_vec44_NO_up_mixed(A,B,state,con)
             con *= -1
         elif A.ndim == B.ndim == 4 and pair=='mixed-down':
             con = np.zeros(A.shape,dtype=np.float64)
-            con_vec44_NO_down_mixed(A,B,state,con)
+            cv.con_vec44_NO_down_mixed(A,B,state,con)
             con *= -1
         elif A.ndim == B.ndim == 4 and pair=='mixed':
             con = np.zeros(A.shape,dtype=np.float64)
-            con_vec44_NO_mixed(A,B,upstate,downstate,con)
+            cv.con_vec44_NO_mixed(A,B,upstate,downstate,con)
 
     elif A.ndim != B.ndim:
         if A.ndim == 4:
@@ -173,28 +174,28 @@ def con22(A,B,method='jit',comp=False,eta=False):
     elif method == 'jit' and comp==False:
         con = np.zeros(A.shape,dtype=np.float64)
         if eta==False:
-            return con_jit(A,B,con)
+            return cj.con_jit(A,B,con)
         elif eta==True:
-            return con_jit_anti(A,B,con)
+            return cj.con_jit_anti(A,B,con)
     elif method == 'jit' and comp==True:
         if eta == False:
-            return con_jit_comp(A,B)
+            return cj.con_jit_comp(A,B)
         else:
-            return con_jit_anti_comp(A,B)
+            return cj.con_jit_anti_comp(A,B)
     elif method == 'vec' and comp == False:
         con = np.zeros(A.shape)
-        con_vec(A,B,con)
+        cv.con_vec(A,B,con)
         return con
     elif method == 'vec' and comp == True:
         if A.dtype==np.complex128 and B.dtype==np.complex128:
             con = np.zeros(A.shape,dtype=np.complex128)
-            con_vec_comp2(A,B,con)
+            cv.con_vec_comp2(A,B,con)
         elif A.dtype == np.complex128 and B.dtype == np.float64:
             con = np.zeros(A.shape,dtype=np.complex128)
-            con_vec_comp(A,B,con)
+            cv.con_vec_comp(A,B,con)
         elif A.dtype == np.float64 and B.dtype == np.complex128:
             con = np.zeros(A.shape,dtype=np.complex128)
-            con_vec_comp3(A,B,con)
+            cv.con_vec_comp3(A,B,con)
         return con
     
 # Contract rank-4 tensor with square matrix
@@ -237,20 +238,20 @@ def con42(A,B,method='jit',comp=False):
         con += np.moveaxis(np.tensordot(A,B,axes=[1,0]),[0,1,2,3],[0,2,3,1])
         con += np.tensordot(A,B,axes=[3,0])
     elif method == 'jit' and comp == False:
-        con = con_jit42(A,B)
+        con = cj.con_jit42(A,B)
     elif method == 'jit' and comp == True:
-        con = con_jit42_comp(A,B)
+        con = cj.con_jit42_comp(A,B)
     elif method == 'vec' and comp == False:
         con = np.zeros(A.shape,dtype=np.float64)
-        con_vec42(A,B,con)
+        cv.con_vec42(A,B,con)
     elif method == 'vec' and comp == True:
         con = np.zeros(A.shape,dtype=np.complex128)
         if A.dtype == np.float64 and B.dtype==np.complex128:
-            con_vec42_comp(A,B,con)
+            cv.con_vec42_comp(A,B,con)
         elif A.dtype == np.complex128 and B.dtype==np.float64:
-            con_vec42_comp2(A,B,con)
+            cv.con_vec42_comp2(A,B,con)
         elif A.dtype == np.complex128 and B.dtype==np.complex128:
-            con_vec42_comp3(A,B,con)
+            cv.con_vec42_comp3(A,B,con)
     
     return con
 
@@ -302,21 +303,21 @@ def con42_NO(A,B,method='jit',comp=False,state=[],pair=None):
     elif method == 'jit' and comp == False:
         # print('jit')
         if pair == None:
-            con = con_jit42_NO(A,B,state)
+            con = cj.con_jit42_NO(A,B,state)
         elif pair == 'first':
-            con = con_jit42_NO_firstpair(A,B,state)
+            con = cj.con_jit42_NO_firstpair(A,B,state)
         elif pair == 'second':
-            con = con_jit42_NO_secondpair(A,B,state)
+            con = cj.con_jit42_NO_secondpair(A,B,state)
     elif method == 'jit' and comp == True:
-        con = con_jit42_comp_NO(A,B,state)
+        con = cj.con_jit42_comp_NO(A,B,state)
     elif method == 'vec' and comp == False:
         con = np.zeros(B.shape,dtype=np.float64)
         if pair == None:
-            con=con_jit42_NO(A,B,state)
+            con=cv.con_jit42_NO(A,B,state)
         elif pair == 'first':
-            con_vec42_NO_firstpair(A,B,state,con)
+            cv.con_vec42_NO_firstpair(A,B,state,con)
         elif pair == 'second':
-            con_vec42_NO_secondpair(A,B,state,con)
+            cv.con_vec42_NO_secondpair(A,B,state,con)
     return con
 
 # Double square matrix with rank-4 tensor
@@ -361,10 +362,10 @@ def con44_NO(A,B,method='jit',comp=False,eta=False,state=[]):
         print('N/O CORRECTIONS NOT POSSIBLE WITH TENSORDOT')
     elif method == 'jit' and comp == False:
         # if eta == False:
-        con = con_jit44_NO(A,B,state)
+        con = cj.con_jit44_NO(A,B,state)
     elif method == 'vec' and comp == False:
         con = np.zeros(A.shape,dtype=np.float64)
-        con_vec44_NO(A,B,state,con)
+        cv.con_vec44_NO(A,B,state,con)
         # elif eta==True:
         # con = con_jit44_anti_NO(A,B,state)
 
@@ -387,10 +388,10 @@ def con42_firstpair(A,B,method='jit',comp=False,eta=False):
         con += np.moveaxis(np.tensordot(A,B,axes=[1,0]),[0,1,2,3],[0,2,3,1])
         # con += np.tensordot(A,B,axes=[3,0])
     elif method == 'jit':
-        con = con_jit42_firstpair(A,B)
+        con = cj.con_jit42_firstpair(A,B)
     elif method == 'vec':
         con = np.zeros(A.shape,dtype=np.float64)
-        con = con_vec42_firstpair(A,B,con)
+        con = cv.con_vec42_firstpair(A,B,con)
     return con
 
 # Contract rank-4 tensor with square matrix
@@ -409,10 +410,10 @@ def con42_secondpair(A,B,method='jit',comp=False,eta=False):
         # con += np.moveaxis(np.tensordot(A,B,axes=[1,0]),[0,1,2,3],[0,2,3,1])
         con += np.tensordot(A,B,axes=[3,0])
     elif method == 'jit':
-        con = con_jit42_secondpair(A,B)
+        con = cj.con_jit42_secondpair(A,B)
     elif method == 'vec':
         con = np.zeros(A.shape,dtype=np.float64)
-        con_vec42_secondpair(A,B,con)
+        cv.con_vec42_secondpair(A,B,con)
     return con
 
 
@@ -421,692 +422,3 @@ def con24_firstpair(A,B,method='jit',comp=False,eta=False):
 
 def con24_secondpair(A,B,method='jit',comp=False,eta=False):
     return -con42_secondpair(B,A,method,comp,eta)
-#------------------------------------------------------------------------------
-# jit functions which return a matrix
-    
-@jit(float64[:,:](float64[:,:],float64[:,:],float64[:,:]),nopython=True,parallel=True,fastmath=True,cache=True,nogil=True)
-# @jit(nopython=True,parallel=True,fastmath=True,cache=True)
-def con_jit(A,B,C):
-    """ Contract two square matrices. Computes upper half only and then symmetrises. """
-    m,_=A.shape
-    for i in prange(m):
-        for j in range(i,m):
-            for k in range(m):
-                C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-            C[j,i] = C[i,j]
-    return C
-
-@jit(float64[:,:](float64[:,:],float64[:,:],float64[:,:]),nopython=True,parallel=True,fastmath=True,cache=True,nogil=True)
-def con_jit_anti(A,B,C):
-    """ Contract two square matrices. Computes upper half only and then anti-symmetrises. """
-    m,_=A.shape
-    for i in prange(m):
-        for j in range(i,m):
-            for k in range(m):
-                C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-            C[j,i] = -C[i,j]
-    return C
-
-@jit(nopython=True,parallel=True,fastmath=True,cache=True)
-def con_jit_comp(A,B):
-    """ Contract two square complex matrices. Computes upper half only and then symmetrises. """
-    C = np.zeros(A.shape,dtype=np.complex64)
-    m,_=A.shape
-    for i in prange(m):
-        for j in range(i,m):
-            for k in range(m):
-                C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-            C[j,i] = np.conj(C[i,j])
-
-    return C
-
-@jit(nopython=True,parallel=True,fastmath=True,cache=True)
-def con_jit_anti_comp(A,B):
-    """ Contract two square complex matrices. Computes upper half only and then anti-symmetrises. """
-    C = np.zeros(A.shape,dtype=np.complex64)
-    m,_=A.shape
-    for i in prange(m):
-        for j in range(i,m):
-            for k in range(m):
-                C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-            C[j,i] = -np.conj(C[i,j])
-
-    return C
-
-@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
-def con_jit42_NO(A,B,state):
-    """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
-    C = np.zeros(B.shape,dtype=np.float64)
-    m,_=B.shape
-    for i in range(m):
-        for j in range(m):
-            for k in range(m):
-                for q in range(m):
-                    if state[k] != state[q]:
-                        C[i,j] += A[i,j,k,q]*B[q,k]*(state[k]-state[q])
-                        C[i,j] += A[k,q,i,j]*B[q,k]*(state[k]-state[q])
-                        C[i,j] += -A[k,j,i,q]*B[q,k]*(state[k]-state[q])
-                        C[i,j] += A[i,q,k,j]*B[q,k]*(state[k]-state[q])
-
-    return C
-
-@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
-def con_jit42_NO_secondpair(A,B,state):
-    """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
-    C = np.zeros(B.shape,dtype=np.float64)
-    m,_=B.shape
-    for i in prange(m):
-        for j in range(m):
-            for k in range(m):
-                for q in range(m):
-                    if state[k] != state[q]:
-                        C[i,j] += A[i,j,k,q]*B[q,k]*(state[k]-state[q])
-
-    return C
-
-@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
-def con_jit42_NO_firstpair(A,B,state):
-    """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
-    C = np.zeros(B.shape,dtype=np.float64)
-    m,_=B.shape
-    for i in prange(m):
-        for j in range(m):
-            for k in range(m):
-                for q in range(m):
-                    if state[k] != state[q]:
-                        C[i,j] += A[i,j,k,q]*B[q,k]*(state[k]-state[q])
-    return C
-
-@jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
-def con_jit42_comp_NO(A,B,state):
-    """ 2-point contractions of a (complex) rank-4 tensor with a (complex) square matrix. Computes upper half only and then symmetrises. """
-    C = np.zeros(B.shape,dtype=np.float64)
-    m,_=B.shape
-    for i in prange(m):
-        for j in range(m):
-            for k in range(m):
-                for q in range(m):
-                    if state[k] != state[q]:
-                        C[i,j] += A[i,j,k,q]*B[q,k]*(state[k]-state[q])
-                        C[i,j] += A[k,q,i,j]*B[q,k]*(state[k]-state[q])
-                        C[i,j] += -A[k,j,i,q]*B[q,k]*(state[k]-state[q])
-                        C[i,j] += A[i,q,k,j]*B[q,k]*(state[k]-state[q])
-
-    return C
-
-
-#------------------------------------------------------------------------------
-# jit functions which return a rank-4 tensor
-
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:]),nopython=True,parallel=True,fastmath=True,cache=True,nogil=True)
-def con_jit42(A,B):
-    C = np.zeros(A.shape,dtype=np.float64)
-    m,_,_,_=A.shape
-    for i in prange(m):
-        for j in range(m):
-            for k in range(m):
-                for q in range(m):
-                    C[i,j,k,q] = 0.
-                    for l in range(m):
-                        C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
-                        C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
-                        C[i,j,k,q] += A[i,l,k,q]*B[l,j]
-                        C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
-
-    return C
-
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:]),nopython=True,parallel=True,fastmath=True,cache=True,nogil=True)
-def con_jit42_firstpair(A,B):
-    C = np.zeros(A.shape,dtype=np.float64)
-    m,_,_,_=A.shape
-    for i in range(m):
-        for j in range(m):
-            for k in range(m):
-                for q in range(m):
-                    C[i,j,k,q] = 0.
-                    for l in range(m):
-                        C[i,j,k,q] += A[i,l,k,q]*B[l,j]
-                        C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
-
-    return C
-
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:]),nopython=True,parallel=True,fastmath=True,cache=True,nogil=True)
-def con_jit42_secondpair(A,B):
-    C = np.zeros(A.shape,dtype=np.float64)
-    m,_,_,_=A.shape
-    for i in prange(m):
-        for j in range(m):
-            for k in range(m):
-                for q in range(m):
-                    C[i,j,k,q] = 0.
-                    for l in range(m):
-                        C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
-                        C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
-
-    return C
-
-@jit(nopython=True,parallel=True,fastmath=True,cache=True)
-def con_jit42_comp(A,B):
-    C = np.zeros(A.shape,dtype=np.complex64)
-    m,_,_,_=A.shape
-    for i in prange(m):
-        for j in range(m):
-            for k in range(m):
-                for q in range(m):
-                    for l in range(m):
-                        C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
-                        C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
-                        C[i,j,k,q] += A[i,l,k,q]*B[l,j]
-                        C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
-
-    return C
-
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
-def con_jit44_NO(A,B,state):
-    C = np.zeros(A.shape,dtype=np.float64)
-    m0,_,_,_=A.shape
-    for i in prange(m0):
-        for j in range(m0):
-            for k in range(m0):
-                for q in range(m0):
-                        # Indices to be summed over
-                        for l in range(m0):
-                            for m in range(m0):
-                                if state[l] != state[m]:
-                                    C[i,j,k,q] += 0.25*A[i,j,l,m]*(B[m,l,k,q]+B[k,q,m,l]-B[m,q,k,l]+B[k,l,m,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,m,i,j]*(B[m,l,k,q]+B[k,q,m,l]-B[m,q,k,l]+B[k,l,m,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,j,i,m]*(B[m,l,k,q]+B[k,l,m,q]-B[m,q,k,l]+B[k,q,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += -0.25*A[i,l,m,j]*(B[k,m,l,q]+B[k,q,l,m]+B[l,m,k,q]-B[l,q,k,m])*(state[l]-state[m]) #-
-                                C[i,j,k,q] +=  0.25*A[l,j,m,q]*(B[i,m,k,l]+B[i,l,k,m])*(state[l]+state[m]) #--
-                                C[i,j,k,q] +=  0.25*A[i,l,k,m]*(B[m,j,l,q]+B[l,j,m,q])*(state[l]+state[m]) #--
-
-                                if state[l] != state[m]:
-                                    C[i,j,k,q] += -0.25*A[i,q,l,m]*(B[m,l,k,j]+B[k,j,m,l]-B[m,j,k,l]+B[k,l,m,j])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,m,i,q]*(B[m,l,k,j]+B[k,j,m,l]-B[m,j,k,l]+B[k,l,m,j])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,q,i,m]*(B[m,l,k,j]+B[k,l,m,j]-B[m,j,k,l]+B[k,j,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += 0.25*A[i,l,m,q]*(B[k,m,l,j]+B[k,j,l,m]+B[l,m,k,j]-B[l,j,k,m])*(state[l]-state[m]) #-
-                                C[i,j,k,q] +=  -0.25*A[l,q,m,j]*(B[i,m,k,l]+B[i,l,k,m])*(state[l]+state[m]) #--
-                                C[i,j,k,q] +=  -0.25*A[i,l,k,m]*(B[m,q,l,j]+B[l,q,m,j])*(state[l]+state[m]) #--
-
-                                if state[l] != state[m]:
-                                    C[i,j,k,q] += -0.25*A[k,j,l,m]*(B[m,l,i,q]+B[i,q,m,l]-B[m,q,i,l]+B[i,l,m,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,m,k,j]*(B[m,l,i,q]+B[i,q,m,l]-B[m,q,i,l]+B[i,l,m,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,j,k,m]*(B[m,l,i,q]+B[i,l,m,q]-B[m,q,i,l]+B[i,q,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += 0.25*A[k,l,m,j]*(B[i,m,l,q]+B[i,q,l,m]+B[l,m,i,q]-B[l,q,i,m])*(state[l]-state[m]) #-
-                                C[i,j,k,q] +=  -0.25*A[l,j,m,q]*(B[k,m,i,l]+B[k,l,i,m])*(state[l]+state[m]) #--
-                                C[i,j,k,q] +=  -0.25*A[k,l,i,m]*(B[m,j,l,q]+B[l,j,m,q])*(state[l]+state[m]) #--
-
-                                if state[l] != state[m]:
-                                    C[i,j,k,q] += 0.25*A[k,q,l,m]*(B[m,l,i,j]+B[i,j,m,l]-B[m,j,i,l]+B[i,l,m,j])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[m,l,i,j]+B[i,j,m,l]-B[m,j,i,l]+B[i,l,m,j])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,q,k,m]*(B[m,l,i,j]+B[i,l,m,j]-B[m,j,i,l]+B[i,j,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += -0.25*A[k,l,m,q]*(B[i,m,l,j]+B[i,j,l,m]+B[l,m,i,j]-B[l,j,i,m])*(state[l]-state[m]) #-
-                                C[i,j,k,q] +=  0.25*A[l,q,m,j]*(B[k,m,i,l]+B[k,l,i,m])*(state[l]+state[m]) #--
-                                C[i,j,k,q] +=  0.25*A[k,l,i,m]*(B[m,q,l,j]+B[l,q,m,j])*(state[l]+state[m]) #--
-
-    return C
-
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
-def con_jit44_NO_up_mixed(A,B,state):
-    C = np.zeros(A.shape,dtype=np.float64)
-    m0,_,_,_=A.shape
-
-    for i in prange(m0):
-        for j in range(m0):
-            for k in range(m0):
-                for q in range(m0):
-                        # Indices to be summed over
-                        for l in range(m0):
-                            for m in range(m0):
-                                if state[l] != state[m]:
-                                    C[i,j,k,q] += 0.25*A[i,j,l,m]*(B[m,l,k,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,m,i,j]*(B[m,l,k,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,j,i,m]*(B[m,l,k,q])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += -0.25*A[i,l,m,j]*(B[l,m,k,q])*(state[l]-state[m]) #-
-
-                                    C[i,j,k,q] += -0.25*A[i,q,l,m]*(B[m,l,k,j])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,m,i,q]*(B[m,l,k,j])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,q,i,m]*(B[m,l,k,j])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += 0.25*A[i,l,m,q]*(B[l,m,k,j])*(state[l]-state[m]) #-
-
-                                    C[i,j,k,q] += -0.25*A[k,j,l,m]*(B[m,l,i,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,m,k,j]*(B[m,l,i,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,j,k,m]*(B[m,l,i,q])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += 0.25*A[k,l,m,j]*(B[l,m,i,q])*(state[l]-state[m]) #-
-
-                                    C[i,j,k,q] += 0.25*A[k,q,l,m]*(B[m,l,i,j])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[m,l,i,j])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,q,k,m]*(B[m,l,i,j])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += -0.25*A[k,l,m,q]*(B[l,m,i,j])*(state[l]-state[m]) #-
-
-    return C
-
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
-def con_jit44_NO_down_mixed(A,B,state):
-    C = np.zeros(A.shape,dtype=np.float64)
-    m0,_,_,_=A.shape
-    for i in prange(m0):
-        for j in range(m0):
-            for k in range(m0):
-                for q in range(m0):
-                        # Indices to be summed over
-                        for l in range(m0):
-                            for m in range(m0):
-                                if state[l] != state[m]:
-                                    C[i,j,k,q] += 0.25*A[i,j,l,m]*(B[k,q,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,m,i,j]*(B[k,q,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,j,i,m]*(B[k,q,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += -0.25*A[i,l,m,j]*(B[k,q,l,m])*(state[l]-state[m]) #-
-
-                                    C[i,j,k,q] += -0.25*A[i,q,l,m]*(B[k,j,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,m,i,q]*(B[k,j,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,q,i,m]*(B[k,j,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += 0.25*A[i,l,m,q]*(B[k,j,l,m])*(state[l]-state[m]) #-
-
-                                    C[i,j,k,q] += -0.25*A[k,j,l,m]*(B[i,q,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,m,k,j]*(B[i,q,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,j,k,m]*(B[i,q,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += 0.25*A[k,l,m,j]*(B[i,q,l,m])*(state[l]-state[m]) #-
-
-                                    C[i,j,k,q] += 0.25*A[k,q,l,m]*(B[i,j,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[i,j,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,q,k,m]*(B[i,j,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += -0.25*A[k,l,m,q]*(B[i,j,l,m])*(state[l]-state[m]) #-
-
-    return C
-
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
-def con_jit44_NO_mixed(A,B,upstate,downstate):
-    C = np.zeros(A.shape,dtype=np.float64)
-    m0,_,_,_=A.shape
-    for i in prange(m0):
-        for j in range(m0):
-            for k in range(m0):
-                for q in range(m0):
-                        # Indices to be summed over
-                        for l in range(m0):
-                            for m in range(m0):
-                                # if state[l] != state[m]:
-                                C[i,j,k,q] += A[l,j,k,m]*(B[i,l,m,q])*(upstate[l]-downstate[m]) #+
-                                C[i,j,k,q] += A[i,l,m,q]*B[l,j,k,m]*(-upstate[l]+downstate[m])
-                                C[i,j,k,q] +=  -A[l,j,m,q]*(B[i,l,k,m])*(upstate[l]+downstate[m]) #--
-                                C[i,j,k,q] +=  A[i,l,k,m]*(B[l,j,m,q])*(upstate[l]+downstate[m]) #--
-
-                                
-    return C
-
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
-def con_jit44_NO_mixed_mixed_up(A,B,state):
-    C = np.zeros(A.shape,dtype=np.float64)
-    m0,_,_,_=A.shape
-    for i in prange(m0):
-        for j in range(m0):
-            for k in range(m0):
-                for q in range(m0):
-                        # Indices to be summed over
-                        for l in range(m0):
-                            for m in range(m0):
-                                if state[l] != state[m]:
-                                    C[i,j,k,q] += 0.25*A[i,j,l,m]*(B[k,q,m,l])*(state[l]-state[m]) #+ 
-                                    C[i,j,k,q] += -0.25*A[i,q,l,m]*B[k,j,m,l]*(state[l]-state[m])
-                                    C[i,j,k,q] += -0.25*A[k,j,l,m]*(B[i,q,m,l])*(state[l]-state[m]) 
-                                    C[i,j,k,q] += 0.25*A[k,q,l,m]*(B[i,j,m,l])*(state[l]-state[m])
-               
-    return C
-
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
-def con_jit44_NO_mixed_mixed_down(A,B,state):
-    C = np.zeros(A.shape,dtype=np.float64)
-    m0,_,_,_=A.shape
-    # count = 0
-    for i in prange(m0):
-        for j in range(m0):
-            for k in range(m0):
-                for q in range(m0):
-                        # Indices to be summed over
-                        for l in range(m0):
-                            for m in range(m0):
-                                if state[l] != state[m]:
-                                    C[i,j,k,q] += 0.25*A[l,m,i,j]*(B[m,l,k,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,m,i,q]*(B[m,l,k,j])*(state[l]-state[m])
-                                    C[i,j,k,q] += -0.25*A[l,m,k,j]*(B[m,l,i,q])*(state[l]-state[m])
-                                    C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[m,l,i,j])*(state[l]-state[m])
-
-
-    return C
-
-@jit(float64[:,:,:,:](float64[:,:,:,:],float64[:,:,:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
-def con_jit44_anti_NO(A,B,state):
-    C = np.zeros(A.shape,dtype=np.float64)
-    m0,_,_,_=A.shape
-    for i in prange(m0):
-        for j in range(m0):
-            for k in range(m0):
-                for q in range(m0):
-                    # Indices to be summed over
-                    for l in range(m0):
-                        for m in range(m0):
-                            if state[l] != state[m]:
-                                C[i,j,k,q] += A[i,j,l,m]*(B[m,l,k,q]+B[k,q,m,l]-B[m,q,k,l]+B[k,l,m,q])*(state[l]-state[m]) #+
-                                C[i,j,k,q] += A[l,m,i,j]*(B[m,l,k,q]+B[k,q,m,l]-B[m,q,k,l]+B[k,l,m,q])*(state[l]-state[m]) #+
-                                C[i,j,k,q] += -A[l,j,i,m]*(B[m,l,k,q]+B[k,l,m,q]-B[m,q,k,l]+B[k,q,m,l])*(state[l]-state[m]) #-
-                                C[i,j,k,q] += A[i,l,m,j]*(B[k,m,l,q]+B[k,q,l,m]+B[l,m,k,q]-B[l,q,k,m])*(state[l]-state[m]) #-
-                            C[i,j,k,q] += A[l,j,m,q]*(B[i,m,k,l]+B[i,l,k,m])*(state[l]+state[m]) #--
-                            C[i,j,k,q] += A[i,l,k,m]*(B[m,j,l,q]+B[l,j,m,q])*(state[l]+state[m]) #--
-    return C
-         
-#------------------------------------------------------------------------------
-# guvectorize functions
-# Note the different functions for different combinations of Re/Im inputs
-# needed because of the explicit type declarations, not needed for jit (above)
-
-@guvectorize([(float64[:,:],float64[:,:],float64[:,:])],'(n,n),(n,n)->(n,n)',target='cpu',nopython=True)
-def con_vec(A,B,C):
-    m,_=A.shape
-    for i in range(m):
-        for j in range(m):
-            C[i,j] = 0.
-            for k in range(m):
-                C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-            # C[j,i] = C[i,j]
-
-@guvectorize([(float64[:,:],complex128[:,:],complex128[:,:])],'(n,n),(n,n)->(n,n)',target='cpu',nopython=True)
-def con_vec_comp(A,B,C):
-    m,_=A.shape
-    for i in range(m):
-        for j in range(m):
-            for k in range(m):
-                C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-
-@guvectorize([(complex128[:,:],complex128[:,:],complex128[:,:])],'(n,n),(n,n)->(n,n)',target='cpu',nopython=True)
-def con_vec_comp2(A,B,C):
-    m,_=A.shape
-    for i in range(m):
-        for j in range(m):
-            C[i,j] = 0.
-            for k in range(m):
-                C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-    
-@guvectorize([(float64[:,:],complex128[:,:],complex128[:,:])],'(n,n),(n,n)->(n,n)',target='cpu',nopython=True)
-def con_vec_comp3(A,B,C):
-    m,_=A.shape
-    for i in range(m):
-        for j in range(m):
-            C[i,j] = 0.
-            for k in range(m):
-                C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-
-@guvectorize([(float64[:,:,:,:],float64[:,:],float64[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec42(A,B,C):
-    m,_,_,_=A.shape
-    for i in range(m):
-        for j in range(m):
-            for k in range(m):
-                for q in range(m):
-                    C[i,j,k,q] = 0.
-                    for l in range(m):
-                        C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
-                        C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
-                        C[i,j,k,q] += A[i,l,k,q]*B[l,j]
-                        C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
-
-
-@guvectorize([(float64[:,:,:,:],complex128[:,:],complex128[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec42_comp(A,B,C):
-    m,_,_,_=A.shape
-    for i in range(m):
-        for j in range(m):
-            for k in range(m):
-                for q in range(m):
-                    C[i,j,k,q] = 0.
-                    for l in range(m):
-                        C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
-                        C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
-                        C[i,j,k,q] += A[i,l,k,q]*B[l,j]
-                        C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
- 
-@guvectorize([(complex128[:,:,:,:],float64[:,:],complex128[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec42_comp2(A,B,C):
-    m,_,_,_=A.shape
-    for i in range(m):
-        for j in range(m):
-            for k in range(m):
-                for q in range(m):
-                    C[i,j,k,q] = 0.
-                    for l in range(m):
-                        C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
-                        C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
-                        C[i,j,k,q] += A[i,l,k,q]*B[l,j]
-                        C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
-
-@guvectorize([(complex128[:,:,:,:],complex128[:,:],complex128[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec42_comp3(A,B,C):
-    m,_,_,_=A.shape
-    for i in range(m):
-        for j in range(m):
-            for k in range(m):
-                for q in range(m):
-                    C[i,j,k,q] = 0.
-                    for l in range(m):
-                        C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
-                        C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
-                        C[i,j,k,q] += A[i,l,k,q]*B[l,j]
-                        C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
-
-@guvectorize([(float64[:,:,:,:],float64[:,:],float64[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec42_firstpair(A,B,C):
-    m,_,_,_=A.shape
-    for i in range(m):
-        for j in range(m):
-            for k in range(m):
-                for q in range(m):
-                    C[i,j,k,q] = 0.
-                    for l in range(m):
-                        C[i,j,k,q] += A[i,l,k,q]*B[l,j]
-                        C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
-
-@guvectorize([(float64[:,:,:,:],float64[:,:],float64[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec42_secondpair(A,B,C):
-    m,_,_,_=A.shape
-    for i in range(m):
-        for j in range(m):
-            for k in range(m):
-                for q in range(m):
-                    C[i,j,k,q] = 0.
-                    for l in range(m):
-                        C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
-                        C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
-
-
-@guvectorize([(float64[:,:,:,:],float64[:,:],float64[:],float64[:,:])],'(n,n,n,n),(n,n),(n)->(n,n)',target='cpu',nopython=True)
-def con_vec42_NO(A,B,state,C):
-    """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
-    m,_=B.shape
-    C = np.zeros(B.shape,dtype=np.float64)
-    for i in range(m):
-        for j in range(m):
-            # C[i,j] = 0.
-            for k in range(m):
-                for q in range(m):
-                    if state[k] != state[q]:
-                        C[i,j] += A[i,j,k,q]*B[q,k]*(state[k]-state[q])
-                        C[i,j] += A[k,q,i,j]*B[q,k]*(state[k]-state[q])
-                        C[i,j] += -A[k,j,i,q]*B[q,k]*(state[k]-state[q])
-                        C[i,j] += A[i,q,k,j]*B[q,k]*(state[k]-state[q])
-
-@guvectorize([(float64[:,:,:,:],float64[:,:],float64[:],float64[:,:])],'(n,n,n,n),(n,n),(n)->(n,n)',target='cpu',nopython=True)
-def con_vec42_NO_secondpair(A,B,state,C):
-    """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
-    m,_=B.shape
-    for i in range(m):
-        for j in range(m):
-            C[i,j] = 0.
-            for k in range(m):
-                for q in range(m):
-                    if state[k] != state[q]:
-                        C[i,j] += A[i,j,k,q]*B[q,k]*(state[k]-state[q])
-
-@guvectorize([(float64[:,:,:,:],float64[:,:],float64[:],float64[:,:])],'(n,n,n,n),(n,n),(n)->(n,n)',target='cpu',nopython=True)
-def con_vec42_NO_firstpair(A,B,state,C):
-    """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
-    m,_=B.shape
-    for i in range(m):
-        for j in range(m):
-            C[i,j] = 0.
-            for k in range(m):
-                for q in range(m):
-                    if state[k] != state[q]:
-                        C[i,j] += A[i,j,k,q]*B[q,k]*(state[k]-state[q])
-
-@guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec44_NO(A,B,state,C):
-    m0,_,_,_=A.shape
-    for i in range(m0):
-        for j in range(m0):
-            for k in range(m0):
-                for q in range(m0):
-                        # Indices to be summed over
-                        C[i,j,k,q] = 0.
-                        for l in range(m0):
-                            for m in range(m0):
-                                if state[l] != state[m]:
-                                    C[i,j,k,q] += 0.25*A[i,j,l,m]*(B[m,l,k,q]+B[k,q,m,l]-B[m,q,k,l]+B[k,l,m,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,m,i,j]*(B[m,l,k,q]+B[k,q,m,l]-B[m,q,k,l]+B[k,l,m,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,j,i,m]*(B[m,l,k,q]+B[k,l,m,q]-B[m,q,k,l]+B[k,q,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += -0.25*A[i,l,m,j]*(B[k,m,l,q]+B[k,q,l,m]+B[l,m,k,q]-B[l,q,k,m])*(state[l]-state[m]) #-
-                                C[i,j,k,q] +=  0.25*A[l,j,m,q]*(B[i,m,k,l]+B[i,l,k,m])*(state[l]+state[m]) #--
-                                C[i,j,k,q] +=  0.25*A[i,l,k,m]*(B[m,j,l,q]+B[l,j,m,q])*(state[l]+state[m]) #--
-
-                                if state[l] != state[m]:
-                                    C[i,j,k,q] += -0.25*A[i,q,l,m]*(B[m,l,k,j]+B[k,j,m,l]-B[m,j,k,l]+B[k,l,m,j])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,m,i,q]*(B[m,l,k,j]+B[k,j,m,l]-B[m,j,k,l]+B[k,l,m,j])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,q,i,m]*(B[m,l,k,j]+B[k,l,m,j]-B[m,j,k,l]+B[k,j,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += 0.25*A[i,l,m,q]*(B[k,m,l,j]+B[k,j,l,m]+B[l,m,k,j]-B[l,j,k,m])*(state[l]-state[m]) #-
-                                C[i,j,k,q] +=  -0.25*A[l,q,m,j]*(B[i,m,k,l]+B[i,l,k,m])*(state[l]+state[m]) #--
-                                C[i,j,k,q] +=  -0.25*A[i,l,k,m]*(B[m,q,l,j]+B[l,q,m,j])*(state[l]+state[m]) #--
-
-                                if state[l] != state[m]:
-                                    C[i,j,k,q] += -0.25*A[k,j,l,m]*(B[m,l,i,q]+B[i,q,m,l]-B[m,q,i,l]+B[i,l,m,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,m,k,j]*(B[m,l,i,q]+B[i,q,m,l]-B[m,q,i,l]+B[i,l,m,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,j,k,m]*(B[m,l,i,q]+B[i,l,m,q]-B[m,q,i,l]+B[i,q,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += 0.25*A[k,l,m,j]*(B[i,m,l,q]+B[i,q,l,m]+B[l,m,i,q]-B[l,q,i,m])*(state[l]-state[m]) #-
-                                C[i,j,k,q] +=  -0.25*A[l,j,m,q]*(B[k,m,i,l]+B[k,l,i,m])*(state[l]+state[m]) #--
-                                C[i,j,k,q] +=  -0.25*A[k,l,i,m]*(B[m,j,l,q]+B[l,j,m,q])*(state[l]+state[m]) #--
-
-                                if state[l] != state[m]:
-                                    C[i,j,k,q] += 0.25*A[k,q,l,m]*(B[m,l,i,j]+B[i,j,m,l]-B[m,j,i,l]+B[i,l,m,j])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[m,l,i,j]+B[i,j,m,l]-B[m,j,i,l]+B[i,l,m,j])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,q,k,m]*(B[m,l,i,j]+B[i,l,m,j]-B[m,j,i,l]+B[i,j,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += -0.25*A[k,l,m,q]*(B[i,m,l,j]+B[i,j,l,m]+B[l,m,i,j]-B[l,j,i,m])*(state[l]-state[m]) #-
-                                C[i,j,k,q] +=  0.25*A[l,q,m,j]*(B[k,m,i,l]+B[k,l,i,m])*(state[l]+state[m]) #--
-                                C[i,j,k,q] +=  0.25*A[k,l,i,m]*(B[m,q,l,j]+B[l,q,m,j])*(state[l]+state[m]) #--
-
-
-@guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec44_NO_up_mixed(A,B,state,C):
-    m0,_,_,_=A.shape
-    for i in range(m0):
-        for j in range(m0):
-            for k in range(m0):
-                for q in range(m0):
-                        # Indices to be summed over
-                        for l in range(m0):
-                            for m in range(m0):
-                                if state[l] != state[m]:
-                                    C[i,j,k,q] += 0.25*A[i,j,l,m]*(B[m,l,k,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,m,i,j]*(B[m,l,k,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,j,i,m]*(B[m,l,k,q])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += -0.25*A[i,l,m,j]*(B[l,m,k,q])*(state[l]-state[m]) #-
-
-                                    C[i,j,k,q] += -0.25*A[i,q,l,m]*(B[m,l,k,j])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,m,i,q]*(B[m,l,k,j])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,q,i,m]*(B[m,l,k,j])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += 0.25*A[i,l,m,q]*(B[l,m,k,j])*(state[l]-state[m]) #-
-
-                                    C[i,j,k,q] += -0.25*A[k,j,l,m]*(B[m,l,i,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,m,k,j]*(B[m,l,i,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,j,k,m]*(B[m,l,i,q])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += 0.25*A[k,l,m,j]*(B[l,m,i,q])*(state[l]-state[m]) #-
-
-                                    C[i,j,k,q] += 0.25*A[k,q,l,m]*(B[m,l,i,j])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[m,l,i,j])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,q,k,m]*(B[m,l,i,j])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += -0.25*A[k,l,m,q]*(B[l,m,i,j])*(state[l]-state[m]) #-
-
-@guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec44_NO_down_mixed(A,B,state,C):
-    m0,_,_,_=A.shape
-    for i in range(m0):
-        for j in range(m0):
-            for k in range(m0):
-                for q in range(m0):
-                        # Indices to be summed over
-                        for l in range(m0):
-                            for m in range(m0):
-                                if state[l] != state[m]:
-                                    C[i,j,k,q] += 0.25*A[i,j,l,m]*(B[k,q,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,m,i,j]*(B[k,q,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,j,i,m]*(B[k,q,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += -0.25*A[i,l,m,j]*(B[k,q,l,m])*(state[l]-state[m]) #-
-
-                                    C[i,j,k,q] += -0.25*A[i,q,l,m]*(B[k,j,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,m,i,q]*(B[k,j,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,q,i,m]*(B[k,j,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += 0.25*A[i,l,m,q]*(B[k,j,l,m])*(state[l]-state[m]) #-
-
-                                    C[i,j,k,q] += -0.25*A[k,j,l,m]*(B[i,q,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,m,k,j]*(B[i,q,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,j,k,m]*(B[i,q,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += 0.25*A[k,l,m,j]*(B[i,q,l,m])*(state[l]-state[m]) #-
-
-                                    C[i,j,k,q] += 0.25*A[k,q,l,m]*(B[i,j,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[i,j,m,l])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,q,k,m]*(B[i,j,m,l])*(state[l]-state[m]) #-
-                                    C[i,j,k,q] += -0.25*A[k,l,m,q]*(B[i,j,l,m])*(state[l]-state[m]) #-
-
-@guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n),(n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec44_NO_mixed(A,B,upstate,downstate,C):
-    m0,_,_,_=A.shape
-    for i in range(m0):
-        for j in range(m0):
-            for k in range(m0):
-                for q in range(m0):
-                        # Indices to be summed over
-                        for l in range(m0):
-                            for m in range(m0):
-                                C[i,j,k,q] += A[l,j,k,m]*(B[i,l,m,q])*(upstate[l]-downstate[m]) #+
-                                C[i,j,k,q] += A[i,l,m,q]*B[l,j,k,m]*(-upstate[l]+downstate[m])
-                                C[i,j,k,q] +=  -A[l,j,m,q]*(B[i,l,k,m])*(upstate[l]+downstate[m]) #--
-                                C[i,j,k,q] +=  A[i,l,k,m]*(B[l,j,m,q])*(upstate[l]+downstate[m]) #--
-
-@guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec44_NO_mixed_mixed_up(A,B,state,C):
-    m0,_,_,_=A.shape
-    for i in range(m0):
-        for j in range(m0):
-            for k in range(m0):
-                for q in range(m0):
-                        # Indices to be summed over
-                        for l in range(m0):
-                            for m in range(m0):
-                                if state[l] != state[m]:
-                                    C[i,j,k,q] += 0.25*A[i,j,l,m]*(B[k,q,m,l])*(state[l]-state[m]) #+ 
-                                    C[i,j,k,q] += -0.25*A[i,q,l,m]*B[k,j,m,l]*(state[l]-state[m])
-                                    C[i,j,k,q] += -0.25*A[k,j,l,m]*(B[i,q,m,l])*(state[l]-state[m]) 
-                                    C[i,j,k,q] += 0.25*A[k,q,l,m]*(B[i,j,m,l])*(state[l]-state[m])
-
-@guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec44_NO_mixed_mixed_down(A,B,state,C):
-    m0,_,_,_=A.shape
-    for i in range(m0):
-        for j in range(m0):
-            for k in range(m0):
-                for q in range(m0):
-                        # Indices to be summed over
-                        for l in range(m0):
-                            for m in range(m0):
-                                if state[l] != state[m]:
-                                    C[i,j,k,q] += 0.25*A[l,m,i,j]*(B[m,l,k,q])*(state[l]-state[m]) #+
-                                    C[i,j,k,q] += -0.25*A[l,m,i,q]*(B[m,l,k,j])*(state[l]-state[m])
-                                    C[i,j,k,q] += -0.25*A[l,m,k,j]*(B[m,l,i,q])*(state[l]-state[m])
-                                    C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[m,l,i,j])*(state[l]-state[m])

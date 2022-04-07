@@ -187,10 +187,10 @@ def H2_spin_init(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dsymm='ch
         hlist_down = dsymm[1]
         print('hup',hlist_up)
         print('hdn',hlist_down)
-        H2_spin_up = Hinit(n,hlist_up,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False)
-        H2_spin_down = Hinit(n,hlist_down,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False)
+        H2_spin_up = Hinit(n,hlist_up,-1*J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False)
+        H2_spin_down = Hinit(n,hlist_down,-1*J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False)
     else:
-        H2_spin_up = Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False)
+        H2_spin_up = Hinit(n,d,-1*J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False)
         if dsymm == 'charge':
             H2_spin_down = H2_spin_up
         elif dsymm == 'spin':
@@ -198,11 +198,10 @@ def H2_spin_init(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dsymm='ch
             for i in range(len(H2_spin_down)):
                 H2_spin_down[i,i] = -H2_spin_up[i,i]
         elif dsymm == 'random':
-            H2_spin_down = Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False)
+            H2_spin_down = Hinit(n,d,-1*J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False)
 
     return H2_spin_up,H2_spin_down
     
-
 def Hint_init(n,delta,pwrint=False,beta=0,dim=1,U=0):
     # Interaction tensors
     Hint = np.zeros((n,n,n,n),dtype=np.float32)
