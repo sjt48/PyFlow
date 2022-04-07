@@ -33,8 +33,8 @@ os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number o
 os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of MKL threads
 os.environ['NUMBA_NUM_THREADS'] = str(int(cpu_count(logical=False))) # Set number of Numba threads
 import numpy as np
-import contract_vec as cv
-import contract_jit as cj
+from .contract_vec import *
+from .contract_jit import *
 
 #------------------------------------------------------------------------------
 # Tensor contraction subroutines
@@ -77,46 +77,46 @@ def contractNO(A,B,method='jit',comp=False,eta=False,state=[],upstate=[],downsta
         if A.ndim == B.ndim == 4 and pair==None:
             con = con44_NO(A,B,method=method,comp=comp,eta=eta,state=state)
         elif A.ndim == B.ndim == 4 and pair=='up-mixed':
-            con = cj.con_jit44_NO_up_mixed(A,B,state=state)
+            con = con_jit44_NO_up_mixed(A,B,state=state)
         elif A.ndim == B.ndim == 4 and pair=='down-mixed':
-            con = cj.con_jit44_NO_down_mixed(A,B,state=state)
+            con = con_jit44_NO_down_mixed(A,B,state=state)
         elif A.ndim == B.ndim == 4 and pair=='mixed-mixed-up':
-            con = cj.con_jit44_NO_mixed_mixed_up(A,B,state=state)
+            con = con_jit44_NO_mixed_mixed_up(A,B,state=state)
         elif A.ndim == B.ndim == 4 and pair=='mixed-mixed-down':
-            con = cj.con_jit44_NO_mixed_mixed_down(A,B,state=state)
+            con = con_jit44_NO_mixed_mixed_down(A,B,state=state)
         elif A.ndim == B.ndim == 4 and pair=='mixed-up':
-            con = -1*cj.con_jit44_NO_up_mixed(A,B,state=state)
+            con = -1*con_jit44_NO_up_mixed(A,B,state=state)
         elif A.ndim == B.ndim == 4 and pair=='mixed-down':
-            con = -1*cj.con_jit44_NO_down_mixed(A,B,state=state)
+            con = -1*con_jit44_NO_down_mixed(A,B,state=state)
         elif A.ndim == B.ndim == 4 and pair=='mixed':
-            con = cj.con_jit44_NO_mixed(A,B,upstate=upstate,downstate=downstate)
+            con = con_jit44_NO_mixed(A,B,upstate=upstate,downstate=downstate)
         
     elif A.ndim == B.ndim == 4 and method == 'vec':
         if A.ndim == B.ndim == 4 and pair == None:
             con = con44_NO(A,B,method=method,comp=comp,eta=eta,state=state)
         elif A.ndim == B.ndim == 4 and pair=='up-mixed':
             con = np.zeros(A.shape,dtype=np.float64)
-            cv.con_vec44_NO_up_mixed(A,B,state,con)
+            con_vec44_NO_up_mixed(A,B,state,con)
         elif A.ndim == B.ndim == 4 and pair=='down-mixed':
             con = con = np.zeros(A.shape,dtype=np.float64)
-            cv.con_vec44_NO_down_mixed(A,B,state,con)
+            con_vec44_NO_down_mixed(A,B,state,con)
         elif A.ndim == B.ndim == 4 and pair=='mixed-mixed-up':
             con = np.zeros(A.shape,dtype=np.float64)
-            cv.con_vec44_NO_mixed_mixed_up(A,B,state,con)
+            con_vec44_NO_mixed_mixed_up(A,B,state,con)
         elif A.ndim == B.ndim == 4 and pair=='mixed-mixed-down':
             con = np.zeros(A.shape,dtype=np.float64)
-            cv.con_vec44_NO_mixed_mixed_down(A,B,state,con)
+            con_vec44_NO_mixed_mixed_down(A,B,state,con)
         elif A.ndim == B.ndim == 4 and pair=='mixed-up':
             con = np.zeros(A.shape,dtype=np.float64)
-            cv.con_vec44_NO_up_mixed(A,B,state,con)
+            con_vec44_NO_up_mixed(A,B,state,con)
             con *= -1
         elif A.ndim == B.ndim == 4 and pair=='mixed-down':
             con = np.zeros(A.shape,dtype=np.float64)
-            cv.con_vec44_NO_down_mixed(A,B,state,con)
+            con_vec44_NO_down_mixed(A,B,state,con)
             con *= -1
         elif A.ndim == B.ndim == 4 and pair=='mixed':
             con = np.zeros(A.shape,dtype=np.float64)
-            cv.con_vec44_NO_mixed(A,B,upstate,downstate,con)
+            con_vec44_NO_mixed(A,B,upstate,downstate,con)
 
     elif A.ndim != B.ndim:
         if A.ndim == 4:
@@ -174,28 +174,28 @@ def con22(A,B,method='jit',comp=False,eta=False):
     elif method == 'jit' and comp==False:
         con = np.zeros(A.shape,dtype=np.float64)
         if eta==False:
-            return cj.con_jit(A,B,con)
+            return con_jit(A,B,con)
         elif eta==True:
-            return cj.con_jit_anti(A,B,con)
+            return con_jit_anti(A,B,con)
     elif method == 'jit' and comp==True:
         if eta == False:
-            return cj.con_jit_comp(A,B)
+            return con_jit_comp(A,B)
         else:
-            return cj.con_jit_anti_comp(A,B)
+            return con_jit_anti_comp(A,B)
     elif method == 'vec' and comp == False:
         con = np.zeros(A.shape)
-        cv.con_vec(A,B,con)
+        con_vec(A,B,con)
         return con
     elif method == 'vec' and comp == True:
         if A.dtype==np.complex128 and B.dtype==np.complex128:
             con = np.zeros(A.shape,dtype=np.complex128)
-            cv.con_vec_comp2(A,B,con)
+            con_vec_comp2(A,B,con)
         elif A.dtype == np.complex128 and B.dtype == np.float64:
             con = np.zeros(A.shape,dtype=np.complex128)
-            cv.con_vec_comp(A,B,con)
+            con_vec_comp(A,B,con)
         elif A.dtype == np.float64 and B.dtype == np.complex128:
             con = np.zeros(A.shape,dtype=np.complex128)
-            cv.con_vec_comp3(A,B,con)
+            con_vec_comp3(A,B,con)
         return con
     
 # Contract rank-4 tensor with square matrix
@@ -238,20 +238,20 @@ def con42(A,B,method='jit',comp=False):
         con += np.moveaxis(np.tensordot(A,B,axes=[1,0]),[0,1,2,3],[0,2,3,1])
         con += np.tensordot(A,B,axes=[3,0])
     elif method == 'jit' and comp == False:
-        con = cj.con_jit42(A,B)
+        con = con_jit42(A,B)
     elif method == 'jit' and comp == True:
-        con = cj.con_jit42_comp(A,B)
+        con = con_jit42_comp(A,B)
     elif method == 'vec' and comp == False:
         con = np.zeros(A.shape,dtype=np.float64)
-        cv.con_vec42(A,B,con)
+        con_vec42(A,B,con)
     elif method == 'vec' and comp == True:
         con = np.zeros(A.shape,dtype=np.complex128)
         if A.dtype == np.float64 and B.dtype==np.complex128:
-            cv.con_vec42_comp(A,B,con)
+            con_vec42_comp(A,B,con)
         elif A.dtype == np.complex128 and B.dtype==np.float64:
-            cv.con_vec42_comp2(A,B,con)
+            con_vec42_comp2(A,B,con)
         elif A.dtype == np.complex128 and B.dtype==np.complex128:
-            cv.con_vec42_comp3(A,B,con)
+            con_vec42_comp3(A,B,con)
     
     return con
 
@@ -303,21 +303,21 @@ def con42_NO(A,B,method='jit',comp=False,state=[],pair=None):
     elif method == 'jit' and comp == False:
         # print('jit')
         if pair == None:
-            con = cj.con_jit42_NO(A,B,state)
+            con = con_jit42_NO(A,B,state)
         elif pair == 'first':
-            con = cj.con_jit42_NO_firstpair(A,B,state)
+            con = con_jit42_NO_firstpair(A,B,state)
         elif pair == 'second':
-            con = cj.con_jit42_NO_secondpair(A,B,state)
+            con = con_jit42_NO_secondpair(A,B,state)
     elif method == 'jit' and comp == True:
-        con = cj.con_jit42_comp_NO(A,B,state)
+        con = con_jit42_comp_NO(A,B,state)
     elif method == 'vec' and comp == False:
         con = np.zeros(B.shape,dtype=np.float64)
         if pair == None:
-            con=cv.con_jit42_NO(A,B,state)
+            con=con_jit42_NO(A,B,state)
         elif pair == 'first':
-            cv.con_vec42_NO_firstpair(A,B,state,con)
+            con_vec42_NO_firstpair(A,B,state,con)
         elif pair == 'second':
-            cv.con_vec42_NO_secondpair(A,B,state,con)
+            con_vec42_NO_secondpair(A,B,state,con)
     return con
 
 # Double square matrix with rank-4 tensor
@@ -362,10 +362,10 @@ def con44_NO(A,B,method='jit',comp=False,eta=False,state=[]):
         print('N/O CORRECTIONS NOT POSSIBLE WITH TENSORDOT')
     elif method == 'jit' and comp == False:
         # if eta == False:
-        con = cj.con_jit44_NO(A,B,state)
+        con = con_jit44_NO(A,B,state)
     elif method == 'vec' and comp == False:
         con = np.zeros(A.shape,dtype=np.float64)
-        cv.con_vec44_NO(A,B,state,con)
+        con_vec44_NO(A,B,state,con)
         # elif eta==True:
         # con = con_jit44_anti_NO(A,B,state)
 
@@ -388,10 +388,10 @@ def con42_firstpair(A,B,method='jit',comp=False,eta=False):
         con += np.moveaxis(np.tensordot(A,B,axes=[1,0]),[0,1,2,3],[0,2,3,1])
         # con += np.tensordot(A,B,axes=[3,0])
     elif method == 'jit':
-        con = cj.con_jit42_firstpair(A,B)
+        con = con_jit42_firstpair(A,B)
     elif method == 'vec':
         con = np.zeros(A.shape,dtype=np.float64)
-        con = cv.con_vec42_firstpair(A,B,con)
+        con = con_vec42_firstpair(A,B,con)
     return con
 
 # Contract rank-4 tensor with square matrix
@@ -410,10 +410,10 @@ def con42_secondpair(A,B,method='jit',comp=False,eta=False):
         # con += np.moveaxis(np.tensordot(A,B,axes=[1,0]),[0,1,2,3],[0,2,3,1])
         con += np.tensordot(A,B,axes=[3,0])
     elif method == 'jit':
-        con = cj.con_jit42_secondpair(A,B)
+        con = con_jit42_secondpair(A,B)
     elif method == 'vec':
         con = np.zeros(A.shape,dtype=np.float64)
-        cv.con_vec42_secondpair(A,B,con)
+        con_vec42_secondpair(A,B,con)
     return con
 
 

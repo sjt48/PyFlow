@@ -151,12 +151,12 @@ if __name__ == '__main__':
                         ham.build(n,dim,d,J,x,delta=delta)
                     elif species == 'spinful fermion':
                         ham.build(n,dim,d,J,x,delta_onsite=delta,delta_up=0.,delta_down=0.,dsymm=dsymm)
-                        if dsymm == 'charge':
-                            if np.diag(ham.H2spinup) != np.diag(ham.H2spindown):
-                                print('Error in Hamiltonian')
-                        if dsymm == 'spin':
-                            if np.diag(ham.H2spinup) != -1*np.diag(ham.H2spindown):
-                                print('Error in Hamiltonian')
+                        # if dsymm == 'charge':
+                        #     if np.diag(ham.H2_spinup) != np.diag(ham.H2_spindown):
+                        #         print('Error in Hamiltonian')
+                        # if dsymm == 'spin':
+                        #     if np.diag(ham.H2_spinup) != -1*np.diag(ham.H2_spindown):
+                        #         print('Error in Hamiltonian')
 
                     # Initialise the number operator on the central lattice site
                     num = np.zeros((n,n))

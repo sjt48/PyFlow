@@ -1185,7 +1185,7 @@ def flow_static_int_fwd(n,hamiltonian,dl_list,qmax,cutoff,method='jit',precision
 
     return output
 
-def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_flow=False,norm=False):
+def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_flow=False,norm=False,no_state='CDW'):
       
         H0_up,H0_down,Hint_up,Hint_down,Hint_updown = hamiltonian.H2_spinup,hamiltonian.H2_spindown,hamiltonian.H4_spinup,hamiltonian.H4_spindown,hamiltonian.H4_mixed
 
@@ -1195,7 +1195,7 @@ def flow_static_int_spin(n,hamiltonian,dl_list,qmax,cutoff,method='jit',store_fl
         # print('Memory32 required: MB', sol_int.nbytes/10**6)
         
         r_int = ode(int_ode_spin).set_integrator('dopri5', nsteps=150,atol=10**(-6),rtol=10**(-3))
-        r_int.set_f_params(n,method,norm)
+        r_int.set_f_params(n,method,norm,no_state)
 
         init = np.zeros(2*n**2+3*n**4,dtype=np.float64)
         init[:n**2] = (H0_up).reshape(n**2)
