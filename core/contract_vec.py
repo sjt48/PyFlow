@@ -180,24 +180,26 @@ def con_vec42_NO_secondpair(A,B,state,C):
     """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
     m,_=B.shape
     for i in range(m):
-        for j in range(m):
-            C[i,j] = 0.
+        for j in range(i):
+            # C[i,j] = 0.
             for k in range(m):
                 for q in range(m):
                     if state[k] != state[q]:
                         C[i,j] += A[i,j,k,q]*B[q,k]*(state[k]-state[q])
+        C[j,i] = C[i,j]
 
 @guvectorize([(float64[:,:,:,:],float64[:,:],float64[:],float64[:,:])],'(n,n,n,n),(n,n),(n)->(n,n)',target='cpu',nopython=True)
 def con_vec42_NO_firstpair(A,B,state,C):
     """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
     m,_=B.shape
     for i in range(m):
-        for j in range(m):
-            C[i,j] = 0.
+        for j in range(i):
+            # C[i,j] = 0.
             for k in range(m):
                 for q in range(m):
                     if state[k] != state[q]:
-                        C[i,j] += A[i,j,k,q]*B[q,k]*(state[k]-state[q])
+                        C[i,j] += A[k,q,i,j]*B[q,k]*(state[k]-state[q])
+        C[j,i] = C[i,j]
 
 @guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
 def con_vec44_NO(A,B,state,C):

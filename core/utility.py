@@ -26,7 +26,7 @@ This file contains various helper functions.
 
 """
 
-import os
+import os, functools
 import numpy as np
 from .contract import contract,contractNO 
 
@@ -322,3 +322,18 @@ def level_stat(levels):
     lsr *= 1/(len(levels)-2)
     
     return lsr
+
+@functools.lru_cache(maxsize=10)
+def indices(n):
+    """ Gets indices of off-diagonal elements of quartic tensor when shaped as a list of length n**4. """
+    mat = np.ones((n,n,n,n),dtype=np.int8)    
+    for i in range(n):              
+        for j in range(n):
+            if i != j:
+                # Zero the diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
+                mat[i,i,j,j] = 0
+                mat[i,j,j,i] = 0
+    mat = mat.reshape(n**4)
+    indices = np.nonzero(mat)
+
+    return indices

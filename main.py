@@ -65,13 +65,13 @@ Ulist = [0.1]
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
 # dis = [0.4+0.05*i for i in range(32)]    
-dis = [5.0]                
+dis = [3.0]                
 # List of disorder strengths
-lmax = 100                       # Flow time max
-qmax = 750                      # Max number of flow time steps
+lmax = 100                      # Flow time max
+qmax = 1500                     # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
 norm = True                     # Normal-ordering, can be true or false
-no_state = 'CDW'                # State to use for normal-ordering, can be CDW or SDW
+no_state = 'SDW'                # State to use for normal-ordering, can be CDW or SDW
                                 # For vacuum normal-ordering, just set norm=False
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
                                 # Storing H(l) allows SciPy ODE integration to add extra flow time steps
@@ -151,12 +151,6 @@ if __name__ == '__main__':
                         ham.build(n,dim,d,J,x,delta=delta)
                     elif species == 'spinful fermion':
                         ham.build(n,dim,d,J,x,delta_onsite=delta,delta_up=0.,delta_down=0.,dsymm=dsymm)
-                        # if dsymm == 'charge':
-                        #     if np.diag(ham.H2_spinup) != np.diag(ham.H2_spindown):
-                        #         print('Error in Hamiltonian')
-                        # if dsymm == 'spin':
-                        #     if np.diag(ham.H2_spinup) != -1*np.diag(ham.H2_spindown):
-                        #         print('Error in Hamiltonian')
 
                     # Initialise the number operator on the central lattice site
                     num = np.zeros((n,n))
