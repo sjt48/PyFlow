@@ -39,7 +39,7 @@ from ..dynamics import dyn_con,dyn_exact
 from numba import jit,prange
 import gc
 from ..contract import contract,contractNO
-from ..utility import nstate, state_spinless
+from ..utility import nstate, state_spinless, indices
 from scipy.integrate import ode
 
 #------------------------------------------------------------------------------ 
