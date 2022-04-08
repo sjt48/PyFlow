@@ -260,12 +260,12 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
             eta_int = (eta[n**2:]).reshape(n,n,n,n)
    
         # Compute the RHS of the flow equation dH/dl = [\eta,H]
-        sol = contract(eta0,H0+V0,method=method)
-        sol2 = contract(eta_int,H0+V0,method=method) + contract(eta0,Hint,method=method)
+        sol = contract(eta0,H2,method=method)
+        sol2 = contract(eta_int,H2,method=method) + contract(eta0,Hint,method=method)
 
         # Add normal-ordering corrections into flow equation, if norm == True
         if norm == True:
-            sol_no = contractNO(eta_int,H0+V0,method=method,eta=False,state=state) + contractNO(eta0,Hint,method=method,eta=False,state=state)
+            sol_no = contractNO(eta_int,H2,method=method,eta=False,state=state) + contractNO(eta0,Hint,method=method,eta=False,state=state)
             sol4_no = contractNO(eta_int,Hint,method=method,eta=False,state=state)
             sol+=sol_no
             sol2 += sol4_no

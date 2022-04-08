@@ -110,13 +110,14 @@ def con_jit42_NO_secondpair(A,B,state):
     """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
     C = np.zeros(B.shape,dtype=np.float64)
     m,_=B.shape
-    for i in prange(m):
-        for j in range(m):
+    for i in range(m):
+        for j in range(i):
+            # C[i,j] = 0.
             for k in range(m):
                 for q in range(m):
                     if state[k] != state[q]:
                         C[i,j] += A[i,j,k,q]*B[q,k]*(state[k]-state[q])
-
+        C[j,i] = C[i,j]
     return C
 
 @jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)
@@ -124,12 +125,14 @@ def con_jit42_NO_firstpair(A,B,state):
     """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
     C = np.zeros(B.shape,dtype=np.float64)
     m,_=B.shape
-    for i in prange(m):
-        for j in range(m):
+    for i in range(m):
+        for j in range(i):
+            # C[i,j] = 0.
             for k in range(m):
                 for q in range(m):
                     if state[k] != state[q]:
-                        C[i,j] += A[i,j,k,q]*B[q,k]*(state[k]-state[q])
+                        C[i,j] += A[k,q,i,j]*B[q,k]*(state[k]-state[q])
+        C[j,i] = C[i,j]
     return C
 
 @jit(float64[:,:](float64[:,:,:,:],float64[:,:],float64[:]),nopython=True,parallel=True,fastmath=True,cache=True)

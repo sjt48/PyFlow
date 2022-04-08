@@ -50,6 +50,7 @@ For the GPU implementation, the following additional packages (and their depende
 
 # To do 
 
+* Add possibility to specify more general Hamiltonians via sparse input matrix, like QuSpin? Then the user only has to specify the Hamiltonian and call the contraction routines, without using the built-in model classes at all.
 * ~~Update non-equilibrium dynamics code to match syntax used for static functions.~~ (**Done, can be tidied up.**)
 * Write more tests for non-interacting systems.
 * ~~Normal-ordering for Hubbard models can introduce small deviations from Hermitian matrices. Why?~~ (**Fixed!**)
