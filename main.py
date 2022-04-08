@@ -160,7 +160,7 @@ if __name__ == '__main__':
                     num_int=np.zeros((n,n,n,n),dtype=np.float32)
                     
                     #-----------------------------------------------------------------
-                    
+
                     # Diag non-interacting system w/NumPy
                     startTime = datetime.now()
                     # print(np.sort(np.linalg.eigvalsh(ham.H2_spinless)))
