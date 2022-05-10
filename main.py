@@ -58,19 +58,19 @@ mpl.rcParams['mathtext.rm'] = 'serif'
 L = int(sys.argv[1])            # Linear system size
 dim = 1                         # Spatial dimension
 n = L**dim                      # Total number of sites
-species = 'spinful fermion'     # Type of particle
+species = 'spinless fermion'     # Type of particle
 dsymm = 'spin'                # Type of disorder (spinful fermions only)
 Ulist = [0.1]
 # List of interaction strengths
 J = 1.0                         # Nearest-neighbour hopping amplitude
-cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
-# dis = [0.4+0.05*i for i in range(32)]    
-dis = [3.0]                
+cutoff = J*10**(-2)             # Cutoff for the off-diagonal elements to be considered zero
+dis = [0.7]    
+# dis = [1.8]                
 # List of disorder strengths
-lmax = 100                      # Flow time max
-qmax = 1500                     # Max number of flow time steps
+lmax = 500                      # Flow time max
+qmax = 500                     # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
-norm = True                     # Normal-ordering, can be true or false
+norm = False                     # Normal-ordering, can be true or false
 no_state = 'SDW'                # State to use for normal-ordering, can be CDW or SDW
                                 # For vacuum normal-ordering, just set norm=False
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
@@ -137,6 +137,8 @@ if __name__ == '__main__':
     for p in range(reps):
         for x in xlist:
             for d in dis:
+                lmax *= 1/d
+                print(lmax)
                 for delta in Ulist:
 
                     # Create dictionary of parameters to pass to functions; avoids having to have too many function args
