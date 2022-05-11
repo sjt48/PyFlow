@@ -75,10 +75,10 @@ def con42(A,B,method='jit',comp=False,eta=False):
         con += torch.tensordot(A,B,axes=[3,0])
     elif method == 'jit' and comp == False:
         # print('jit')
-        if eta == False:
-            con = con_jit42(A,B)
-        elif eta==True:
-            con = con_jit42_anti(A,B)
+        # if eta == False:
+        con = con_jit42(A,B)
+        # elif eta==True:
+        #     con = con_jit42_anti(A,B)
     elif method == 'vec' and comp == False:
         # print('jit')
         # print(A.dtype,B.dtype)
@@ -179,26 +179,26 @@ def con_jit42(A,B):
     D = torch.zeros(A.shape,dtype=torch.int8)
     m,_,_,_=A.shape
     for i in range(m):
-        for j in range(i,m):
+        for j in range(m):
             # if abs(i-j)<m//2:
-            for k in range(j,m):
-                for q in range(k,m):
+            for k in range(m):
+                for q in range(m):
                     # if abs(k-q)<m//2:
-                    if D[i,j,k,q] == 0:
+                    # if D[i,j,k,q] == 0:
                         for l in range(m):
                             C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
                             C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
                             C[i,j,k,q] += A[i,l,k,q]*B[l,j]
                             C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
                     
-                        # C[k,q,i,j] = C[i,j,k,q]
-                        C[q,k,j,i] = C[i,j,k,q]
-                        C[k,j,i,q] = -C[i,j,k,q]
-                        C[i,q,k,j] = -C[i,j,k,q]
-                        D[i,j,k,q] = 1
-                        D[q,k,j,i] = 1
-                        D[k,j,i,q] = 1
-                        D[i,q,k,j] = 1
+                        # # C[k,q,i,j] = C[i,j,k,q]
+                        # C[q,k,j,i] = C[i,j,k,q]
+                        # C[k,j,i,q] = -C[i,j,k,q]
+                        # C[i,q,k,j] = -C[i,j,k,q]
+                        # D[i,j,k,q] = 1
+                        # D[q,k,j,i] = 1
+                        # D[k,j,i,q] = 1
+                        # D[i,q,k,j] = 1
                         
     return C
 
@@ -230,29 +230,29 @@ def con_jit42_anti(A,B):
 @jit(nopython=True,parallel=True,fastmath=True,cache=True)
 def con_jit42_comp(A,B):
     C = np.zeros(A.shape,dtype=np.complex64)
-    D = np.zeros(A.shape,dtype=np.int8)
+    # D = np.zeros(A.shape,dtype=np.int8)
     m,_,_,_=A.shape
     for i in prange(m):
-        for j in prange(i,m):
+        for j in prange(m):
             # if abs(i-j)<m//2:
-            for k in prange(j,m):
-                for q in prange(k,m):
+            for k in prange(m):
+                for q in prange(m):
                     # if abs(k-q)<m//2:
-                    if D[i,j,k,q] == 0:
+                    # if D[i,j,k,q] == 0:
                         for l in prange(m):
                             C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
                             C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
                             C[i,j,k,q] += A[i,l,k,q]*B[l,j]
                             C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
                     
-                        # C[k,q,i,j] = C[i,j,k,q]
-                        C[q,k,j,i] = np.conj(C[i,j,k,q])
-                        C[k,j,i,q] = -C[i,j,k,q]
-                        C[i,q,k,j] = -C[i,j,k,q]
-                        D[i,j,k,q] = 1
-                        D[q,k,j,i] = 1
-                        D[k,j,i,q] = 1
-                        D[i,q,k,j] = 1
+                        # # C[k,q,i,j] = C[i,j,k,q]
+                        # C[q,k,j,i] = np.conj(C[i,j,k,q])
+                        # C[k,j,i,q] = -C[i,j,k,q]
+                        # C[i,q,k,j] = -C[i,j,k,q]
+                        # D[i,j,k,q] = 1
+                        # D[q,k,j,i] = 1
+                        # D[k,j,i,q] = 1
+                        # D[i,q,k,j] = 1
     return C
 
 @jit(nopython=True,parallel=True,fastmath=True,cache=True)

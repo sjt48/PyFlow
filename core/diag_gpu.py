@@ -39,7 +39,7 @@ import numpy as np
 #import cupy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
-from dynamics import dyn_con2,dyn_mf,dyn_exact
+# from dynamics import dyn_con2,dyn_mf,dyn_exact
 from numba import jit,prange
 import copy, gc
 import torch
@@ -221,6 +221,8 @@ def flow_static(n,J,H0,V0,dl_list,qmax,cutoff,method='jit'):
             H = y[0]
             # print(H)
             V = H-torch.diag(torch.diag(H))
+            # V2 = torch.round(V,decimals=10)
+            # V2 = V2[V2 != 0.]
             # print(torch.max(torch.abs(V)))
             if torch.max(torch.abs(V))<cutoff:
                 return torch.tensor(0,device=device)
@@ -289,6 +291,8 @@ def flow_static_int_torch(n,J,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='jit'):
             H = y[0,0]
             # print(H)
             V = H-torch.diag(torch.diag(H))
+            # V2 = torch.round(V,decimals=10)
+            # V2 = V2[V2 != 0.]
             # print(torch.max(torch.abs(V)))
             if torch.max(torch.abs(V))<cutoff:
                 return torch.tensor(0,device=device)

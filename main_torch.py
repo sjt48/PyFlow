@@ -11,7 +11,7 @@ from datetime import datetime
 import h5py,gc
 import torch
 import core.diag_gpu as diag
-from ed import ED
+from ED.ed2 import ED
 
 # Part to change plotting system
 import matplotlib as mpl
@@ -23,17 +23,17 @@ mpl.rcParams['mathtext.fontset'] = 'cm'
 mpl.rcParams['mathtext.rm'] = 'serif'
 #------------------------------------------------------------------------------  
 # Parameters
-n = 16                          # System size
+n = 12                          # System size
 delta = 0.1                     # Nearest-neighbour interaction strength
 J = 1.0                         # Nearest-neighbour hopping
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
 dis = [5.0]
                                 # List of disorder strengths
-reps = 5                        # Number of disorder realisations
+reps = 1                        # Number of disorder realisations
 intr = True                     # Turn on/off interactions
 
-lmax = 10                       # Flow time max
-qmax = 100                      # Max number of flow time steps
+lmax = 75                       # Flow time max
+qmax = 500                      # Max number of flow time steps
 
 logflow = True                  # Use logarithmically spaced steps in flow time
                                 # PROTOTYPE FEATURE
