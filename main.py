@@ -63,11 +63,11 @@ dsymm = 'spin'                # Type of disorder (spinful fermions only)
 Ulist = [0.1]
 # List of interaction strengths
 J = 1.0                         # Nearest-neighbour hopping amplitude
-cutoff = J*10**(-2)             # Cutoff for the off-diagonal elements to be considered zero
-dis = [0.7]    
-# dis = [1.8]                
+cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
+dis = [0.7+0.02*i for i in range(26,36)]    
+# dis = [1.0]                
 # List of disorder strengths
-lmax = 500                      # Flow time max
+lmax = 25                      # Flow time max
 qmax = 500                     # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
 norm = False                     # Normal-ordering, can be true or false
@@ -137,8 +137,8 @@ if __name__ == '__main__':
     for p in range(reps):
         for x in xlist:
             for d in dis:
-                lmax *= 1/d
-                print(lmax)
+                #lmax *= 1/d
+                print(lmax,d)
                 for delta in Ulist:
 
                     # Create dictionary of parameters to pass to functions; avoids having to have too many function args

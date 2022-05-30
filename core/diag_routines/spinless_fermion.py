@@ -182,7 +182,7 @@ def extract_diag(A,norm=False):
                 B[i,i,j,j] = A[i,i,j,j]
     return B,A
 
-def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
+def int_ode(l,y,n,eta=[],method='vec',norm=False,Hflow=True):
         """ Generate the flow equation for the interacting systems.
 
         e.g. compute the RHS of dH/dl = [\eta,H] which will be used later to integrate H(l) -> H(l + dl)
@@ -234,10 +234,23 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
         Hint = Hint.reshape(n,n,n,n)    # Reshape into rank-4 tensor
         Hint0 = np.zeros((n,n,n,n))     # Define diagonal quartic part 
         for i in range(n):              # Load Hint0 with values
+            Hint0[i,i,i,i] = Hint[i,i,i,i]
             for j in range(n):
+                if i != j:
+                    # print('DOES NOT IGNORE THE i=j TERMS')
                     # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                     Hint0[i,i,j,j] = Hint[i,i,j,j]
-        Vint = Hint-Hint0
+                    Hint0[i,j,j,i] = Hint[i,j,j,i]
+        Vint = (Hint-Hint0)
+        # print('*****')
+        # print('l = ', l)
+        # for i in range(n):
+            # if Hint[i,i,i,i] != 0.:
+                # print(i,Hint[i,i,i,i])
+        # for i in range(n):
+        #     for j in range(n):
+        #         print(Vint[i,i,j,j])
+        #         print(Vint[i,j,j,i])
 
         if norm == True:
             state = state_spinless(H2)
@@ -245,12 +258,25 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
         if Hflow == True:
             # Compute the generator eta
             eta0 = contract(H2_0,V0,method=method,eta=True)
+            # print(eta0)
             eta_int = contract(Hint0,V0,method=method,eta=True) + contract(H2_0,Vint,method=method,eta=True)
-
+            # for i in range(n):
+            #     eta_int[::,i,::,i] = 0.
+            #     eta_int[i,::,i,::] = 0.
+            #     print(i,eta_int[i,i,::,i])
+            # for i in range(n):
+                # for j in range(n):
+                #     for k in range(n):
+                #         for q in range(n):
+                #             # print(i,j,k,q,eta_int[i,j,k,q])
+                #             if i == k and j != i:
+                #                 eta_int[i,j,k,q] = 0.
+                #             if j == q and k != q:
+                #                 eta_int[i,j,k,q] = 0.
             # Add normal-ordering corrections into generator eta, if norm == True
             if norm == True:
 
-                eta_no2 = contractNO(Hint,V0,method=method,eta=True,state=state) + contractNO(H2_0,Vint,method=method,eta=True,state=state)
+                eta_no2 = contractNO(Hint0,V0,method=method,eta=True,state=state) + contractNO(H2_0,Vint,method=method,eta=True,state=state)
                 eta0 += eta_no2
 
                 eta_no4 = contractNO(Hint0,Vint,method=method,eta=True,state=state)
@@ -262,7 +288,7 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
         # Compute the RHS of the flow equation dH/dl = [\eta,H]
         sol = contract(eta0,H2,method=method)
         sol2 = contract(eta_int,H2,method=method) + contract(eta0,Hint,method=method)
-
+        # print(l,[sol2[i,i,i,i] for i in range(n)])
         # Add normal-ordering corrections into flow equation, if norm == True
         if norm == True:
             sol_no = contractNO(eta_int,H2,method=method,eta=False,state=state) + contractNO(eta0,Hint,method=method,eta=False,state=state)
@@ -270,6 +296,9 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
             sol+=sol_no
             sol2 += sol4_no
         
+        # for i in range(n):
+        #         sol2[i,i,i,i] = 0.
+
         # Define and load output list sol0
         sol0 = np.zeros(n**2+n**4)
         sol0[:n**2] = sol.reshape(n**2)
@@ -277,7 +306,7 @@ def int_ode(l,y,n,eta=[],method='jit',norm=False,Hflow=True):
 
         return sol0
 
-def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=True,norm=False):
+def liom_ode(l,y,n,array,method='vec',comp=False,Hflow=True,norm=False):
     """ Generate the flow equation for density operators of the interacting systems.
 
         e.g. compute the RHS of dn/dl = [\eta,n] which will be used later to integrate n(l) -> n(l + dl)
@@ -332,12 +361,16 @@ def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=True,norm=False):
             Hint = Hint.reshape(n,n,n,n)    # Reshape into rank-4 tensor
             Hint0 = np.zeros((n,n,n,n))     # Define diagonal quartic part 
             for i in range(n):              # Load Hint0 with values
+                Hint0[i,i,i,i] = Hint[i,i,i,i]
                 for j in range(n):
                     if i != j:
+                        # print('DOES NOT IGNORE THE i=j TERMS')
                         # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                         Hint0[i,i,j,j] = Hint[i,i,j,j]
                         Hint0[i,j,j,i] = Hint[i,j,j,i]
-            Vint = Hint-Hint0
+                Vint = (Hint-Hint0)
+            # print('*****')
+
 
         # Compute the quadratic generator eta2
         eta2 = contract(H0,V0,method=method,comp=False,eta=True)
@@ -345,10 +378,20 @@ def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=True,norm=False):
         if len(array) > n**2:
             eta4 = contract(Hint0,V0,method=method,comp=comp,eta=True) + contract(H0,Vint,method=method,comp=comp,eta=True)
 
+            # for i in range(n):
+            #     for j in range(n):
+            #         for k in range(n):
+            #             for q in range(n):
+            #                 # print(i,j,k,q,eta_int[i,j,k,q])
+            #                 if i == k and j != i:
+            #                     eta4[i,j,k,q] = 0.
+            #                 if j == q and k != q:
+            #                     eta4[i,j,k,q] = 0.
+
         # Add normal-ordering corrections into generator eta, if norm == True
         if norm == True:
             state=state_spinless(H2)
-            eta_no2 = contractNO(Hint,V0,method=method,eta=True,state=state) + contractNO(H0,Vint,method=method,eta=True,state=state)
+            eta_no2 = contractNO(Hint0,V0,method=method,eta=True,state=state) + contractNO(H0,Vint,method=method,eta=True,state=state)
             eta2 += eta_no2
 
             eta_no4 = contractNO(Hint0,Vint,method=method,eta=True,state=state)
@@ -377,7 +420,7 @@ def liom_ode(l,y,n,array,method='jit',comp=False,Hflow=True,norm=False):
     # Compute quartic terms, if interacting system
     if len(y) > n**2:
         sol2 = contract(eta4,n2,method=method,comp=comp) + contract(eta2,n4,method=method,comp=comp)
-
+        # print(l,[sol2[i,i,i,i] for i in range(n)])
     # Add normal-ordering corrections into flow equation, if norm == True
     if norm == True:
         sol_no = contractNO(eta4,n2,method=method,eta=False,state=state) + contractNO(eta2,n4,method=method,eta=False,state=state)
@@ -665,7 +708,7 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',precision=np.
     e1 = np.trace(np.dot(H2,H2))
     
     # Define integrator
-    r_int = ode(int_ode).set_integrator('dopri5',nsteps=100,rtol=10**(-6),atol=10**(-12))
+    r_int = ode(int_ode).set_integrator('dopri5',nsteps=100)
     
     # Set initial conditions
     init = np.zeros(n**2+n**4,dtype=np.float64)
@@ -721,9 +764,14 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',precision=np.
     # Extract only the density-density terms of the final quartic Hamiltonian, as a matrix                     
     HFint = np.zeros(n**2).reshape(n,n)
     for i in range(n):
+        HFint[i,i] = Hint2[i,i,i,i]
         for j in range(n):
-            HFint[i,j] = Hint2[i,i,j,j]
-            HFint[i,j] += -Hint2[i,j,j,i]
+            if i != j:
+                HFint[i,j] = Hint2[i,i,j,j]
+                HFint[i,j] += -Hint2[i,j,j,i]
+
+    # for i in range(n):
+    #     print('DIAG', HFint[i,i])
 
     # Compute the difference in the second invariant of the flow at start and end
     # This acts as a measure of the unitarity of the transform
@@ -776,7 +824,7 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',precision=np.
             # due to SciPy being unable to add interpolation steps and the 
             # generator being essentially zero at the 'start' of this reverse flow
             if n_int.successful() == True:
-                n_int.set_f_params(n,flow_list[k0],method,False,Hflow,norm)
+                n_int.set_f_params(n,flow_list[-k0],method,False,Hflow,norm)
                 n_int.integrate(dl_list[k0])
             else:
                 n_int.set_initial_value(init_liom,dl_list[k0])
@@ -784,6 +832,22 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',precision=np.
             if store_flow == True:
                 liom_list[k0] = liom
             k0 += 1
+
+    # liom_list[::-1]
+    # import matplotlib.pyplot as plt
+    # for i in range(n**2):
+    #     plt.plot(dl_list,liom_list[::,i],'o-')
+    # plt.show()
+    # plt.close()
+
+    # import matplotlib.pyplot as plt
+    # test = liom_list[::,n**2:].reshape(len(liom_list),n,n,n,n)
+    # for i in range(n):
+    #     for j in range(n):
+    #         plt.plot(dl_list,test[::,i,i,j,j],'o-')
+    #         plt.plot(dl_list,test[::,i,j,j,i],'o-')
+    # plt.show()
+    # plt.close()
 
     # liom_all = np.sum([j**2 for j in liom])
     f2 = np.sum([j**2 for j in liom[0:n**2]])

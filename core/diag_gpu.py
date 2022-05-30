@@ -117,7 +117,7 @@ def int_ode_nloc(l,y,method='einsum'):
         soln = torch.zeros((n,n,n,n),dtype=torch.float32,device=device)
         soln[0,0] = sol
         nsoln = torch.zeros((n,n,n,n),dtype=torch.float32,device=device)
-        nsol2 = torch.zeros((n,n,n,n),dtype=torch.float32,device=device)
+        # nsol2 = torch.zeros((n,n,n,n),dtype=torch.float32,device=device)
         nsoln[0,0] = nsol
         
         # print((torch.cat([torch.cat([soln,sol2]),torch.cat([nsoln,nsol2])],axis=0)).shape)

@@ -84,12 +84,38 @@ def con_vec42(A,B,C):
         for j in range(m):
             for k in range(m):
                 for q in range(m):
-                    C[i,j,k,q] = 0.
+                    # C[i,j,k,q] = 0.
                     for l in range(m):
+
                         C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
+                        # if A[i,j,k,l]*B[l,q] != 0 and i == j == k == q:
+                        #     print('1',[i,j,k,q],[i,j,k,l],[l,q],A[i,j,k,l],B[l,q],A[i,j,k,l]*B[l,q] )
+
                         C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
-                        C[i,j,k,q] += A[i,l,k,q]*B[l,j]
-                        C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
+                        # if A[i,j,l,q]*B[k,l] != 0 and i == j == k == q:
+                        #     print('2',[i,j,k,q],[i,j,l,q],[k,l],A[i,j,l,q],B[k,l],-A[i,j,l,q]*B[k,l])
+
+                        if j != q:
+                            C[i,j,k,q] += A[i,l,k,q]*B[l,j]
+                            # if A[i,l,k,q]*B[l,j] != 0 and i == j == k == q:
+                            #     print('3i',[i,j,k,q],[i,l,k,q],[l,j],A[i,l,k,q],B[l,j],A[i,l,k,q]*B[l,j])
+                        elif j == q:
+                            C[i,j,k,q] += -A[i,l,k,q]*B[l,j]
+                            # if A[i,l,k,q]*B[l,j] != 0 and i == j == k == q:
+                            #     print('3ii',[i,j,k,q],[i,l,k,q],[l,j],A[i,l,k,q],B[l,j],-A[i,l,k,q]*B[l,j])
+                        
+                        if i != k:
+                            C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
+                            # if A[l,j,k,q]*B[i,l] != 0 and i == j == k == q:
+                            #     print('4i',[i,j,k,q],[l,j,k,q],[i,l],A[l,j,k,q],B[i,l],-A[l,j,k,q]*B[i,l])
+                        elif i == k:
+                            C[i,j,k,q] += A[l,j,k,q]*B[i,l] 
+                            # if A[l,j,k,q]*B[i,l] != 0 and i == j == k == q:
+                            #     print('4ii',[i,j,k,q],[l,j,k,q],[i,l],A[l,j,k,q],B[i,l],A[l,j,k,q]*B[i,l])
+                        
+    # for i in range(m):
+    #     # C[i,i,i,i] = 0.
+    #     print(i,C[i,i,i,i])
 
 
 @guvectorize([(float64[:,:,:,:],complex128[:,:],complex128[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)

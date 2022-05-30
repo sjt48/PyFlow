@@ -261,6 +261,8 @@ def flow_levels(n,array,intr):
                         # flevels[i] += Hint[j,j,q,q]*int(lev0[j])
                         flevels[i] += Hint[j,j,q,q]*int(lev0[j])*int(lev0[q]) 
                         flevels[i] += -Hint[j,q,q,j]*int(lev0[j])*int(lev0[q]) 
+                    elif q == j:
+                        flevels[i] += Hint[j,j,q,q]*int(lev0[j])*int(lev0[q]) 
 
     # flevels=flevels[flevels != 0]
     return np.sort(flevels)
