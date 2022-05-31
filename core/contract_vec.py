@@ -45,11 +45,21 @@ from numba import guvectorize,float64,complex128
 def con_vec(A,B,C):
     m,_=A.shape
     for i in range(m):
-        for j in range(m):
+        for j in range(i,m):
             C[i,j] = 0.
             for k in range(m):
                 C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-            # C[j,i] = C[i,j]
+            C[j,i] = C[i,j]
+
+@guvectorize([(float64[:,:],float64[:,:],float64[:,:])],'(n,n),(n,n)->(n,n)',target='cpu',nopython=True)
+def con_vec_anti(A,B,C):
+    m,_=A.shape
+    for i in range(m):
+        for j in range(i,m):
+            C[i,j] = 0.
+            for k in range(m):
+                C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
+            C[j,i] = -C[i,j]
 
 @guvectorize([(float64[:,:],complex128[:,:],complex128[:,:])],'(n,n),(n,n)->(n,n)',target='cpu',nopython=True)
 def con_vec_comp(A,B,C):
@@ -80,42 +90,55 @@ def con_vec_comp3(A,B,C):
 @guvectorize([(float64[:,:,:,:],float64[:,:],float64[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
 def con_vec42(A,B,C):
     m,_,_,_=A.shape
+    # D = np.zeros(A.shape,dtype=np.int8)
     for i in range(m):
         for j in range(m):
             for k in range(m):
                 for q in range(m):
-                    # C[i,j,k,q] = 0.
-                    for l in range(m):
+                    # if D[i,j,k,q] == 0:
+                        # C[i,j,k,q] = 0.
+                        for l in range(m):
 
-                        C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
-                        # if A[i,j,k,l]*B[l,q] != 0 and i == j == k == q:
-                        #     print('1',[i,j,k,q],[i,j,k,l],[l,q],A[i,j,k,l],B[l,q],A[i,j,k,l]*B[l,q] )
+                            C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
 
-                        C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
-                        # if A[i,j,l,q]*B[k,l] != 0 and i == j == k == q:
-                        #     print('2',[i,j,k,q],[i,j,l,q],[k,l],A[i,j,l,q],B[k,l],-A[i,j,l,q]*B[k,l])
+                            C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
 
-                        if j != q:
                             C[i,j,k,q] += A[i,l,k,q]*B[l,j]
-                            # if A[i,l,k,q]*B[l,j] != 0 and i == j == k == q:
-                            #     print('3i',[i,j,k,q],[i,l,k,q],[l,j],A[i,l,k,q],B[l,j],A[i,l,k,q]*B[l,j])
-                        elif j == q:
-                            C[i,j,k,q] += -A[i,l,k,q]*B[l,j]
-                            # if A[i,l,k,q]*B[l,j] != 0 and i == j == k == q:
-                            #     print('3ii',[i,j,k,q],[i,l,k,q],[l,j],A[i,l,k,q],B[l,j],-A[i,l,k,q]*B[l,j])
-                        
-                        if i != k:
+                            
                             C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
-                            # if A[l,j,k,q]*B[i,l] != 0 and i == j == k == q:
-                            #     print('4i',[i,j,k,q],[l,j,k,q],[i,l],A[l,j,k,q],B[i,l],-A[l,j,k,q]*B[i,l])
-                        elif i == k:
-                            C[i,j,k,q] += A[l,j,k,q]*B[i,l] 
-                            # if A[l,j,k,q]*B[i,l] != 0 and i == j == k == q:
-                            #     print('4ii',[i,j,k,q],[l,j,k,q],[i,l],A[l,j,k,q],B[i,l],A[l,j,k,q]*B[i,l])
-                        
-    # for i in range(m):
-    #     # C[i,i,i,i] = 0.
-    #     print(i,C[i,i,i,i])
+
+
+
+@guvectorize([(float64[:,:,:,:],float64[:,:],float64[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
+def con_vec42_anti(A,B,C):
+    m,_,_,_=A.shape
+    D = np.zeros(A.shape,dtype=np.int8)
+    for i in range(m):
+        for j in range(m):
+            for k in range(m):
+                for q in range(m):
+                    if D[i,j,k,q] == 0:
+                        C[i,j,k,q] = 0.
+                        for l in range(m):
+
+                            C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
+
+                            C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
+
+                            if j != q:
+                                C[i,j,k,q] += A[i,l,k,q]*B[l,j]
+                            elif j == q:
+                                C[i,j,k,q] += -A[i,l,k,q]*B[l,j]
+
+                            if i != k:
+                                C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
+                            elif i == k:
+                                C[i,j,k,q] += A[l,j,k,q]*B[i,l] 
+
+                        # C[q,k,j,i] = - C[i,j,k,q]
+                        # D[i,j,k,q] = 1
+                        # D[q,k,j,i] = 1
+
 
 
 @guvectorize([(float64[:,:,:,:],complex128[:,:],complex128[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)

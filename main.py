@@ -64,7 +64,7 @@ Ulist = [0.1]
 # List of interaction strengths
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
-dis = [0.7+0.02*i for i in range(26,36)]    
+dis = [0.7+0.04*i for i in range(13)]    
 # dis = [1.0]                
 # List of disorder strengths
 lmax = 25                      # Flow time max

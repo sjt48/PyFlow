@@ -50,7 +50,7 @@ def contract(A,B,method='jit',comp=False,eta=False,pair=None):
         if A.ndim == 4:
             if B.ndim == 2:
                 if pair == None:
-                    con = con42(A,B,method,comp)
+                    con = con42(A,B,method=method,comp=comp,eta=eta)
                 elif pair == 'first':
                     con = con42_firstpair(A,B,method,comp)
                 elif pair == 'second':
@@ -58,7 +58,7 @@ def contract(A,B,method='jit',comp=False,eta=False,pair=None):
         if A.ndim == 2:
             if B.ndim == 4:
                 if pair == None:
-                    con = con24(A,B,method,comp)
+                    con = con24(A,B,method=method,comp=comp,eta=eta)
                 elif pair == 'first':
                     con = con24_firstpair(A,B,method,comp)
                 elif pair == 'second':
@@ -184,7 +184,10 @@ def con22(A,B,method='jit',comp=False,eta=False):
             return con_jit_anti_comp(A,B)
     elif method == 'vec' and comp == False:
         con = np.zeros(A.shape)
-        con_vec(A,B,con)
+        if eta == False:
+            con_vec(A,B,con)
+        elif eta == True:
+            con_vec_anti(A,B,con)
         return con
     elif method == 'vec' and comp == True:
         if A.dtype==np.complex128 and B.dtype==np.complex128:
@@ -199,7 +202,7 @@ def con22(A,B,method='jit',comp=False,eta=False):
         return con
     
 # Contract rank-4 tensor with square matrix
-def con42(A,B,method='jit',comp=False):
+def con42(A,B,method='jit',comp=False,eta=False):
     """ Contraction function for a rank-4 tensor and a matrix (rank-2 tensor).
 
     Takes two input arrays, A and B, and contracts them according to the specified method.
@@ -228,10 +231,22 @@ def con42(A,B,method='jit',comp=False):
     """
 
     if method == 'einsum':
-        con = np.einsum('abcd,df->abcf',A,B,optimize=True) 
-        con += -np.einsum('abcd,ec->abed',A,B,optimize=True)
-        con += np.einsum('abcd,bf->afcd',A,B,optimize=True)
-        con += -np.einsum('abcd,ea->ebcd',A,B,optimize=True)
+        con = np.einsum('abcd,df->abcf',A,B) 
+        con += -np.einsum('abcd,ec->abed',A,B)
+        con += np.einsum('abcd,bf->afcd',A,B)
+        con += -np.einsum('abcd,ea->ebcd',A,B)
+
+        # con = np.einsum('abcf,fd->abcd',A,B) 
+        # con += -np.einsum('abfd,cf->abcd',A,B)
+        # con += -np.einsum('afcb,fd->abcd',A,B)
+        # con += np.einsum('ebad,ce->abcd',A,B)
+
+        # print('1')
+        # print(np.einsum('abcd,bf->afcd',A,B))
+        # print('2')
+        # print(np.einsum('abcd,bf->adcf',A,B))
+        # print('****')
+
     elif method == 'tensordot':
         con = - np.moveaxis(np.tensordot(A,B,axes=[0,1]),[0,1,2,3],[1,2,3,0])
         con += - np.moveaxis(np.tensordot(A,B,axes=[2,1]),[0,1,2,3],[0,1,3,2])
@@ -243,7 +258,12 @@ def con42(A,B,method='jit',comp=False):
         con = con_jit42_comp(A,B)
     elif method == 'vec' and comp == False:
         con = np.zeros(A.shape,dtype=np.float64)
+        # if eta == False:
         con_vec42(A,B,con)
+        # elif eta == True:
+        #     con_vec42_anti(A,B,con)
+            # print('anti',con[0,1,2,3]==con[3,2,1,0],con[0,1,2,3],con[3,2,1,0])
+            # print(con[0,0])
     elif method == 'vec' and comp == True:
         con = np.zeros(A.shape,dtype=np.complex128)
         if A.dtype == np.float64 and B.dtype==np.complex128:
@@ -253,12 +273,20 @@ def con42(A,B,method='jit',comp=False):
         elif A.dtype == np.complex128 and B.dtype==np.complex128:
             con_vec42_comp3(A,B,con)
     
+    # if eta == False:
+    #     if np.abs(con[0,1,2,3]) > 1e-5 and np.round(con[0,1,2,3],5)!=np.round(con[3,2,1,0],5):
+    #         print('con',con[0,1,2,3],con[1,0,2,3],eta)
+
+    # if eta == True:
+    #     if np.abs(con[0,1,2,3]) > 1e-5 and np.round(con[0,1,2,3],5)!=-1*np.round(con[3,2,1,0],5):
+    #         print('con',con[0,1,2,3],con[1,0,2,3],eta)
+
     return con
 
 # Contract square matrix with rank-4 tensor
 def con24(A,B,method='jit',comp=False,eta=False):
     """ Utility function to flip the order of matrix and tensor and re-use the function con42. """
-    return -con42(B,A,method,comp)
+    return -con42(B,A,method=method,comp=comp,eta=eta)
 
 # Double-contract rank-4 tensor with square matrix
 def con42_NO(A,B,method='jit',comp=False,state=[],pair=None):
