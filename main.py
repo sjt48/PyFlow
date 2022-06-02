@@ -67,7 +67,7 @@ cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be con
 dis = [0.7+0.04*i for i in range(13)]    
 # dis = [1.0]                
 # List of disorder strengths
-lmax = 25                      # Flow time max
+lmax = 100                      # Flow time max
 qmax = 500                     # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
 norm = False                     # Normal-ordering, can be true or false
@@ -122,9 +122,7 @@ if intr == False and norm == True:
 if norm == True and n%2 != 0:
     print('Normal ordering is only for even system sizes')
     norm = False
-# if species == 'spinful fermion' and norm == True:
-#     print('Normal ordering not implemented for spinful fermions.')
-#     norm = False
+
 #==============================================================================
 # Run program
 #==============================================================================
@@ -138,7 +136,7 @@ if __name__ == '__main__':
         for x in xlist:
             for d in dis:
                 #lmax *= 1/d
-                print(lmax,d)
+                print(lmax,np.round(d,3))
                 for delta in Ulist:
 
                     # Create dictionary of parameters to pass to functions; avoids having to have too many function args
