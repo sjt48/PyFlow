@@ -132,7 +132,6 @@ def eta_con(y,n,method='jit',norm=False):
     Hint0 = np.zeros((n,n,n,n))
     for i in range(n):
         for j in range(n):
-            if i != j:
                 # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                 Hint0[i,i,j,j] = Hint[i,i,j,j]
                 Hint0[i,j,j,i] = Hint[i,j,j,i]
@@ -344,7 +343,6 @@ def liom_ode(l,y,n,array,method='vec',comp=False,Hflow=True,norm=False):
                 Hint0[i,i,i,i] = Hint[i,i,i,i]
                 for j in range(n):
                     if i != j:
-                        # print('DOES NOT IGNORE THE i=j TERMS')
                         # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                         Hint0[i,i,j,j] = Hint[i,i,j,j]
                         Hint0[i,j,j,i] = Hint[i,j,j,i]
@@ -353,7 +351,6 @@ def liom_ode(l,y,n,array,method='vec',comp=False,Hflow=True,norm=False):
         # Compute the quadratic generator eta2
         eta2 = contract(H0,V0,method=method,comp=False,eta=True)
 
-        # print('eta liom')
         if len(array) > n**2:
             eta4 = contract(Hint0,V0,method=method,comp=comp,eta=True) + contract(H0,Vint,method=method,comp=comp,eta=True)
 
@@ -386,7 +383,6 @@ def liom_ode(l,y,n,array,method='vec',comp=False,Hflow=True,norm=False):
     elif comp == True:
         sol0 = np.zeros(len(y),dtype=complex)
 
-    # print('n4')
     # Compute quartic terms, if interacting system
     if len(y) > n**2:
         sol2 = contract(eta4,n2,method=method,comp=comp,eta=False) + contract(eta2,n4,method=method,comp=comp,eta=False)
@@ -464,7 +460,7 @@ def int_ode_fwd(l,y0,n,eta=[],method='jit',norm=False,Hflow=False,comp=False):
         Hint0 = np.zeros((n,n,n,n))     # Define diagonal quartic part 
         for i in range(n):              # Load Hint0 with values
             for j in range(n):
-                if i != j:
+                # if i != j:
                     # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                     Hint0[i,i,j,j] = Hint[i,i,j,j]
                     Hint0[i,j,j,i] = Hint[i,j,j,i]
@@ -743,13 +739,9 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',precision=np.
                 HFint[i,j] = Hint2[i,i,j,j]
                 HFint[i,j] += -Hint2[i,j,j,i]
 
-    
-
     # Compute the difference in the second invariant of the flow at start and end
     # This acts as a measure of the unitarity of the transform
     Hflat = HFint.reshape(n**2)
-    # print(H0_diag)
-    # print(HFint)
     inv = 2*np.sum([d**2 for d in Hflat])
     e2 = np.trace(np.dot(H0_diag,H0_diag))
     inv2 = np.abs(e1 - e2 + ((2*delta)**2)*(n-1) - inv)/np.abs(e2+((2*delta)**2)*(n-1))
@@ -805,32 +797,17 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',precision=np.
                 liom_list[k0] = liom
             k0 += 1
 
-    # liom_list[::-1]
-    # import matplotlib.pyplot as plt
-    # for i in range(n**2):
-    #     plt.plot(dl_list,liom_list[::,i],'o-')
-    # plt.show()
-    # plt.close()
 
-    # import matplotlib.pyplot as plt
-    # test = liom_list[::,n**2:].reshape(len(liom_list),n,n,n,n)
-    # for i in range(n):
-    #     for j in range(n):
-    #         plt.plot(dl_list,test[::,i,i,j,j],'o-')
-    #         plt.plot(dl_list,test[::,i,j,j,i],'o-')
-    # plt.show()
-    # plt.close()
-
-    # liom_all = np.sum([j**2 for j in liom])
-    f2 = np.sum([j**2 for j in liom[0:n**2]])
-    f4 = np.sum([j**2 for j in liom[n**2::]])
+    squared = np.sum([j**2 for j in liom])
+    f2 = np.sum([j**2 for j in liom[0:n**2]])/squared
+    f4 = np.sum([j**2 for j in liom[n**2::]])/squared
     print('LIOM',f2,f4)
     print('Hint max',np.max(np.abs(Hint2)))
 
     # for i in range(n):
     #     print('DIAG', HFint[i,i])
 
-    output = {"H0_diag":H0_diag, "Hint":Hint2,"LIOM Interactions":lbits,"LIOM":liom,"Invariant":inv2}
+    output = {"H0_diag":H0_diag, "Hint":Hint2,"LIOM Interactions":lbits,"LIOM":liom,"Invariant":inv2,"f2":f2,"f4":f4}
     if store_flow == True:
         flow_list2 = np.zeros((k-1,2*n**2+2*n**4))
         flow_list2[::,0:n**2+n**4] = flow_list
