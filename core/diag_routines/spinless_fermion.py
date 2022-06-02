@@ -237,47 +237,19 @@ def int_ode(l,y,n,eta=[],method='vec',norm=False,Hflow=True):
             Hint0[i,i,i,i] = Hint[i,i,i,i]
             for j in range(n):
                 if i != j:
-                    # print('DOES NOT IGNORE THE i=j TERMS')
                     # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
                     Hint0[i,i,j,j] = Hint[i,i,j,j]
                     Hint0[i,j,j,i] = Hint[i,j,j,i]
         Vint = (Hint-Hint0)
-        # print('*****')
-        # print('l = ', l)
-        # for i in range(n):
-        #     if Hint[i,i,i,i] != 0.:
-        #         if np.abs(Hint[i,i,i,i]) > 1e-5:
-        #             print('*****')
-        #             print('l = ', l)
-        #             print(i,Hint[i,i,i,i],np.abs(Hint[i,i,i,i]))
-        # for i in range(n):
-        #     for j in range(n):
-        #         print(Vint[i,i,j,j])
-        #         print(Vint[i,j,j,i])
 
         if norm == True:
             state = state_spinless(H2)
 
         if Hflow == True:
-            # print('eta')
             # Compute the generator eta
             eta0 = contract(H2_0,V0,method=method,eta=True)
-            # print(eta0)
-            # print('eta_int')
             eta_int = contract(Hint0,V0,method=method,eta=True) + contract(H2_0,Vint,method=method,eta=True)
-            # for i in range(n):
-            #     eta_int[::,i,::,i] = 0.
-            #     eta_int[i,::,i,::] = 0.
-            #     print(i,eta_int[i,i,::,i])
-            # for i in range(n):
-                # for j in range(n):
-                #     for k in range(n):
-                #         for q in range(n):
-                #             # print(i,j,k,q,eta_int[i,j,k,q])
-                #             if i == k and j != i:
-                #                 eta_int[i,j,k,q] = 0.
-                #             if j == q and k != q:
-                #                 eta_int[i,j,k,q] = 0.
+
             # Add normal-ordering corrections into generator eta, if norm == True
             if norm == True:
 
@@ -293,11 +265,10 @@ def int_ode(l,y,n,eta=[],method='vec',norm=False,Hflow=True):
         if np.abs(eta_int[0,1,2,3])>1e-5 and np.round(eta_int[0,1,2,3],5)!= -1*np.round(eta_int[3,2,1,0],5):
             print('eta check',np.round(eta_int[0,1,2,3],5)==-1*(np.round(eta_int[3,2,1,0],5)),eta_int[0,1,2,3],eta_int[3,2,1,0])
    
-        # print('sol')
         # Compute the RHS of the flow equation dH/dl = [\eta,H]
         sol = contract(eta0,H2,method=method,eta=False)
         sol2 = contract(eta_int,H2,method=method,eta=False) + contract(eta0,Hint,method=method,eta=False)
-        # print(l,[sol2[i,i,i,i] for i in range(n)])
+
         # Add normal-ordering corrections into flow equation, if norm == True
         if norm == True:
             sol_no = contractNO(eta_int,H2,method=method,eta=False,state=state) + contractNO(eta0,Hint,method=method,eta=False,state=state)
@@ -307,8 +278,6 @@ def int_ode(l,y,n,eta=[],method='vec',norm=False,Hflow=True):
         
         if np.abs(sol2[0,1,2,3])>1e-5 and np.round(sol2[0,1,2,3],5)!=np.round(sol2[3,2,1,0],5):
             print('check',np.round(sol2[0,1,2,3],5)==np.round(sol2[3,2,1,0],5),sol2[0,1,2,3],sol2[3,2,1,0])
-        # for i in range(n):
-        #         sol2[i,i,i,i] = 0.
 
         # Define and load output list sol0
         sol0 = np.zeros(n**2+n**4)
@@ -380,9 +349,6 @@ def liom_ode(l,y,n,array,method='vec',comp=False,Hflow=True,norm=False):
                         Hint0[i,i,j,j] = Hint[i,i,j,j]
                         Hint0[i,j,j,i] = Hint[i,j,j,i]
                 Vint = (Hint-Hint0)
-        # print('*****')
-        # print('l = ',l)
-
 
         # Compute the quadratic generator eta2
         eta2 = contract(H0,V0,method=method,comp=False,eta=True)
@@ -390,16 +356,6 @@ def liom_ode(l,y,n,array,method='vec',comp=False,Hflow=True,norm=False):
         # print('eta liom')
         if len(array) > n**2:
             eta4 = contract(Hint0,V0,method=method,comp=comp,eta=True) + contract(H0,Vint,method=method,comp=comp,eta=True)
-
-            # for i in range(n):
-            #     for j in range(n):
-            #         for k in range(n):
-            #             for q in range(n):
-            #                 # print(i,j,k,q,eta_int[i,j,k,q])
-            #                 if i == k and j != i:
-            #                     eta4[i,j,k,q] = 0.
-            #                 if j == q and k != q:
-            #                     eta4[i,j,k,q] = 0.
 
         # Add normal-ordering corrections into generator eta, if norm == True
         if norm == True:

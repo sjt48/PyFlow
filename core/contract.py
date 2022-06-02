@@ -236,17 +236,6 @@ def con42(A,B,method='jit',comp=False,eta=False):
         con += np.einsum('abcd,bf->afcd',A,B)
         con += -np.einsum('abcd,ea->ebcd',A,B)
 
-        # con = np.einsum('abcf,fd->abcd',A,B) 
-        # con += -np.einsum('abfd,cf->abcd',A,B)
-        # con += -np.einsum('afcb,fd->abcd',A,B)
-        # con += np.einsum('ebad,ce->abcd',A,B)
-
-        # print('1')
-        # print(np.einsum('abcd,bf->afcd',A,B))
-        # print('2')
-        # print(np.einsum('abcd,bf->adcf',A,B))
-        # print('****')
-
     elif method == 'tensordot':
         con = - np.moveaxis(np.tensordot(A,B,axes=[0,1]),[0,1,2,3],[1,2,3,0])
         con += - np.moveaxis(np.tensordot(A,B,axes=[2,1]),[0,1,2,3],[0,1,3,2])
@@ -262,8 +251,6 @@ def con42(A,B,method='jit',comp=False,eta=False):
         con_vec42(A,B,con)
         # elif eta == True:
         #     con_vec42_anti(A,B,con)
-            # print('anti',con[0,1,2,3]==con[3,2,1,0],con[0,1,2,3],con[3,2,1,0])
-            # print(con[0,0])
     elif method == 'vec' and comp == True:
         con = np.zeros(A.shape,dtype=np.complex128)
         if A.dtype == np.float64 and B.dtype==np.complex128:
@@ -272,14 +259,6 @@ def con42(A,B,method='jit',comp=False,eta=False):
             con_vec42_comp2(A,B,con)
         elif A.dtype == np.complex128 and B.dtype==np.complex128:
             con_vec42_comp3(A,B,con)
-    
-    # if eta == False:
-    #     if np.abs(con[0,1,2,3]) > 1e-5 and np.round(con[0,1,2,3],5)!=np.round(con[3,2,1,0],5):
-    #         print('con',con[0,1,2,3],con[1,0,2,3],eta)
-
-    # if eta == True:
-    #     if np.abs(con[0,1,2,3]) > 1e-5 and np.round(con[0,1,2,3],5)!=-1*np.round(con[3,2,1,0],5):
-    #         print('con',con[0,1,2,3],con[1,0,2,3],eta)
 
     return con
 
