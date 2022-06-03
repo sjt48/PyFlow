@@ -2,14 +2,29 @@
 # Visit https://bit.ly/cffinit to generate yours today!
 
 cff-version: 1.2.0
-title: PyFlow
+title: >-
+  PyFlow: A Software Package for Flow Equation
+  Methods
 message: >-
   If you use this software, please cite it using the
   metadata from this file.
 type: software
 authors:
-  - given-names: Steven John
+  - given-names: S. J.
     family-names: Thomson
     email: steven.thomson@fu-berlin.de
     affiliation: Freie Universität Berlin
     orcid: 'https://orcid.org/0000-0001-9065-9842'
+repository-code: 'https://github.com/sjt48/PyFlow'
+url: 'https://github.com/sjt48/PyFlow'
+abstract: >-
+  The PyFlow package is a Python implementation of
+  the flow equation method for approximately
+  diagonalising large many-body quantum systems, and
+  simulating their non-equilibrium dynamics. 
+keywords:
+  - Quantum Physics
+  - Numerical Methods
+  - Continuous Unitary Transforms
+  - Flow Equations
+license: GPL-3.0
