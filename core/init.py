@@ -66,6 +66,23 @@ def Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dim=1):
         for i in range(n):
             # Initialise Hamiltonian with linearly increasing on-site terms, plus some small curvature
             H0[i,i] = d*i+x*(i/n)**2
+    elif dis_type == 'curved2':
+        for i in range(n):
+            # Initialise Hamiltonian with linearly increasing on-site terms, plus some small curvature
+            # NOTE: This curvature does not have the 1/n**2 dependence that 'curved' has
+            H0[i,i] = d*i+x*(i)**2
+    elif dis_type == 'linear_dis':
+        for i in range(n):
+            # Initialise Hamiltonian with linearly increasing on-site terms, plus some small disorder
+            H0[i,i] = d*i+np.random.uniform(-x,x)
+    elif dis_type == 'linear_dis_invsymm':
+        for i in range(n):
+            # Initialise Hamiltonian with linearly increasing on-site terms, plus some small disorder
+            # NOTE: This disorder is inversion symmetric for odd system sizes
+            dlist1 = np.array([np.random.uniform(-x,x) for i in range(n//2)])
+            dlist2 = -1*dlist1[::-1]
+            dlist = np.concatenate((dlist1,[0.],dlist2))
+            H0[i,i] = d*i + dlist[i]
     elif dis_type == 'prime':
         for i in range(n):
             # Initialise Hamiltonian with square root prime numbers as on-site terms

@@ -65,7 +65,7 @@ Ulist = [0.1]
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
 dis = [0.7+0.04*i for i in range(13)]    
-# dis = [1.0]                
+dis = [1.0]                
 # List of disorder strengths
 lmax = 100                      # Flow time max
 qmax = 500                     # Max number of flow time steps
@@ -99,9 +99,10 @@ dis_type = str(sys.argv[2])     # Options: 'random', 'QPgolden', 'QPsilver', 'QP
                                 # Also contains 'test' and 'QPtest', potentials that do not change from run to run
 xlist = [1.]
 # For 'dis_type = curved', controls the gradient of the curvature
+# For 'linear_dis' and 'linear_dis_invsymm', controls the bandwidth of the random disorder
 if intr == False:               # Zero the interactions if set to False (for ED comparison and filename)
     delta = 0
-if dis_type != 'curved':
+if dis_type != 'curved' and dis_type != 'linear_dis' and dis_type != 'linear_dis_invsymm':
     xlist = [0.0]
 if (species == 'spinless fermion' and n > 12) or (species == 'spinful fermion' and n > 6) or qmax > 2000:
     print('SETTING store_flow = False DUE TO TOO MANY VARIABLES AND/OR FLOW TIME STEPS')
