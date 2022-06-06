@@ -36,7 +36,13 @@ os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number o
 os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of MKL threads to run in parallel
 os.environ['KMP_DUPLICATE_LIB_OK']="TRUE"                         # Necessary on some versions of OS X
 os.environ['KMP_WARNINGS'] = 'off'                                # Silence non-critical warning
-import numpy as np 
+# from jax.config import config
+# config.update('jax_disable_jit', True)
+import jax.numpy as jnp 
+import numpy as np
+from scipy.special import jv as jv
+# from jax.config import config
+# config.update("jax_enable_x64", True)
 from datetime import datetime
 import h5py,gc
 import core.diag as diag
@@ -58,26 +64,26 @@ mpl.rcParams['mathtext.rm'] = 'serif'
 L = int(sys.argv[1])            # Linear system size
 dim = 1                         # Spatial dimension
 n = L**dim                      # Total number of sites
-species = 'spinless fermion'     # Type of particle
-dsymm = 'spin'                # Type of disorder (spinful fermions only)
+species = 'spinless fermion'    # Type of particle
+dsymm = 'spin'                  # Type of disorder (spinful fermions only)
 Ulist = [0.1]
 # List of interaction strengths
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
-dis = [0.7+0.04*i for i in range(13)]    
-dis = [1.0]                
+dis = [0.7+0.02*i for i in range(26)]    
+dis = [1.]                
 # List of disorder strengths
-lmax = 100                      # Flow time max
-qmax = 500                     # Max number of flow time steps
+lmax = 15                       # Flow time max
+qmax = 1000                     # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
-norm = False                     # Normal-ordering, can be true or false
+norm = False                    # Normal-ordering, can be true or false
 no_state = 'SDW'                # State to use for normal-ordering, can be CDW or SDW
                                 # For vacuum normal-ordering, just set norm=False
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
                                 # Storing H(l) allows SciPy ODE integration to add extra flow time steps
                                 # Storing eta(l) reduces number of tensor contractions, at cost of accuracy
                                 # NB: if the flow step dl is too large, this can lead to Vint diverging!
-precision = np.float64          # Precision with which to store running Hamiltonian/generator
+# precision = np.float64        # Precision with which to store running Hamiltonian/generator
                                 # Default throughout is double precision (np.float64)
                                 # Using np.float16 will half the memory cost, at loss of precision
                                 # Only affects the backwards transform, not the forward transform
@@ -99,10 +105,9 @@ dis_type = str(sys.argv[2])     # Options: 'random', 'QPgolden', 'QPsilver', 'QP
                                 # Also contains 'test' and 'QPtest', potentials that do not change from run to run
 xlist = [1.]
 # For 'dis_type = curved', controls the gradient of the curvature
-# For 'linear_dis' and 'linear_dis_invsymm', controls the bandwidth of the random disorder
 if intr == False:               # Zero the interactions if set to False (for ED comparison and filename)
     delta = 0
-if dis_type != 'curved' and dis_type != 'linear_dis' and dis_type != 'linear_dis_invsymm':
+if dis_type != 'curved':
     xlist = [0.0]
 if (species == 'spinless fermion' and n > 12) or (species == 'spinful fermion' and n > 6) or qmax > 2000:
     print('SETTING store_flow = False DUE TO TOO MANY VARIABLES AND/OR FLOW TIME STEPS')
@@ -123,7 +128,9 @@ if intr == False and norm == True:
 if norm == True and n%2 != 0:
     print('Normal ordering is only for even system sizes')
     norm = False
-
+# if species == 'spinful fermion' and norm == True:
+#     print('Normal ordering not implemented for spinful fermions.')
+#     norm = False
 #==============================================================================
 # Run program
 #==============================================================================
@@ -136,13 +143,13 @@ if __name__ == '__main__':
     for p in range(reps):
         for x in xlist:
             for d in dis:
-                #lmax *= 1/d
-                print(lmax,np.round(d,3))
+                # lmax *= 1/d
+                print(lmax)
                 for delta in Ulist:
 
                     # Create dictionary of parameters to pass to functions; avoids having to have too many function args
                     params = {"n":n,"delta":delta,"J":J,"cutoff":cutoff,"dis":dis,"dsymm":dsymm,"NO_state":no_state,"lmax":lmax,"qmax":qmax,"reps":reps,"norm":norm,
-                                "Hflow":Hflow,"precision":precision,"method":method, "intr":intr,"dyn":dyn,"imbalance":imbalance,"species":species,
+                                "Hflow":Hflow,"method":method, "intr":intr,"dyn":dyn,"imbalance":imbalance,"species":species,
                                     "LIOM":LIOM, "dyn_MF":dyn_MF,"logflow":logflow,"dis_type":dis_type,"x":x,"tlist":tlist,"store_flow":store_flow}
 
                     #-----------------------------------------------------------------
@@ -154,23 +161,31 @@ if __name__ == '__main__':
                         ham.build(n,dim,d,J,x,delta_onsite=delta,delta_up=0.,delta_down=0.,dsymm=dsymm)
 
                     # Initialise the number operator on the central lattice site
-                    num = np.zeros((n,n))
-                    num[n//2,n//2] = 1.0
+                    num = jnp.zeros((n,n))
+                    num = num.at[n//2,n//2].set(1.0)
                     
                     # Initialise higher-order parts of number operator (empty)
-                    num_int=np.zeros((n,n,n,n),dtype=np.float32)
+                    num_int=jnp.zeros((n,n,n,n),dtype=jnp.float32)
                     
                     #-----------------------------------------------------------------
 
                     # Diag non-interacting system w/NumPy
+                    # print(ham.H2_spinless)
                     startTime = datetime.now()
-                    # print(np.sort(np.linalg.eigvalsh(ham.H2_spinless)))
+                    print(jnp.sort(jnp.linalg.eigvalsh(ham.H2_spinless)))
                     # print('NumPy diag time',datetime.now()-startTime)
 
                     #-----------------------------------------------------------------
 
                     # Diagonalise with flow equations
                     flow = diag.CUT(params,ham,num,num_int)
+
+                    bessel = jnp.zeros(n)
+                    for i in range(n):
+                        bessel = bessel.at[i].set(jnp.log10(jnp.abs(jv(jnp.abs(i-n//2),2)**2)))
+                    plt.plot(bessel,'x--')
+                    plt.show()
+                    plt.close()
 
                     print('Time after flow finishes: ',datetime.now()-startTime)
 
@@ -244,12 +259,16 @@ if __name__ == '__main__':
                             hf.create_dataset('lsr', data = [lsr,lsr2])
                             hf.create_dataset('err',data = errlist)
                             if store_flow == True:
-                                hf.create_dataset('flow',data=flow["flow"])
+                                hf.create_dataset('flow2',data=flow["flow2"])
+                                hf.create_dataset('flow4',data=flow["flow4"])
                                 hf.create_dataset('dl_list',data=flow["dl_list"])
                         if intr == True:
                                 hf.create_dataset('lbits', data = flow["LIOM Interactions"])
                                 hf.create_dataset('Hint', data = flow["Hint"], compression='gzip', compression_opts=9)
-                                hf.create_dataset('liom', data = flow["LIOM"], compression='gzip', compression_opts=9)
+                                hf.create_dataset('liom2', data = flow["LIOM2"], compression='gzip', compression_opts=9)
+                                hf.create_dataset('liom4', data = flow["LIOM4"], compression='gzip', compression_opts=9)
+                                hf.create_dataset('liom2_fwd', data = flow["LIOM2_FWD"], compression='gzip', compression_opts=9)
+                                hf.create_dataset('liom4_fwd', data = flow["LIOM4_FWD"], compression='gzip', compression_opts=9)
                                 hf.create_dataset('inv',data=flow["Invariant"])
                         if dyn == True:
                             hf.create_dataset('tlist', data = tlist)
