@@ -435,7 +435,7 @@ def liom_ode_int(y,l,n,array,bck=True,method='einsum',comp=False,Hflow=True,norm
 
         # if len(array)>1:
         m,_ = y[0].shape
-        Hint = y[1]                         # Define quartic part of Hamiltonian
+        Hint = array[1]                         # Define quartic part of Hamiltonian
         Hint0 = jnp.zeros((m,m,m,m))        # Define diagonal quartic part 
         for i in range(m):                  # Load Hint0 with values
             for j in range(m):
@@ -526,8 +526,8 @@ def liom_ode_int_fwd(y,l,n,array,bck=False,method='einsum',comp=False,Hflow=True
         V0 = H2 - H0                        # Define off-diagonal quadratic part B
 
         # if len(array)>1:
-        m,_ = y[0].shape
-        Hint = y[1]                         # Define quartic part of Hamiltonian
+        m,_ = array[0].shape
+        Hint = array[1]                         # Define quartic part of Hamiltonian
         Hint0 = jnp.zeros((m,m,m,m))        # Define diagonal quartic part 
         for i in range(m):                  # Load Hint0 with values
             for j in range(m):
@@ -869,6 +869,8 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
 
     # Resize chunks
     if chunk > 0:
+        mem_tot = (len(dl_list)*(n**2+n**4)*4)/1e9
+        chunk = int(np.ceil(mem_tot/20))
         chunk_size = len(dl_list)//chunk
         print('NEW CHUNK SIZE',chunk_size)
         if int(chunk_size*chunk) != int(len(dl_list)):
@@ -957,8 +959,12 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
             if k0%chunk_size==0:
                 count = int(k0/chunk_size)
                 # print(-1*((count+1)*chunk)-1,-((count)*chunk)-1)
-                sol2_gpu = jnp.array(sol2[-1*((count+1)*chunk_size)-1:-((count)*chunk_size)-1])
-                sol4_gpu = jnp.array(sol4[-1*((count+1)*chunk_size)-1:-((count)*chunk_size)-1])
+                if count == 0:
+                    sol2_gpu = jnp.array(sol2[-1*((count+1)*chunk_size)-1::])
+                    sol4_gpu = jnp.array(sol4[-1*((count+1)*chunk_size)-1::])
+                else:
+                    sol2_gpu = jnp.array(sol2[-1*((count+1)*chunk_size)-1:-((count)*chunk_size)-1])
+                    sol4_gpu = jnp.array(sol4[-1*((count+1)*chunk_size)-1:-((count)*chunk_size)-1])
                 # print('count',count)
                 # print(sol2_gpu.shape)
                 # print(sol4_gpu.shape)
