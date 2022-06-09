@@ -32,7 +32,7 @@ The other files are as follows:
 * `models/models.py` : contains model classes and initialisation functions. **To be cleaned up.**
 * `tutorials/` : a folder for tutorial files illustrating and explaining aspects of the method.
 * `examples/` : empty folder which will contain example scripts at a later date.
-* `PyFlow_cuda/` : prototype GPU code using PyTorch. (Contains duplicate files - **to be cleaned up**.(
+* `PyFlow_cuda/` : prototype GPU code using PyTorch. (Contains duplicate files - **to be cleaned up**.)
 * `TFE_jax/` : prototype GPU code using JAX. (Faster than PyTorch but requires compilation - **to be cleaned up**.)
 
 
