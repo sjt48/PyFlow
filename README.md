@@ -32,8 +32,12 @@ The other files are as follows:
 * `models/models.py` : contains model classes and initialisation functions. **To be cleaned up.**
 * `tutorials/` : a folder for tutorial files illustrating and explaining aspects of the method.
 * `examples/` : empty folder which will contain example scripts at a later date.
+* `PyFlow_cuda/` : prototype GPU code using PyTorch. (Contains duplicate files - **to be cleaned up**.(
+* `TFE_jax/` : prototype GPU code using JAX. (Faster than PyTorch but requires compilation - **to be cleaned up**.)
+
 
 **GPU files have been added but are not yet fully tested.**
+**Note that the GPU codes may not (yet) work for anything other than static propeties of spinless fermions.**
 
 # Required Packages
 
@@ -61,6 +65,8 @@ OR
 
 # To do 
 
+* Clean up GPU codes to avoid file duplication; remove debug print commands.
+* Fix comments and docstrings throughout.
 * Add possibility to specify more general Hamiltonians via sparse input matrix, like QuSpin? Then the user only has to specify the Hamiltonian and call the contraction routines, without using the built-in model classes at all.
 * ~~Update non-equilibrium dynamics code to match syntax used for static functions.~~ (**Done, can be tidied up.**)
 * Write more tests for non-interacting systems.
