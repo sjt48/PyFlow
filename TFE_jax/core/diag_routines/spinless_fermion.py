@@ -932,8 +932,12 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
             # print(k0,k0%chunk_size)
             if k0%chunk_size==0:
                 count = int(k0/chunk_size)
-                sol2_gpu = sol2_gpu.at[:,:].set(jnp.array(sol2[count*chunk_size:(count+1)*chunk_size]))
-                sol4_gpu = sol4_gpu.at[:,:].set(jnp.array(sol4[count*chunk_size:(count+1)*chunk_size]))
+                if jnp.array(sol2[count*chunk_size:(count+1)*chunk_size]).shape == sol2_gpu.shape:
+                    sol2_gpu = sol2_gpu.at[:,:].set(jnp.array(sol2[count*chunk_size:(count+1)*chunk_size]))
+                    sol4_gpu = sol4_gpu.at[:,:].set(jnp.array(sol4[count*chunk_size:(count+1)*chunk_size]))
+                else:
+                    sol2_gpu = jnp.array(sol2[count*chunk_size:(count+1)*chunk_size])
+                    sol4_gpu = jnp.array(sol4[count*chunk_size:(count+1)*chunk_size])
                 # print('count',count)
                 # print('k = ',count*chunk_size,(count+1)*chunk_size)
                 # print(sol2_gpu.shape)
@@ -970,9 +974,12 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
                 if count == 0:
                     sol2_gpu = sol2_gpu.at[:,:].set(jnp.array(sol2[-1*((count+1)*chunk_size)::]))
                     sol4_gpu = sol4_gpu.at[:,:].set(jnp.array(sol4[-1*((count+1)*chunk_size)::]))
-                else:
+                elif (sol2[-1*((count+1)*chunk_size):-((count)*chunk_size)]).shape == sol2_gpu.shape:
                     sol2_gpu = sol2_gpu.at[:,:].set(jnp.array(sol2[-1*((count+1)*chunk_size):-((count)*chunk_size)]))
                     sol4_gpu = sol4_gpu.at[:,:].set(jnp.array(sol4[-1*((count+1)*chunk_size):-((count)*chunk_size)]))
+                else:
+                    sol2_gpu = jnp.array(sol2[-1*((count+1)*chunk_size):-((count)*chunk_size)])
+                    sol4_gpu = jnp.array(sol4[-1*((count+1)*chunk_size):-((count)*chunk_size)])
                 # print('count',count)
                 # print(sol2_gpu.shape)
                 # print(sol4_gpu.shape)
