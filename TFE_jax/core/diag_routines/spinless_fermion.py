@@ -971,15 +971,15 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
             if k0%chunk_size==0:
                 count = int(k0/chunk_size)
                 # print(-1*((count+1)*chunk)-1,-((count)*chunk)-1)
-                if count == 0:
+                if count == 0 and ((sol2[-1*((count+1)*chunk_size):-((count)*chunk_size)]).shape == sol2_gpu.shape):
                     sol2_gpu = sol2_gpu.at[:,:].set(jnp.array(sol2[-1*((count+1)*chunk_size)::]))
                     sol4_gpu = sol4_gpu.at[:,:].set(jnp.array(sol4[-1*((count+1)*chunk_size)::]))
-                elif (sol2[-1*((count+1)*chunk_size):-((count)*chunk_size)]).shape == sol2_gpu.shape:
+                elif count > 0 and (sol2[-1*((count+1)*chunk_size):-((count)*chunk_size)]).shape == sol2_gpu.shape:
                     sol2_gpu = sol2_gpu.at[:,:].set(jnp.array(sol2[-1*((count+1)*chunk_size):-((count)*chunk_size)]))
                     sol4_gpu = sol4_gpu.at[:,:].set(jnp.array(sol4[-1*((count+1)*chunk_size):-((count)*chunk_size)]))
                 else:
-                    sol2_gpu = jnp.array(sol2[-1*((count+1)*chunk_size):-((count)*chunk_size)])
-                    sol4_gpu = jnp.array(sol4[-1*((count+1)*chunk_size):-((count)*chunk_size)])
+                    sol2_gpu = jnp.array(sol2[-1*((count+1)*chunk_size)::])
+                    sol4_gpu = jnp.array(sol4[-1*((count+1)*chunk_size)::])
                 # print('count',count)
                 # print(sol2_gpu.shape)
                 # print(sol4_gpu.shape)
