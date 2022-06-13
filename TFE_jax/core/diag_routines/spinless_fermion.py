@@ -806,8 +806,8 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
     # sol = ode(int_ode,[H2,Hint],dl_list)
     mem_tot = (len(dl_list)*(n**2+n**4)*4)/1e9
     chunk = int(np.ceil(mem_tot/6))
-    print('MANUALLY SET TO 20 CHUNKS FOR DEBUG PURPOSES')
-    chunk =int(20)
+    #print('MANUALLY SET TO 20 CHUNKS FOR DEBUG PURPOSES')
+    #chunk =int(20)
     if chunk > 1:
         chunk_size = len(dl_list)//chunk
         print('Memory',mem_tot,chunk,chunk_size)
@@ -849,7 +849,7 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
         J0 = 1
     
         while k <len(dl_list) and J0 > cutoff:
-            print(k)
+            #print(k)
             soln = ode(int_ode,[sol2_gpu[k%chunk_size-1],sol4_gpu[k%chunk_size-1]],dl_list[k-1:k+1],rtol=1e-8,atol=1e-8)
             sol2_gpu = sol2_gpu.at[k%chunk_size].set(soln[0][-1])
             sol4_gpu = sol4_gpu.at[k%chunk_size].set(soln[1][-1])
@@ -858,9 +858,13 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
             if k%chunk_size==0:
                 count = int(k/chunk_size)
                 # print(count)
-                print((sol2[count*chunk_size:(count+1)*chunk_size]).shape,np.array(sol2_gpu).shape)
-                sol2[count*chunk_size:(count+1)*chunk_size] = np.array(sol2_gpu)
-                sol4[count*chunk_size:(count+1)*chunk_size] = np.array(sol4_gpu)
+                if (sol2[count*chunk_size:(count+1)*chunk_size]).shape==np.array(sol2_gpu).shape:
+                    sol2[count*chunk_size:(count+1)*chunk_size] = np.array(sol2_gpu)
+                    sol4[count*chunk_size:(count+1)*chunk_size] = np.array(sol4_gpu)
+                else:
+                    remainder = len(sol2[count*chunk_size::])
+                    sol2[count*chunk_size::] = np.array(sol2_gpu[0:remainder])
+                    sol4[count*chunk_size::] = np.array(sol4_gpu[0:remainder])
             k += 1
 
     print(k,J0)
@@ -938,16 +942,23 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
                 else:
                     sol2_gpu = jnp.array(sol2[count*chunk_size:(count+1)*chunk_size])
                     sol4_gpu = jnp.array(sol4[count*chunk_size:(count+1)*chunk_size])
-                # print('count',count)
-                # print('k = ',count*chunk_size,(count+1)*chunk_size)
-                # print(sol2_gpu.shape)
-                # print(sol4_gpu.shape)
+                #print('count',count)
+                #print('k = ',count*chunk_size,(count+1)*chunk_size)
+                #print(sol2_gpu.shape)
+                #print(sol4_gpu.shape)
             liom = ode(liom_ode_int_fwd,[init_liom2,init_liom4],dl_list[k0:k0+2],n,[sol2_gpu[k0%chunk_size],sol4_gpu[k0%chunk_size]],rtol=1e-8,atol=1e-8)
             init_liom2 = liom[0][-1]
             init_liom4 = liom[1][-1]
 
     liom_fwd2 = np.array(init_liom2)
     liom_fwd4 = np.array(init_liom4)
+
+    if chunk > 1:
+        del sol2_gpu
+        del sol4_gpu
+
+        sol2_gpu = jnp.zeros((chunk_size,n,n))
+        sol4_gpu = jnp.zeros((chunk_size,n,n,n,n))
 
     # Reverse list of flow times in order to conduct backwards integration
     # dl_list = -1*dl_list[::-1]
@@ -971,18 +982,29 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
             if k0%chunk_size==0:
                 count = int(k0/chunk_size)
                 # print(-1*((count+1)*chunk)-1,-((count)*chunk)-1)
-                if count == 0 and ((sol2[-1*((count+1)*chunk_size):-((count)*chunk_size)]).shape == sol2_gpu.shape):
+                #id_print('count')
+                id_print(k0)
+                id_print(count)
+                id_print((sol2[-1*((count+1)*chunk_size)::]).shape)
+                id_print((sol4[-1*((count+1)*chunk_size)::]).shape)
+                id_print((sol2[-1*((count+1)*chunk_size):-((count)*chunk_size)]).shape)
+                id_print((sol4[-1*((count+1)*chunk_size):-((count)*chunk_size)]).shape)
+                id_print(sol2_gpu.shape)
+                id_print(sol4_gpu.shape)
+
+                if count == 0 and ((sol2[-1*((count+1)*chunk_size)::]).shape == sol2_gpu.shape):
                     sol2_gpu = sol2_gpu.at[:,:].set(jnp.array(sol2[-1*((count+1)*chunk_size)::]))
                     sol4_gpu = sol4_gpu.at[:,:].set(jnp.array(sol4[-1*((count+1)*chunk_size)::]))
                 elif count > 0 and (sol2[-1*((count+1)*chunk_size):-((count)*chunk_size)]).shape == sol2_gpu.shape:
                     sol2_gpu = sol2_gpu.at[:,:].set(jnp.array(sol2[-1*((count+1)*chunk_size):-((count)*chunk_size)]))
                     sol4_gpu = sol4_gpu.at[:,:].set(jnp.array(sol4[-1*((count+1)*chunk_size):-((count)*chunk_size)]))
                 else:
-                    sol2_gpu = jnp.array(sol2[-1*((count+1)*chunk_size)::])
-                    sol4_gpu = jnp.array(sol4[-1*((count+1)*chunk_size)::])
-                # print('count',count)
-                # print(sol2_gpu.shape)
-                # print(sol4_gpu.shape)
+                    sol2_gpu = jnp.array(sol2[0:-1*((count)*chunk_size)])
+                    sol4_gpu = jnp.array(sol4[0:-1*((count)*chunk_size)])
+                #id_print('count',count)
+                #id_print('sol2_gpu',sol2_gpu.shape)
+                #id_print('jnp2',jnp.array(sol2[-1*((count+1)*chunk_size):-((count)*chunk_size)]))
+                #id_print(sol4_gpu.shape)
             liom = ode(liom_ode_int,[init_liom2,init_liom4],dl_list[k0:k0+2],n,[sol2_gpu[-k0%chunk_size],sol4_gpu[-k0%chunk_size]])
             init_liom2 = liom[0][-1]
             init_liom4 = liom[1][-1]
@@ -992,8 +1014,8 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
     # sol2=sol2[::-1]
     # sol4 = sol4[::-1]
 
-    # import matplotlib.pyplot as plt
-    # plt.plot(jnp.log10(jnp.abs(jnp.diag(init_liom2.reshape(n,n)))))
+    import matplotlib.pyplot as plt
+    plt.plot(jnp.log10(jnp.abs(jnp.diag(init_liom2.reshape(n,n)))))
     # plt.plot(jnp.log10(jnp.abs(jnp.diag(liom_fwd2.reshape(n,n)))),'--')
 
     output = {"H0_diag":np.array(H0_diag), "Hint":np.array(Hint2),"LIOM Interactions":lbits,"LIOM2":init_liom2,"LIOM4":init_liom4,"LIOM2_FWD":liom_fwd2,"LIOM4_FWD":liom_fwd4,"Invariant":inv2}
