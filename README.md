@@ -38,6 +38,7 @@ The other files are as follows:
 
 **GPU files have been added but are not yet fully tested.**
 **Note that the GPU codes may not (yet) work for anything other than static propeties of spinless fermions.**
+** There is also a compilation bug on some systems that prevents JAX from handling systems of size L>45. This is an issue with the XLA compiler, and not a problem with PyFlow.**
 
 # Required Packages
 
@@ -79,7 +80,7 @@ OR
 * ~~Implement model classes?~~ **Done, to be tested thoroughly.**
 * ~~Merge with spinful fermion (Hubbard model) code.~~ **Done, works for static properties.**
 * Add bosons: comes down to changing a few minus signs in contract.py. **In progress.**
-* Merge GPU code (via CuPy/PyTorch) into main.
+* ~~Merge GPU code (via CuPy/PyTorch) into main~~. **Done, to be cleaned up.**
 * Benchmark against ED and tensor networks for finding ground state energy, non-equilibrium dynamics?
 * Test code for normal ordering? **In progress, bugs fixed.**
 * Add Floquet functionality? (Following https://www.scipost.org/SciPostPhys.11.2.028.)
