@@ -74,7 +74,6 @@ def CUT(params,hamiltonian,num,num_int):
     elif logflow == True:
         print('Warning: careful choices of qmax and lmax required for log flow.')
         dl = np.logspace(np.log10(0.001), np.log10(lmax),qmax,endpoint=True,base=10)
-
     if hamiltonian.species == 'spinless fermion':
         if dyn == True:
             if intr == True:

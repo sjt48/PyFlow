@@ -96,7 +96,7 @@ def int_ode_nloc(l,y,method='einsum'):
         V0 = H - H0
         # V0 = V0.to(device)
         
-        Hint0 = torch.zeros(Hint.shape,dtype=torch.float64)
+        Hint0 = torch.zeros(Hint.shape,dtype=torch.float32)
         # Hint0 = Hint0.to(device)
         # n=len(H)
         for i in range(n):
@@ -120,10 +120,10 @@ def int_ode_nloc(l,y,method='einsum'):
         nsol  = contract(eta0,n2,method=method)
         nsol2 = contract(eta_int,n2,method=method) + contract(eta0,nint,method=method)
         
-        soln = torch.zeros((n,n,n,n),dtype=torch.float64)
+        soln = torch.zeros((n,n,n,n),dtype=torch.float32)
         soln[0,0] = sol
-        nsoln = torch.zeros((n,n,n,n),dtype=torch.float64)
-        #nsol2 = torch.zeros((n,n,n,n),dtype=torch.float64,device=device)
+        nsoln = torch.zeros((n,n,n,n),dtype=torch.float32)
+        #nsol2 = torch.zeros((n,n,n,n),dtype=torch.float32,device=device)
         nsoln[0,0] = nsol
         
         # print((torch.cat([torch.cat([soln,sol2]),torch.cat([nsoln,nsol2])],axis=0)).shape)
@@ -145,7 +145,7 @@ def int_liom(l,y,method='einsum'):
         V0 = H - H0
         # V0 = V0.to(device)
         
-        Hint0 = torch.zeros(Hint.shape,dtype=torch.float64)
+        Hint0 = torch.zeros(Hint.shape,dtype=torch.float32)
         # Hint0 = Hint0.to(device)
         # n=len(H)
         for i in range(n):
@@ -169,10 +169,10 @@ def int_liom(l,y,method='einsum'):
         nsol  = contract(eta0,n2,method=method)
         nsol2 = (contract(eta_int,n2,method=method) + contract(eta0,nint,method=method))
         
-        soln = torch.zeros((n,n,n,n),dtype=torch.float64)
+        soln = torch.zeros((n,n,n,n),dtype=torch.float32)
         soln[0,0] = sol
-        nsoln = torch.zeros((n,n,n,n),dtype=torch.float64)
-        #nsol2 = torch.zeros((n,n,n,n),dtype=torch.float64,device=device)
+        nsoln = torch.zeros((n,n,n,n),dtype=torch.float32)
+        #nsol2 = torch.zeros((n,n,n,n),dtype=torch.float32,device=device)
         nsoln[0,0] = nsol
         
         # print((torch.cat([torch.cat([soln,sol2]),torch.cat([nsoln,nsol2])],axis=0)).shape)
@@ -267,7 +267,7 @@ def flow_static(n,J,H0,V0,dl_list,qmax,cutoff,method='jit'):
         dl_list = torch.tensor(dl_list,device=device)
         # dl_list=dl_list.to(device)
         
-        init_liom = torch.zeros((n,n),dtype=torch.float64,device=device)
+        init_liom = torch.zeros((n,n),dtype=torch.float32,device=device)
         init_liom[n//2,n//2] = 1.0
         # init_liom = init_liom.to(device)
 
@@ -337,13 +337,13 @@ def flow_static_int_torch(n,J,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='einsum
         dl_list = torch.tensor(dl_list)
         # dl_list=dl_list.to(device)
         
-        init_liom = torch.zeros((n,n),dtype=torch.float64)
-        init_liom4 = torch.zeros((n,n,n,n),dtype=torch.float64)
+        init_liom = torch.zeros((n,n),dtype=torch.float32)
+        init_liom4 = torch.zeros((n,n,n,n),dtype=torch.float32)
         init_liom[n//2,n//2] = 1.0
 
-        H = torch.zeros((n,n,n,n),dtype=torch.float64)
+        H = torch.zeros((n,n,n,n),dtype=torch.float32)
         H[0,0] = H0+V0
-        init_l = torch.zeros((n,n,n,n),dtype=torch.float64)
+        init_l = torch.zeros((n,n,n,n),dtype=torch.float32)
         init_l[0,0] = init_liom
         
         # et,sol = odeint_event(int_ode_nloc,torch.cat([torch.cat([H,Hint]),torch.cat([init_l,init_liom4])],axis=0),dl_list[0], event_fn=event, reverse_time=False, odeint_interface=ode)
@@ -351,7 +351,7 @@ def flow_static_int_torch(n,J,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='einsum
         J0 = 1
         var = torch.cat([torch.cat([H,Hint]),torch.cat([init_l,init_liom4])],axis=0)
         print(list(var.shape))
-        sol_list = torch.zeros((len(dl_list),list(var.shape)[0],list(var.shape)[1],list(var.shape)[2],list(var.shape)[3]),dtype=torch.float64)
+        sol_list = torch.zeros((len(dl_list),list(var.shape)[0],list(var.shape)[1],list(var.shape)[2],list(var.shape)[3]),dtype=torch.float32)
         sol_list[0] = var
         while k < len(dl_list)-1 and J0 > cutoff:
             sol = odeint(int_ode_nloc,var,dl_list[k:k+2])
@@ -376,15 +376,15 @@ def flow_static_int_torch(n,J,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='einsum
         k = 1
         # dl_list = -1*torch.flip(dl_list,[0])
         # print(dl_list)
-        liom_flow = torch.zeros((len(dl_list),list(var.shape)[0],list(var.shape)[1],list(var.shape)[2],list(var.shape)[3]),dtype=torch.float64)
-        H = torch.zeros((n,n,n,n),dtype=torch.float64)
+        liom_flow = torch.zeros((len(dl_list),list(var.shape)[0],list(var.shape)[1],list(var.shape)[2],list(var.shape)[3]),dtype=torch.float32)
+        H = torch.zeros((n,n,n,n),dtype=torch.float32)
         H[0,0] = sol_list[-k,0,0]
         Hint2 = sol_list[-k,n:2*n]
         var = torch.cat([torch.cat([H,Hint2]),torch.cat([init_l,init_liom4])],axis=0)
         liom_flow[0] = var
         while k < len(dl_list):
             liom = odeint(int_liom,var,dl_list[0:2],method='dopri5',options={"max_num_steps":50,"dtype":torch.float32},rtol=10**(-6),atol=10**(-6))
-            H = torch.zeros((n,n,n,n),dtype=torch.float64)
+            H = torch.zeros((n,n,n,n),dtype=torch.float32)
             H[0,0] = sol_list[-k,0,0]
             Hint2 = sol_list[-k,n:2*n]
             # if k%2 == 0:
@@ -393,7 +393,7 @@ def flow_static_int_torch(n,J,H0,V0,Hint,Vint,dl_list,qmax,cutoff,method='einsum
             #     H[0,0] = sol_list[-k,0,0]
             # Hint2 = liom[-1,n:2*n]
             #print(k)
-            l2 = torch.zeros((n,n,n,n),dtype=torch.float64)
+            l2 = torch.zeros((n,n,n,n),dtype=torch.float32)
             l2[0,0] = liom[-1,2*n,0]
             l4 = liom[-1,3*n:]
             # print(liom.shape,l2.shape,l4.shape,torch.cat([l2,l4]))

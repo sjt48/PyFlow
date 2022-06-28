@@ -36,13 +36,17 @@ os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number o
 os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of MKL threads to run in parallel
 os.environ['KMP_DUPLICATE_LIB_OK']="TRUE"                         # Necessary on some versions of OS X
 os.environ['KMP_WARNINGS'] = 'off'                                # Silence non-critical warning
+
+# JAX options - must be set BEFORE importing the JAX library
+# os.environ['CUDA_VISIBLE_DEVIES'] = '2'                         # Set which device to use ('' is CPU)
+# os.environ['JAX_ENABLE_X64'] = 'true'                           # Enable 64-bit floats in JAX
 # from jax.config import config
-# config.update('jax_disable_jit', True)
+# config.update('jax_disable_jit', True)                          # Disable JIT compilation in JAX for debugging
+# config.update("jax_enable_x64", True)                           # Alternate way to enable float64 in JAX
+
 import jax.numpy as jnp 
 import numpy as np
 from scipy.special import jv as jv
-# from jax.config import config
-# config.update("jax_enable_x64", True)
 from datetime import datetime
 import h5py,gc
 import core.diag as diag
@@ -71,10 +75,10 @@ Ulist = [0.1]
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
 dis = [0.7+0.02*i for i in range(26)]    
-dis = [1.]                
+dis = [0.8]                
 # List of disorder strengths
-lmax = 15                       # Flow time max
-qmax = 1000                     # Max number of flow time steps
+lmax = 20                       # Flow time max
+qmax = 500                     # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
 norm = False                    # Normal-ordering, can be true or false
 no_state = 'SDW'                # State to use for normal-ordering, can be CDW or SDW
@@ -99,7 +103,7 @@ LIOM = 'bck'                    # Compute LIOMs with forward ('fwd') or backward
                                 # Forward uses less memory by a factor of qmax, and transforms a local operator
                                 # in the initial basis into the diagonal basis; backward does the reverse
 dyn_MF = True                   # Mean-field decoupling for dynamics (used only if dyn=True)
-logflow = False                  # Use logarithmically spaced steps in flow time
+logflow = True                  # Use logarithmically spaced steps in flow time
 store_flow = True               # Store the full flow of the Hamiltonian and LIOMs
 dis_type = str(sys.argv[2])     # Options: 'random', 'QPgolden', 'QPsilver', 'QPbronze', 'QPrandom', 'linear', 'curved', 'prime'
                                 # Also contains 'test' and 'QPtest', potentials that do not change from run to run
@@ -144,6 +148,7 @@ if __name__ == '__main__':
         for x in xlist:
             for d in dis:
                 # lmax *= 1/d
+                print(d)
                 print(lmax)
                 for delta in Ulist:
 
@@ -182,7 +187,7 @@ if __name__ == '__main__':
 
                     bessel = jnp.zeros(n)
                     for i in range(n):
-                        bessel = bessel.at[i].set(jnp.log10(jnp.abs(jv(jnp.abs(i-n//2),2)**2)))
+                        bessel = bessel.at[i].set(jnp.log10(jnp.abs(jv(jnp.abs(i-n//2),2/dis[0])**2)))
                     plt.plot(bessel,'x--')
                     plt.show()
                     plt.close()

@@ -34,6 +34,7 @@ os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False)))       # Set nu
 os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False)))       # Set number of MKL threads to run in parallel
 os.environ['NUMBA_NUM_THREADS'] = str(int(cpu_count(logical=False)))    # Set number of Numba threads
 import jax.numpy as jnp
+from jax import jit
 import numpy as np
 from diffrax import diffeqsolve, ODETerm, Dopri5
 from jax.experimental.host_callback import id_print
@@ -165,26 +166,48 @@ def eta_con(y,n,method='jit',norm=False):
 
     return eta
 
+def extract_diag(H2,Hint):
+
+    n,_ = H2.shape
+    H2_0 = jnp.diag(jnp.diag(H2))       # Define diagonal quadratic part H0
+    V0 = H2 - H2_0                      # Define off-diagonal quadratic part
+
+    Hint0 = jnp.zeros((n,n,n,n))        # Define diagonal quartic part 
+
+    # This loop structure looks weird but it's to avoid a mysterious segfault on some systems
+    # Including both updates in the same pair of loops can lead to crashes
+
+    for i in range(n):                  # Load Hint0 with values
+        for j in range(n):
+                Hint0 = Hint0.at[i,i,j,j].set(Hint[i,i,j,j])
+    for i in range(n):
+        for j in range(n):
+                Hint0 = Hint0.at[i,j,j,i].set(Hint[i,j,j,i])
+    Vint = Hint-Hint0
+
+    return H2_0,V0,Hint0,Vint
+
+
 #------------------------------------------------------------------------------
 
-def extract_diag(A,norm=False):
-    B = jnp.zeros(A.shape)
-    n,_,_,_ = A.shape
-    for i in range(n): 
-        for j in range(n):
-            if i != j:
-                if norm == True:
-                    # Symmetrise (for normal-ordering wrt inhomogeneous states)
-                    A[i,i,j,j] += -A[i,j,j,i]
-                    A[i,j,j,i] = 0.
-            if i != j:
-                if norm == True:
-                    # Symmetrise (for normal-ordering wrt inhomogeneous states)
-                    A[i,i,j,j] += A[j,j,i,i]
-                    A[i,i,j,j] *= 0.5
-                # Load new array with diagonal values
-                B[i,i,j,j] = A[i,i,j,j]
-    return B,A
+# def extract_diag(A,norm=False):
+#     B = jnp.zeros(A.shape)
+#     n,_,_,_ = A.shape
+#     for i in range(n): 
+#         for j in range(n):
+#             if i != j:
+#                 if norm == True:
+#                     # Symmetrise (for normal-ordering wrt inhomogeneous states)
+#                     A[i,i,j,j] += -A[i,j,j,i]
+#                     A[i,j,j,i] = 0.
+#             if i != j:
+#                 if norm == True:
+#                     # Symmetrise (for normal-ordering wrt inhomogeneous states)
+#                     A[i,i,j,j] += A[j,j,i,i]
+#                     A[i,i,j,j] *= 0.5
+#                 # Load new array with diagonal values
+#                 B[i,i,j,j] = A[i,i,j,j]
+#     return B,A
 
 def int_ode(y,l,eta=[],method='einsum',norm=False,Hflow=True):
         """ Generate the flow equation for the interacting systems.
@@ -233,16 +256,19 @@ def int_ode(y,l,eta=[],method='einsum',norm=False,Hflow=True):
         # id_print(l)
         H2 = y[0]                           # Define quadratic part of Hamiltonian
         n,_ = H2.shape
-        H2_0 = jnp.diag(jnp.diag(H2))       # Define diagonal quadratic part H0
-        V0 = H2 - H2_0                      # Define off-diagonal quadratic part
+        # H2_0 = jnp.diag(jnp.diag(H2))       # Define diagonal quadratic part H0
+        # V0 = H2 - H2_0                      # Define off-diagonal quadratic part
 
         Hint = y[1]                         # Define quartic part of Hamiltonian
-        Hint0 = jnp.zeros((n,n,n,n))        # Define diagonal quartic part 
-        for i in range(n):                  # Load Hint0 with values
-            for j in range(n):
-                    Hint0 = Hint0.at[i,i,j,j].set(Hint[i,i,j,j])
-                    Hint0 = Hint0.at[i,j,j,i].set(Hint[i,j,j,i])
-        Vint = Hint-Hint0
+        # Hint0 = jnp.zeros((n,n,n,n))        # Define diagonal quartic part 
+        # for i in range(n):                  # Load Hint0 with values
+        #     for j in range(n):
+        #             Hint0 = Hint0.at[i,i,j,j].set(Hint[i,i,j,j])
+        #             Hint0 = Hint0.at[i,j,j,i].set(Hint[i,j,j,i])
+        # Vint = Hint-Hint0
+        # id_print(H2)
+
+        H2_0,V0,Hint0,Vint = extract_diag(H2,Hint)
 
         if norm == True:
             state = state_spinless(H2)
@@ -263,6 +289,8 @@ def int_ode(y,l,eta=[],method='einsum',norm=False,Hflow=True):
         else:
             eta0 = (eta[:n**2]).reshape(n,n)
             eta_int = (eta[n**2:]).reshape(n,n,n,n)
+
+        # id_print(eta0)
    
         # Compute the RHS of the flow equation dH/dl = [\eta,H]
         sol = contract(eta0,H2,method=method)
@@ -278,7 +306,25 @@ def int_ode(y,l,eta=[],method='einsum',norm=False,Hflow=True):
         # id_print([sol,sol2])
         return [sol,sol2]
 
-def liom_ode(y,l,n,array,method='einsum',comp=False,Hflow=True,norm=False,bck=True):
+# @jit
+def update(n2,n4,H2,Hint,steps,method='einsum'):
+
+    n,_ = H2.shape
+    H0,V0,Hint0,Vint = extract_diag(H2,Hint)
+
+    eta2 = contract(H0,V0,method=method,comp=False,eta=True)
+    eta4 = contract(Hint0,V0,method=method,comp=False,eta=True) + contract(H0,Vint,method=method,comp=False,eta=True)
+
+    dl = steps[-1]-steps[0]
+    # id_print(dl)
+    dn2 = contract(eta2,n2,method=method,comp=False)
+    dn4 = contract(eta4,n2,method=method,comp=False) + contract(eta2,n4,method=method,comp=False)
+    n2 += dl*dn2
+    n4 += dl*dn4
+
+    return n2,n4
+
+def liom_ode(y,l,n,array,method='tensordot',comp=False,Hflow=True,norm=False,bck=True):
     """ Generate the flow equation for density operators of the interacting systems.
 
         e.g. compute the RHS of dn/dl = [\eta,n] which will be used later to integrate n(l) -> n(l + dl)
@@ -325,19 +371,21 @@ def liom_ode(y,l,n,array,method='einsum',comp=False,Hflow=True,norm=False,bck=Tr
         # Extract various components of the Hamiltonian from the ijnput array 'y'
         H2 = array[0]                       # Define quadratic part of Hamiltonian
         print('h2shape',H2.shape)
-        H0 = jnp.diag(jnp.diag(H2))           # Define diagonal quadratic part H0
-        V0 = H2 - H0                        # Define off-diagonal quadratic part B
-
+        # H0 = jnp.diag(jnp.diag(H2))           # Define diagonal quadratic part H0
+        # V0 = H2 - H0                        # Define off-diagonal quadratic part B
+        
         if len(array)>1:
             Hint = array[1]            # Define quartic part of Hamiltonian
-            Hint0 = jnp.zeros((n,n,n,n))     # Define diagonal quartic part 
-            for i in range(n):              # Load Hint0 with values
-                for j in range(n):
-                    # if i != j:
-                        # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
-                        Hint0 = Hint0.at[i,i,j,j].set(Hint[i,i,j,j])
-                        Hint0 = Hint0.at[i,j,j,i].set(Hint[i,j,j,i])
-            Vint = Hint-Hint0
+            # Hint0 = jnp.zeros((n,n,n,n))     # Define diagonal quartic part 
+            # for i in range(n):              # Load Hint0 with values
+            #     for j in range(n):
+            #         # if i != j:
+            #             # Load dHint_diag with diagonal values (n_i n_j or c^dag_i c_j c^dag_j c_i)
+            #             Hint0 = Hint0.at[i,i,j,j].set(Hint[i,i,j,j])
+            #             Hint0 = Hint0.at[i,j,j,i].set(Hint[i,j,j,i])
+            # Vint = Hint-Hint0
+
+            H0,V0,Hint0,Vint = extract_diag(H2,Hint)
 
         # Compute the quadratic generator eta2
         eta2 = contract(H0,V0,method=method,comp=False,eta=True)
@@ -384,7 +432,7 @@ def liom_ode(y,l,n,array,method='einsum',comp=False,Hflow=True,norm=False,bck=Tr
     elif bck == False:
         return [sol2,sol4]
 
-def liom_ode_int(y,l,n,array,bck=True,method='einsum',comp=False,Hflow=True,norm=False):
+def liom_ode_int(y,l,n,array,bck=True,method='tensordot',comp=False,Hflow=True,norm=False):
     """ Generate the flow equation for density operators of the interacting systems.
 
         e.g. compute the RHS of dn/dl = [\eta,n] which will be used later to integrate n(l) -> n(l + dl)
@@ -430,23 +478,25 @@ def liom_ode_int(y,l,n,array,bck=True,method='einsum',comp=False,Hflow=True,norm
     if Hflow == True:
         # Extract various components of the Hamiltonian from the ijnput array 'y'
         H2 = array[0]                       # Define quadratic part of Hamiltonian
-        H0 = jnp.diag(jnp.diag(H2))           # Define diagonal quadratic part H0
-        V0 = H2 - H0                        # Define off-diagonal quadratic part B
+        # H0 = jnp.diag(jnp.diag(H2))           # Define diagonal quadratic part H0
+        # V0 = H2 - H0                        # Define off-diagonal quadratic part B
 
         # if len(array)>1:
         m,_ = y[0].shape
         Hint = array[1]                         # Define quartic part of Hamiltonian
-        Hint0 = jnp.zeros((m,m,m,m))        # Define diagonal quartic part 
-        for i in range(m):                  # Load Hint0 with values
-            for j in range(m):
-                    Hint0 = Hint0.at[i,i,j,j].set(Hint[i,i,j,j])
-                    Hint0 = Hint0.at[i,j,j,i].set(Hint[i,j,j,i])
-        Vint = Hint-Hint0
+        # Hint0 = jnp.zeros((m,m,m,m))        # Define diagonal quartic part 
+        # for i in range(m):                  # Load Hint0 with values
+        #     for j in range(m):
+        #             Hint0 = Hint0.at[i,i,j,j].set(Hint[i,i,j,j])
+        #             Hint0 = Hint0.at[i,j,j,i].set(Hint[i,j,j,i])
+        # Vint = Hint-Hint0
 
+        H0,V0,Hint0,Vint = extract_diag(H2,Hint)
+        # id_print(H2)
         # Compute the quadratic generator eta2
         eta2 = contract(H0,V0,method=method,comp=False,eta=True)
         eta4 = contract(Hint0,V0,method=method,comp=comp,eta=True) + contract(H0,Vint,method=method,comp=comp,eta=True)
-
+        # id_print(eta2)
         # Add normal-ordering corrections into generator eta, if norm == True
         # if norm == True:
         #     state=state_spinless(H2)
@@ -522,18 +572,20 @@ def liom_ode_int_fwd(y,l,n,array,bck=False,method='einsum',comp=False,Hflow=True
     if Hflow == True:
         # Extract various components of the Hamiltonian from the ijnput array 'y'
         H2 = array[0]                       # Define quadratic part of Hamiltonian
-        H0 = jnp.diag(jnp.diag(H2))           # Define diagonal quadratic part H0
-        V0 = H2 - H0                        # Define off-diagonal quadratic part B
+        # H0 = jnp.diag(jnp.diag(H2))           # Define diagonal quadratic part H0
+        # V0 = H2 - H0                        # Define off-diagonal quadratic part B
 
         # if len(array)>1:
         m,_ = array[0].shape
         Hint = array[1]                         # Define quartic part of Hamiltonian
-        Hint0 = jnp.zeros((m,m,m,m))        # Define diagonal quartic part 
-        for i in range(m):                  # Load Hint0 with values
-            for j in range(m):
-                    Hint0 = Hint0.at[i,i,j,j].set(Hint[i,i,j,j])
-                    Hint0 = Hint0.at[i,j,j,i].set(Hint[i,j,j,i])
-        Vint = Hint-Hint0
+        # Hint0 = jnp.zeros((m,m,m,m))        # Define diagonal quartic part 
+        # for i in range(m):                  # Load Hint0 with values
+        #     for j in range(m):
+        #             Hint0 = Hint0.at[i,i,j,j].set(Hint[i,i,j,j])
+        #             Hint0 = Hint0.at[i,j,j,i].set(Hint[i,j,j,i])
+        # Vint = Hint-Hint0
+
+        H0,V0,Hint0,Vint = extract_diag(H2,Hint)
 
         # Compute the quadratic generator eta2
         eta2 = contract(H0,V0,method=method,comp=False,eta=True)
@@ -802,12 +854,18 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
     """
     H2,Hint = hamiltonian.H2_spinless,hamiltonian.H4_spinless
 
+    # Number of intermediate setps specified for the solver to use
+    # It will in any case insert others as needed
+    increment = 2
+
+    print('dl_list',len(dl_list),dl_list[0],dl_list[-1])
+
     # Define integrator
     # sol = ode(int_ode,[H2,Hint],dl_list)
     mem_tot = (len(dl_list)*(n**2+n**4)*4)/1e9
     chunk = int(np.ceil(mem_tot/6))
     #print('MANUALLY SET TO 20 CHUNKS FOR DEBUG PURPOSES')
-    #chunk =int(20)
+    # chunk =int(2)
     if chunk > 1:
         chunk_size = len(dl_list)//chunk
         print('Memory',mem_tot,chunk,chunk_size)
@@ -827,56 +885,90 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
 
         while k <len(dl_list) and J0 > cutoff:
             # print(k)
-            soln = ode(int_ode,[sol2[k-1],sol4[k-1]],dl_list[k-1:k+1],rtol=1e-8,atol=1e-8)
+            steps = np.linspace(dl_list[k-1],dl_list[k],num=increment,endpoint=True)
+            # print('steps',steps)
+            # soln = ode(int_ode,[sol2[k-1],sol4[k-1]],dl_list[k-1:k+1],rtol=1e-8,atol=1e-8)
+            soln = ode(int_ode,[sol2[k-1],sol4[k-1]],steps,rtol=1e-8,atol=1e-8)
             # sol = diffeqsolve(term,solver,t0=dl_list[k-1],t1=dl_list[k],dt0=dl_list[k]-dl_list[k-1],y0=[sol2[k-1],sol4[k-1]])
             # soln = sol.ys
             # print(k,sol.ts,sol.ys)
             sol2 = sol2.at[k].set(soln[0][-1])
+            # print(soln[0][-1])
             sol4 = sol4.at[k].set(soln[1][-1])
             J0 = jnp.max(jnp.abs(soln[0][-1] - jnp.diag(jnp.diag(soln[0][-1]))))
             k += 1
 
     else:
 
-        # Integration with hard-coded event handling
+        # Initialise arrays
+        # Note: the memory required for these arrays is *not* pre-allocated. The reason is twofold: partly, it
+        # is likely that the integration will finish before the max value of dl_list is encountered, therefore 
+        # it's a waste to allocate all the memory. Secondly, in a later step we create a shortened copy of the array
+        # of the form sol2[0:k], which returns a new array of length k that requires separate memory allocation, so if we 
+        # max out the memory allocation here, there's no space left for to allocate the shortened array later.
+        # (Modifying the array in-place would be better, but I don't know how to do that...)
+
         k=1
         sol2 = np.zeros((len(dl_list),n,n),dtype=np.float32)
+        # sol2.fill(0.)
         sol4 = np.zeros((len(dl_list),n,n,n,n),dtype=np.float32)
+        # sol4.fill(0.)
         sol2_gpu = jnp.zeros((chunk_size,n,n))
         sol4_gpu = jnp.zeros((chunk_size,n,n,n,n))
         sol2_gpu = sol2_gpu.at[0].set(H2)
         sol4_gpu = sol4_gpu.at[0].set(Hint)
         J0 = 1
     
+        # Integration with hard-coded event handling
         while k <len(dl_list) and J0 > cutoff:
-            #print(k)
-            soln = ode(int_ode,[sol2_gpu[k%chunk_size-1],sol4_gpu[k%chunk_size-1]],dl_list[k-1:k+1],rtol=1e-8,atol=1e-8)
+            # print(k)
+            steps = np.linspace(dl_list[k-1],dl_list[k],num=increment,endpoint=True)
+            soln = ode(int_ode,[sol2_gpu[k%chunk_size-1],sol4_gpu[k%chunk_size-1]],steps,rtol=1e-8,atol=1e-8)
             sol2_gpu = sol2_gpu.at[k%chunk_size].set(soln[0][-1])
             sol4_gpu = sol4_gpu.at[k%chunk_size].set(soln[1][-1])
             J0 = jnp.max(jnp.abs(soln[0][-1] - jnp.diag(jnp.diag(soln[0][-1]))))
 
             if k%chunk_size==0:
                 count = int(k/chunk_size)
-                # print(count)
-                if (sol2[count*chunk_size:(count+1)*chunk_size]).shape==np.array(sol2_gpu).shape:
-                    sol2[count*chunk_size:(count+1)*chunk_size] = np.array(sol2_gpu)
-                    sol4[count*chunk_size:(count+1)*chunk_size] = np.array(sol4_gpu)
-                else:
-                    remainder = len(sol2[count*chunk_size::])
-                    sol2[count*chunk_size::] = np.array(sol2_gpu[0:remainder])
-                    sol4[count*chunk_size::] = np.array(sol4_gpu[0:remainder])
+                # print('****')
+                # print(count,k)
+                # print((count-1)*chunk_size,(count)*chunk_size)
+                # print(sol2[(count-1)*chunk_size:(count)*chunk_size].shape)
+                # print(np.array(sol2_gpu).shape)
+                if (sol2[(count-1)*chunk_size:(count)*chunk_size]).shape==np.array(sol2_gpu).shape:
+                    sol2[(count-1)*chunk_size:(count)*chunk_size] = np.array(sol2_gpu)
+                    sol4[(count-1)*chunk_size:(count)*chunk_size] = np.array(sol4_gpu)
+                    # print(sol2[(count-1)*chunk_size:(count)*chunk_size])
+                # else:
+                #     remainder = len(sol2[count*chunk_size::])
+                #     sol2[count*chunk_size::] = np.array(sol2_gpu[0:remainder])
+                #     sol4[count*chunk_size::] = np.array(sol4_gpu[0:remainder])
+            elif k == len(dl_list)-1 or J0 <= cutoff:
+                remainder = len(sol2_gpu[0:k%chunk_size])
+                # print('rem',remainder)
+                sol2[(count)*chunk_size:k] = np.array(sol2_gpu[0:remainder])
+                sol4[(count)*chunk_size:k] = np.array(sol4_gpu[0:remainder])
             k += 1
+        
 
-    print(k,J0)
+    print('dl_list',len(dl_list),dl_list[0],dl_list[-1])
+    print(k,J0,dl_list[k-1])
     if k != len(dl_list):
         dl_list = dl_list[0:k]
         sol2 = sol2[0:k]
         sol4 = sol4[0:k]
+        
+
+    steps = np.zeros(len(dl_list)-1)
+    for i in range(len(dl_list)-1):
+        steps[i] = dl_list[i+1]-dl_list[i]
+    print(np.max(steps),np.min(steps))
 
     # Resize chunks
     if chunk > 1:
         mem_tot = (len(dl_list)*(n**2+n**4)*4)/1e9
         chunk = int(np.ceil(mem_tot/6))
+        # chunk = 2
         chunk_size = len(dl_list)//chunk
         print('NEW CHUNK SIZE',chunk_size)
         if int(chunk_size*chunk) != int(len(dl_list)):
@@ -926,42 +1018,47 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
 
     # Do forwards integration
     k0=0
+    jit_update = jit(update)
     if chunk <= 1:
         for k0 in range(len(dl_list)-1):
-            liom = ode(liom_ode_int_fwd,[init_liom2,init_liom4],dl_list[k0:k0+2],n,[sol2[k0],sol4[k0]])
-            init_liom2 = liom[0][-1]
-            init_liom4 = liom[1][-1]
+            steps = np.linspace(dl_list[k0],dl_list[k0+1],num=increment,endpoint=True)
+            init_liom2,init_liom4  = jit_update(init_liom2,init_liom4,sol2[k0],sol4[k0],steps)
+
     else:
         for k0 in range(len(dl_list)-1):
-            # print(k0,k0%chunk_size)
+            # print(k0,int(k0/chunk_size),k0%chunk_size)
             if k0%chunk_size==0:
+                # print('load mem')
                 count = int(k0/chunk_size)
                 if jnp.array(sol2[count*chunk_size:(count+1)*chunk_size]).shape == sol2_gpu.shape:
+                    # print('load1')
                     sol2_gpu = sol2_gpu.at[:,:].set(jnp.array(sol2[count*chunk_size:(count+1)*chunk_size]))
                     sol4_gpu = sol4_gpu.at[:,:].set(jnp.array(sol4[count*chunk_size:(count+1)*chunk_size]))
                 else:
+                    # print('load2')
                     sol2_gpu = jnp.array(sol2[count*chunk_size:(count+1)*chunk_size])
                     sol4_gpu = jnp.array(sol4[count*chunk_size:(count+1)*chunk_size])
-                #print('count',count)
-                #print('k = ',count*chunk_size,(count+1)*chunk_size)
-                #print(sol2_gpu.shape)
-                #print(sol4_gpu.shape)
-            liom = ode(liom_ode_int_fwd,[init_liom2,init_liom4],dl_list[k0:k0+2],n,[sol2_gpu[k0%chunk_size],sol4_gpu[k0%chunk_size]],rtol=1e-8,atol=1e-8)
-            init_liom2 = liom[0][-1]
-            init_liom4 = liom[1][-1]
+
+            # print('****')
+            # print(k0)
+            # print(sol2_gpu[k0%chunk_size])
+            # print(sol2[k0])
+            steps = np.linspace(dl_list[k0],dl_list[k0+1],num=increment,endpoint=True)
+
+            init_liom2,init_liom4  = jit_update(init_liom2,init_liom4,sol2_gpu[k0%chunk_size],sol4_gpu[k0%chunk_size],steps)
 
     liom_fwd2 = np.array(init_liom2)
     liom_fwd4 = np.array(init_liom4)
+    
 
     if chunk > 1:
         del sol2_gpu
         del sol4_gpu
-
         sol2_gpu = jnp.zeros((chunk_size,n,n))
         sol4_gpu = jnp.zeros((chunk_size,n,n,n,n))
 
     # Reverse list of flow times in order to conduct backwards integration
-    # dl_list = -1*dl_list[::-1]
+    dl_list = dl_list[::-1]
     # sol2=sol2[::-1]
     # sol4 = sol4[::-1]
 
@@ -974,23 +1071,12 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
     k0=0
     if chunk <= 1:
         for k0 in range(len(dl_list)-1):
-            liom = ode(liom_ode_int,[init_liom2,init_liom4],dl_list[k0:k0+2],n,[sol2[-k0-1],sol4[-k0-1]],rtol=1e-8,atol=1e-8)
-            init_liom2 = liom[0][-1]
-            init_liom4 = liom[1][-1]
+            steps = np.linspace(dl_list[k0],dl_list[k0+1],num=increment,endpoint=True)
+            init_liom2,init_liom4  = jit_update(init_liom2,init_liom4,sol2[-k0+1],sol4[-k0+1],steps)
     else:
         for k0 in range(len(dl_list)-1):
             if k0%chunk_size==0:
                 count = int(k0/chunk_size)
-                # print(-1*((count+1)*chunk)-1,-((count)*chunk)-1)
-                #id_print('count')
-                id_print(k0)
-                id_print(count)
-                id_print((sol2[-1*((count+1)*chunk_size)::]).shape)
-                id_print((sol4[-1*((count+1)*chunk_size)::]).shape)
-                id_print((sol2[-1*((count+1)*chunk_size):-((count)*chunk_size)]).shape)
-                id_print((sol4[-1*((count+1)*chunk_size):-((count)*chunk_size)]).shape)
-                id_print(sol2_gpu.shape)
-                id_print(sol4_gpu.shape)
 
                 if count == 0 and ((sol2[-1*((count+1)*chunk_size)::]).shape == sol2_gpu.shape):
                     sol2_gpu = sol2_gpu.at[:,:].set(jnp.array(sol2[-1*((count+1)*chunk_size)::]))
@@ -1001,28 +1087,25 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
                 else:
                     sol2_gpu = jnp.array(sol2[0:-1*((count)*chunk_size)])
                     sol4_gpu = jnp.array(sol4[0:-1*((count)*chunk_size)])
-                #id_print('count',count)
-                #id_print('sol2_gpu',sol2_gpu.shape)
-                #id_print('jnp2',jnp.array(sol2[-1*((count+1)*chunk_size):-((count)*chunk_size)]))
-                #id_print(sol4_gpu.shape)
-            liom = ode(liom_ode_int,[init_liom2,init_liom4],dl_list[k0:k0+2],n,[sol2_gpu[-k0%chunk_size],sol4_gpu[-k0%chunk_size]])
-            init_liom2 = liom[0][-1]
-            init_liom4 = liom[1][-1]
+
+            steps = np.linspace(dl_list[k0],dl_list[k0+1],num=increment,endpoint=True)
+            # print('****')
+            # print(k0)
+            # print(sol2_gpu[-(k0)%chunk_size-1])
+            # print(sol2[-k0-1])
+            init_liom2,init_liom4  = jit_update(init_liom2,init_liom4,sol2_gpu[-(k0)%chunk_size-1],sol4_gpu[-(k0)%chunk_size-1],steps)
     
     # Reverse again to get these lists the right way around
     # dl_list = -1*dl_list[::-1]
     # sol2=sol2[::-1]
     # sol4 = sol4[::-1]
 
-    import matplotlib.pyplot as plt
-    plt.plot(jnp.log10(jnp.abs(jnp.diag(init_liom2.reshape(n,n)))))
+    # import matplotlib.pyplot as plt
+    # plt.plot(jnp.log10(jnp.abs(jnp.diag(init_liom2.reshape(n,n)))))
     # plt.plot(jnp.log10(jnp.abs(jnp.diag(liom_fwd2.reshape(n,n)))),'--')
 
     output = {"H0_diag":np.array(H0_diag), "Hint":np.array(Hint2),"LIOM Interactions":lbits,"LIOM2":init_liom2,"LIOM4":init_liom4,"LIOM2_FWD":liom_fwd2,"LIOM4_FWD":liom_fwd4,"Invariant":inv2}
     if store_flow == True:
-    #     flow_list2 = jnp.zeros((k-1,2*n**2+2*n**4))
-    #     flow_list2 = flow_list2.at[::,0:n**2+n**4].set(flow_list)
-    #     flow_list2 = flow_list2.at[::,n**2+n**4:].set(liom_list)
         output["flow2"] = np.array(sol2)
         output["flow4"] = np.array(sol4)
         output["dl_list"] = dl_list
