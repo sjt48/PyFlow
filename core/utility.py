@@ -39,6 +39,8 @@ def namevar(dis_type,dsymm,no_state,dyn,norm,n,LIOM,species):
         spec = 'spin_fermion/%s' %(dsymm)
     elif species == 'spinless fermion':
         spec = 'fermion'
+    elif species == 'fermion_backup':
+        spec = 'fermion_backup'
      # Make directory to store data
     if dyn == False:
         if not os.path.exists('%s/data/%s/%s/%s/%s/dataN%s' %(spec,dis_type,nm,LIOM,'static',n)):
@@ -287,7 +289,7 @@ def flow_levels_spin(n,flow,intr=True):
             Hint_down[i,j] += Hint_down_full[i,i,j,j]
             Hint_down[i,j] += -Hint_down_full[i,j,j,i]
             Hint_updown[i,j] += Hint_updown_full[i,i,j,j]
-            Hint_updown[i,j] += -Hint_updown_full[i,j,j,i]
+            # Hint_updown[i,j] += -Hint_updown_full[i,j,j,i]
     
     flevels = np.zeros(4**n)
     

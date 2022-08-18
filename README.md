@@ -1,12 +1,14 @@
 # PyFlow
 
-Codebase for the ~~Tensor Flow Equation~~ **PyFlow** library, used for computing local integrals of motion of a variety of disordered quantum systems and computing their non-equilibrium dynamics. The method is described in https://arxiv.org/abs/2110.02906.
+Codebase for the  **PyFlow** library, used for computing local integrals of motion of a variety of disordered quantum systems and computing their non-equilibrium dynamics. The method is described in https://arxiv.org/abs/2110.02906: please cite this work, and any of my others that you find relevant, if you use anything in this package in your research work.
 
 *By Dr S. J. Thomson (steven.thomson@fu-berlin.de)*  
 *steventhomson.co.uk / @PhysicsSteve*  
 *https://orcid.org/0000-0001-9065-9842*  
 
 The Tensor Flow Equation (TFE) method was first proposed in arXiv:2110.02906 by Marco Schiró and I as a way to take the method of continuous unitary transforms (also known as 'flow equations') and turn it into a robust numerical tool that did not require the algebraic complexity of previous analytical approaches. This was based on our previous work using flow equation techniques which, while powerful, were extremely complicated to work with, and was inspired by my time working in the group of Laurent Sanchez-Palencia where I learned a lot about tensor network methods and realised I could use a similar approach to turn flow equations into a powerful numerical tool.
+
+**Note**: everything in this repo is subject to breaking changes, and is being made public here for transparency and reproducibility only. Be careful using this package in your research projects until it progresses to a proper versioned release.
 
 # How to run
 
