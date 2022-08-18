@@ -1,6 +1,6 @@
 # PyFlow
 
-Codebase for the  **PyFlow** library, used for computing local integrals of motion of a variety of disordered quantum systems and computing their non-equilibrium dynamics. The method is described in https://arxiv.org/abs/2110.02906: please cite this work, and any of my others that you find relevant, if you use anything in this package in your research work.
+Codebase for the  **PyFlow** library, used for computing local integrals of motion of a variety of disordered quantum systems and computing their non-equilibrium dynamics. The method is described in https://arxiv.org/abs/2110.02906: please cite this work -- and any of my other papers that you find relevant -- if you use any of this in your own research.
 
 *By Dr S. J. Thomson (steven.thomson@fu-berlin.de)*  
 *steventhomson.co.uk / @PhysicsSteve*  
@@ -20,7 +20,7 @@ python main.py 4 linear tensordot
 
 will run the simulation for a system size `L=4` and a linear potential, using NumPy's `tensordot` method. To change other parameters (interaction strength, disorder strength, etc) you will need to edit the file `main.py`. All editable parameters are at the top of the file before the line `# Run Program` - in general, nothing below this line needs to be edited.
 
-In general, `tensordot` is the best method to use for small systems if you don't require normal ordering or other advanced features. I find `vec` to be faster, particularly when running on a single thread, but as it's explicitly typed it can throw errors if you pass a dtype it's not expecting. For large systems and/or normal-ordering, use `jit`, but beware the compilation overhead on the first call to the contraction functions.
+In general, `tensordot` is the best method to use for small systems if you just want it to run without fuss. For small systems, I usually find `vec` to be faster, particularly when running on a single thread, but as it's explicitly typed it can throw errors if you pass a dtype it's not expecting. For large systems and/or normal-ordering, use `jit`, but beware the compilation overhead on the first call to the contraction functions.
 
 The other files are as follows:
 
@@ -40,7 +40,8 @@ The other files are as follows:
 
 **GPU files have been added but are not yet fully tested.**
 **Note that the GPU codes may not (yet) work for anything other than static propeties of spinless fermions.**
-** There is also a compilation bug on some systems that prevents JAX from handling systems of size L>45. This is an issue with the XLA compiler, and not a problem with PyFlow.**
+
+**~~There is also a compilation bug on some systems that prevents JAX from handling systems of size L>45. This is an issue with the XLA compiler, and not a problem with PyFlow.~~** (Fixed on my test systems, further testing required.)
 
 # Required Packages
 
