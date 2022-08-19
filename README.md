@@ -1,6 +1,6 @@
 # PyFlow
 
-Codebase for the  **PyFlow** library, used for computing local integrals of motion of a variety of disordered quantum systems and computing their non-equilibrium dynamics. The method is described in https://arxiv.org/abs/2110.02906: please cite this work -- and any of my other papers that you find relevant -- if you use any of this in your own research.
+Codebase for the  **PyFlow** library, used for computing local integrals of motion of a variety of disordered quantum systems and computing their non-equilibrium dynamics. The method is described in https://arxiv.org/abs/2110.02906. Please cite this work -- and any of my other papers that you find relevant -- if you use any of this in your own research.
 
 *By Dr S. J. Thomson (steven.thomson@fu-berlin.de)*  
 *steventhomson.co.uk / @PhysicsSteve*  
@@ -15,10 +15,10 @@ The Tensor Flow Equation (TFE) method was first proposed in arXiv:2110.02906 by 
 The only file you need to edit is `main.py`. It takes three command line arguments, the first to specify the system size, the second the disorder potential, and the third the method used for computing the tensor contractions. For example:
 
 ```
-python main.py 4 linear tensordot
+python main.py 4 random tensordot
 ```
 
-will run the simulation for a system size `L=4` and a linear potential, using NumPy's `tensordot` method. To change other parameters (interaction strength, disorder strength, etc) you will need to edit the file `main.py`. All editable parameters are at the top of the file before the line `# Run Program` - in general, nothing below this line needs to be edited.
+will run the simulation for a system size `L=4` and a random potential, using NumPy's `tensordot` method. To change other parameters (interaction strength, disorder strength, etc) you will need to edit the file `main.py`. All editable parameters are at the top of the file before the line `# Run Program` - in general, nothing below this line needs to be edited.
 
 In general, `tensordot` is the best method to use for small systems if you just want it to run without fuss. For small systems, I usually find `vec` to be faster, particularly when running on a single thread, but as it's explicitly typed it can throw errors if you pass a dtype it's not expecting. For large systems and/or normal-ordering, use `jit`, but beware the compilation overhead on the first call to the contraction functions.
 
