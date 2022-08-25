@@ -24,7 +24,6 @@ In general, `tensordot` is the best method to use for small systems if you just 
 
 The other files are as follows:
 
-* `flow_plots.ipnyb` : a Jupyter notebook for plotting the flow and testing convergence, for small systems only.
 * `ED/ed.py` : the exact diagonalization script, calls QuSpin and returns result.
 * `core/diag.py` : main body of the flow equation code, handles integration and computes RHS of differential equations.
 * `core/contract.py` : tensor contraction routines, using several different methods ('einsum', 'tendordot', 'jit', 'vec').
