@@ -25,78 +25,44 @@ with all possible computer systems. Use, modify and troubleshoot at your own ris
 This file contains all of the matrix/tensor contraction routines used to compute flow equations numerically.
 
 """
-
-import os
-from psutil import cpu_count
-# Set up threading options for parallel solver
-os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of OpenMP threads
-os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of MKL threads
-os.environ['NUMBA_NUM_THREADS'] = str(int(cpu_count(logical=False))) # Set number of Numba threads
+cimport cython
 import numpy as np
-from numba import guvectorize,float64,complex128
-# from numba import get_num_threads,threading_layer
-         
+cimport numpy as np
+DTYPE = np.float64
+       
 #------------------------------------------------------------------------------
-# guvectorize functions
-# Note the different functions for different combinations of Re/Im inputs
-# needed because of the explicit type declarations, not needed for jit
 
-@guvectorize([(float64[:,:],float64[:,:],float64[:,:])],'(n,n),(n,n)->(n,n)',target='cpu',nopython=True)
-def con_vec(A,B,C):
-    m,_=A.shape
-    for i in range(m):
-        for j in range(i,m):
-            C[i,j] = 0.
-            for k in range(m):
-                C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-            C[j,i] = C[i,j]
+@cython.boundscheck(False)  
+@cython.wraparound(False)  
+@cython.cdivision(True)
+# @guvectorize([(float64[:,:],float64[:,:],float64[:,:])],'(n,n),(n,n)->(n,n)',target='cpu',nopython=True)
+def cycon22(double[:,:] A,double[:,:] B, double[:,:]C):
 
-@guvectorize([(float64[:,:],float64[:,:],float64[:,:])],'(n,n),(n,n)->(n,n)',target='cpu',nopython=True)
-def con_vec_anti(A,B,C):
-    m,_=A.shape
-    for i in range(m):
-        for j in range(i,m):
-            C[i,j] = 0.
-            for k in range(m):
-                C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-            C[j,i] = -C[i,j]
-
-@guvectorize([(float64[:,:],complex128[:,:],complex128[:,:])],'(n,n),(n,n)->(n,n)',target='cpu',nopython=True)
-def con_vec_comp(A,B,C):
-    m,_=A.shape
+    cdef int i,j,k,m
+    # m,_=A.shape
+    m = len(A[0])
     for i in range(m):
         for j in range(m):
+            # C[i,j] = 0.
             for k in range(m):
                 C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
+            # C[j,i] = C[i,j]
 
-@guvectorize([(complex128[:,:],complex128[:,:],complex128[:,:])],'(n,n),(n,n)->(n,n)',target='cpu',nopython=True)
-def con_vec_comp2(A,B,C):
-    m,_=A.shape
-    for i in range(m):
-        for j in range(m):
-            C[i,j] = 0.
-            for k in range(m):
-                C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-    
-@guvectorize([(float64[:,:],complex128[:,:],complex128[:,:])],'(n,n),(n,n)->(n,n)',target='cpu',nopython=True)
-def con_vec_comp3(A,B,C):
-    m,_=A.shape
-    for i in range(m):
-        for j in range(m):
-            C[i,j] = 0.
-            for k in range(m):
-                C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
+    return C
 
-@guvectorize([(float64[:,:,:,:],float64[:,:],float64[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec42(A,B,C):
-    m,_,_,_=A.shape
-    # D = np.zeros(A.shape,dtype=np.int8)
+@cython.boundscheck(False)  
+@cython.wraparound(False)  
+@cython.cdivision(True)
+# @guvectorize([(float64[:,:,:,:],float64[:,:],float64[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
+def cycon_42(double[:,:,:,:] A,double[:,:] B,double[:,:,:,:] C):
+    cdef int i,j,k,q,m,l
+    # m,_,_,_=A.shape
+    m = len(A[0,0,0])
     for i in range(m):
         for j in range(m):
             for k in range(m):
                 for q in range(m):
-                    # if D[i,j,k,q] == 0:
-                        # C[i,j,k,q] = 0.
+
                         for l in range(m):
 
                             C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
@@ -106,44 +72,35 @@ def con_vec42(A,B,C):
                             C[i,j,k,q] += A[i,l,k,q]*B[l,j]
                             
                             C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
+    return C
 
 
-
-@guvectorize([(float64[:,:,:,:],float64[:,:],float64[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec42_anti(A,B,C):
-    m,_,_,_=A.shape
-    D = np.zeros(A.shape,dtype=np.int8)
+@cython.boundscheck(False)  
+@cython.wraparound(False)  
+@cython.cdivision(True)
+# @guvectorize([(float64[:,:,:,:],float64[:,:],float64[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
+def cycon_42_firstpair(double[:,:,:,:] A,double[:,:] B,double[:,:,:,:] C):
+    cdef int i,j,k,q,m,l
+    # m,_,_,_=A.shape
+    m = len(A[0,0,0])
     for i in range(m):
         for j in range(m):
             for k in range(m):
                 for q in range(m):
-                    if D[i,j,k,q] == 0:
-                        C[i,j,k,q] = 0.
-                        for l in range(m):
+                    # C[i,j,k,q] = 0.
+                    for l in range(m):
+                        C[i,j,k,q] += A[i,l,k,q]*B[l,j]
+                        C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
+    return C
 
-                            C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
-
-                            C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
-
-                            if j != q:
-                                C[i,j,k,q] += A[i,l,k,q]*B[l,j]
-                            elif j == q:
-                                C[i,j,k,q] += -A[i,l,k,q]*B[l,j]
-
-                            if i != k:
-                                C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
-                            elif i == k:
-                                C[i,j,k,q] += A[l,j,k,q]*B[i,l] 
-
-                        # C[q,k,j,i] = - C[i,j,k,q]
-                        # D[i,j,k,q] = 1
-                        # D[q,k,j,i] = 1
-
-
-
-@guvectorize([(float64[:,:,:,:],complex128[:,:],complex128[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec42_comp(A,B,C):
-    m,_,_,_=A.shape
+@cython.boundscheck(False)  
+@cython.wraparound(False)  
+@cython.cdivision(True)
+# @guvectorize([(float64[:,:,:,:],float64[:,:],float64[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
+def cycon_42_secondpair(double[:,:,:,:] A, double[:,:] B, double[:,:,:,:] C):
+    cdef int i,j,k,q,m
+    # m,_,_,_=A.shape
+    m = len(A[0,0,0])
     for i in range(m):
         for j in range(m):
             for k in range(m):
@@ -152,67 +109,18 @@ def con_vec42_comp(A,B,C):
                     for l in range(m):
                         C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
                         C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
-                        C[i,j,k,q] += A[i,l,k,q]*B[l,j]
-                        C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
- 
-@guvectorize([(complex128[:,:,:,:],float64[:,:],complex128[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec42_comp2(A,B,C):
-    m,_,_,_=A.shape
-    for i in range(m):
-        for j in range(m):
-            for k in range(m):
-                for q in range(m):
-                    C[i,j,k,q] = 0.
-                    for l in range(m):
-                        C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
-                        C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
-                        C[i,j,k,q] += A[i,l,k,q]*B[l,j]
-                        C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
+    return C
 
-@guvectorize([(complex128[:,:,:,:],complex128[:,:],complex128[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec42_comp3(A,B,C):
-    m,_,_,_=A.shape
-    for i in range(m):
-        for j in range(m):
-            for k in range(m):
-                for q in range(m):
-                    C[i,j,k,q] = 0.
-                    for l in range(m):
-                        C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
-                        C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
-                        C[i,j,k,q] += A[i,l,k,q]*B[l,j]
-                        C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
-
-@guvectorize([(float64[:,:,:,:],float64[:,:],float64[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec42_firstpair(A,B,C):
-    m,_,_,_=A.shape
-    for i in range(m):
-        for j in range(m):
-            for k in range(m):
-                for q in range(m):
-                    C[i,j,k,q] = 0.
-                    for l in range(m):
-                        C[i,j,k,q] += A[i,l,k,q]*B[l,j]
-                        C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
-
-@guvectorize([(float64[:,:,:,:],float64[:,:],float64[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec42_secondpair(A,B,C):
-    m,_,_,_=A.shape
-    for i in range(m):
-        for j in range(m):
-            for k in range(m):
-                for q in range(m):
-                    C[i,j,k,q] = 0.
-                    for l in range(m):
-                        C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
-                        C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
-
-
-@guvectorize([(float64[:,:,:,:],float64[:,:],float64[:],float64[:,:])],'(n,n,n,n),(n,n),(n)->(n,n)',target='cpu',nopython=True)
-def con_vec42_NO(A,B,state,C):
+@cython.boundscheck(False)  
+@cython.wraparound(False)  
+@cython.cdivision(True)
+# @guvectorize([(float64[:,:,:,:],float64[:,:],float64[:],float64[:,:])],'(n,n,n,n),(n,n),(n)->(n,n)',target='cpu',nopython=True)
+def cycon_42_NO(double[:,:,:,:] A, double[:,:] B, double[:] state, double[:,:] C):
     """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
-    m,_=B.shape
-    C = np.zeros(B.shape,dtype=np.float64)
+    cdef int i,j,k,q,m
+    # m,_=B.shape
+    m = len(B[0])
+    # C = np.zeros(B.shape,dtype=np.float64)
     for i in range(m):
         for j in range(m):
             # C[i,j] = 0.
@@ -223,11 +131,17 @@ def con_vec42_NO(A,B,state,C):
                         C[i,j] += A[k,q,i,j]*B[q,k]*(state[k]-state[q])
                         C[i,j] += -A[k,j,i,q]*B[q,k]*(state[k]-state[q])
                         C[i,j] += A[i,q,k,j]*B[q,k]*(state[k]-state[q])
+    return C
 
-@guvectorize([(float64[:,:,:,:],float64[:,:],float64[:],float64[:,:])],'(n,n,n,n),(n,n),(n)->(n,n)',target='cpu',nopython=True)
-def con_vec42_NO_secondpair(A,B,state,C):
+@cython.boundscheck(False)  
+@cython.wraparound(False)  
+@cython.cdivision(True)
+# @guvectorize([(float64[:,:,:,:],float64[:,:],float64[:],float64[:,:])],'(n,n,n,n),(n,n),(n)->(n,n)',target='cpu',nopython=True)
+def cycon_42_NO_secondpair(double[:,:,:,:] A, double[:,:] B, double[:] state, double[:,:] C):
     """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
-    m,_=B.shape
+    cdef int i,j,k,q,m
+    # m,_=B.shape
+    m = len(B[0])
     for i in range(m):
         for j in range(m):
             # C[i,j] = 0.
@@ -236,11 +150,17 @@ def con_vec42_NO_secondpair(A,B,state,C):
                     if state[k] != state[q]:
                         C[i,j] += A[i,j,k,q]*B[q,k]*(state[k]-state[q])
         # C[j,i] = C[i,j]
+    return C
 
-@guvectorize([(float64[:,:,:,:],float64[:,:],float64[:],float64[:,:])],'(n,n,n,n),(n,n),(n)->(n,n)',target='cpu',nopython=True)
-def con_vec42_NO_firstpair(A,B,state,C):
+@cython.boundscheck(False)  
+@cython.wraparound(False)  
+@cython.cdivision(True)
+# @guvectorize([(float64[:,:,:,:],float64[:,:],float64[:],float64[:,:])],'(n,n,n,n),(n,n),(n)->(n,n)',target='cpu',nopython=True)
+def cycon_42_NO_firstpair(double[:,:,:,:] A, double[:,:] B, double[:] state, double[:,:] C):
     """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
-    m,_=B.shape
+    cdef int i,j,k,q,m
+    # m,_=B.shape
+    m = len(B[0])
     for i in range(m):
         for j in range(m):
             # C[i,j] = 0.
@@ -249,16 +169,22 @@ def con_vec42_NO_firstpair(A,B,state,C):
                     if state[k] != state[q]:
                         C[i,j] += A[k,q,i,j]*B[q,k]*(state[k]-state[q])
         # C[j,i] = C[i,j]
+    return C
 
-@guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec44_NO(A,B,state,C):
-    m0,_,_,_=A.shape
+@cython.boundscheck(False)  
+@cython.wraparound(False)  
+@cython.cdivision(True)
+# @guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
+def cycon_44_NO(double[:,:,:,:] A,double[:,:,:,:] B,double[:] state,double[:,:,:,:] C):
+    cdef int i,j,k,q,l,m,m0
+    # m0,_,_,_=A.shape
+    m0 = len(A[0,0,0])
     for i in range(m0):
         for j in range(m0):
             for k in range(m0):
                 for q in range(m0):
                         # Indices to be summed over
-                        C[i,j,k,q] = 0.
+                        # C[i,j,k,q] = 0.
                         for l in range(m0):
                             for m in range(m0):
                                 if state[l] != state[m]:
@@ -293,10 +219,16 @@ def con_vec44_NO(A,B,state,C):
                                 C[i,j,k,q] +=  0.25*A[l,q,m,j]*(B[k,m,i,l]+B[k,l,i,m])*(state[l]+state[m]) #--
                                 C[i,j,k,q] +=  0.25*A[k,l,i,m]*(B[m,q,l,j]+B[l,q,m,j])*(state[l]+state[m]) #--
 
+    return C
 
-@guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec44_NO_up_mixed(A,B,state,C):
-    m0,_,_,_=A.shape
+@cython.boundscheck(False)  
+@cython.wraparound(False)  
+@cython.cdivision(True)
+# @guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
+def cycon_44_NO_up_mixed(double[:,:,:,:] A,double[:,:,:,:] B,double[:] state,double[:,:,:,:] C):
+    cdef int i,j,k,q,l,m,m0
+    # m0,_,_,_=A.shape
+    m0 = len(A[0,0,0])
     for i in range(m0):
         for j in range(m0):
             for k in range(m0):
@@ -324,10 +256,16 @@ def con_vec44_NO_up_mixed(A,B,state,C):
                                     C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[m,l,i,j])*(state[l]-state[m]) #+
                                     C[i,j,k,q] += -0.25*A[l,q,k,m]*(B[m,l,i,j])*(state[l]-state[m]) #-
                                     C[i,j,k,q] += -0.25*A[k,l,m,q]*(B[l,m,i,j])*(state[l]-state[m]) #-
+    return C
 
-@guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec44_NO_down_mixed(A,B,state,C):
-    m0,_,_,_=A.shape
+@cython.boundscheck(False)  
+@cython.wraparound(False)  
+@cython.cdivision(True)
+# @guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
+def cycon_44_NO_down_mixed(double[:,:,:,:] A,double[:,:,:,:] B,double[:] state,double[:,:,:,:] C):
+    cdef int i,j,k,q,l,m,m0
+    # m0,_,_,_=A.shape
+    m0 = len(A[0,0,0])
     for i in range(m0):
         for j in range(m0):
             for k in range(m0):
@@ -355,10 +293,16 @@ def con_vec44_NO_down_mixed(A,B,state,C):
                                     C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[i,j,m,l])*(state[l]-state[m]) #+
                                     C[i,j,k,q] += -0.25*A[l,q,k,m]*(B[i,j,m,l])*(state[l]-state[m]) #-
                                     C[i,j,k,q] += -0.25*A[k,l,m,q]*(B[i,j,l,m])*(state[l]-state[m]) #-
+    return C
 
-@guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n),(n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec44_NO_mixed(A,B,upstate,downstate,C):
-    m0,_,_,_=A.shape
+@cython.boundscheck(False)  
+@cython.wraparound(False)  
+@cython.cdivision(True)
+# @guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n),(n)->(n,n,n,n)',target='cpu',nopython=True)
+def cycon_44_NO_mixed(double[:,:,:,:] A,double[:,:,:,:] B,double[:] upstate,double[:] downstate,double[:,:,:,:] C):
+    cdef int i,j,k,q,l,m,m0
+    # m0,_,_,_=A.shape
+    m0 = len(A[0,0,0])
     for i in range(m0):
         for j in range(m0):
             for k in range(m0):
@@ -370,10 +314,16 @@ def con_vec44_NO_mixed(A,B,upstate,downstate,C):
                                 C[i,j,k,q] += A[i,l,m,q]*B[l,j,k,m]*(-upstate[l]+downstate[m])
                                 C[i,j,k,q] +=  -A[l,j,m,q]*(B[i,l,k,m])*(upstate[l]+downstate[m]) #--
                                 C[i,j,k,q] +=  A[i,l,k,m]*(B[l,j,m,q])*(upstate[l]+downstate[m]) #--
+    return C
 
-@guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec44_NO_mixed_mixed_up(A,B,state,C):
-    m0,_,_,_=A.shape
+@cython.boundscheck(False)  
+@cython.wraparound(False)  
+@cython.cdivision(True)
+# @guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
+def cycon_44_NO_mixed_mixed_up(double[:,:,:,:] A,double[:,:,:,:] B,double[:] state,double[:,:,:,:] C):
+    cdef int i,j,k,q,l,m,m0
+    # m0,_,_,_=A.shape
+    m0 = len(A[0,0,0])
     for i in range(m0):
         for j in range(m0):
             for k in range(m0):
@@ -386,10 +336,16 @@ def con_vec44_NO_mixed_mixed_up(A,B,state,C):
                                     C[i,j,k,q] += -0.25*A[i,q,l,m]*B[k,j,m,l]*(state[l]-state[m])
                                     C[i,j,k,q] += -0.25*A[k,j,l,m]*(B[i,q,m,l])*(state[l]-state[m]) 
                                     C[i,j,k,q] += 0.25*A[k,q,l,m]*(B[i,j,m,l])*(state[l]-state[m])
+    return C
 
-@guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
-def con_vec44_NO_mixed_mixed_down(A,B,state,C):
-    m0,_,_,_=A.shape
+@cython.boundscheck(False)  
+@cython.wraparound(False)  
+@cython.cdivision(True)
+# @guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
+def cycon_44_NO_mixed_mixed_down(double[:,:,:,:] A,double[:,:,:,:] B,double[:] state,double[:,:,:,:] C):
+    cdef int i,j,k,q,l,m,m0
+    # m0,_,_,_=A.shape
+    m0 = len(A[0,0,0])
     for i in range(m0):
         for j in range(m0):
             for k in range(m0):
@@ -402,3 +358,4 @@ def con_vec44_NO_mixed_mixed_down(A,B,state,C):
                                     C[i,j,k,q] += -0.25*A[l,m,i,q]*(B[m,l,k,j])*(state[l]-state[m])
                                     C[i,j,k,q] += -0.25*A[l,m,k,j]*(B[m,l,i,q])*(state[l]-state[m])
                                     C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[m,l,i,j])*(state[l]-state[m])
+    return C

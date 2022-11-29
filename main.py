@@ -58,19 +58,19 @@ mpl.rcParams['mathtext.rm'] = 'serif'
 L = int(sys.argv[1])            # Linear system size
 dim = 1                         # Spatial dimension
 n = L**dim                      # Total number of sites
-species = 'spinless fermion'    # Type of particle
-dsymm = 'spin'                  # Type of disorder (spinful fermions only)
+species = 'spinful fermion'    # Type of particle
+dsymm = 'charge'                  # Type of disorder (spinful fermions only)
 Ulist = [0.1]
 # List of interaction strengths
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
-dis = [0.8+0.04*i for i in range(11)]    
-# dis = [0.8,0.9,1.0,1.1,1.2]                
+# dis = [0.8+0.04*i for i in range(11)]    
+dis = [5.0]                
 # List of disorder strengths
 lmax = 150                      # Flow time max
 qmax = 750                      # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
-norm = False                    # Normal-ordering, can be true or false
+norm = True                    # Normal-ordering, can be true or false
 no_state = 'SDW'                # State to use for normal-ordering, can be CDW or SDW
                                 # For vacuum normal-ordering, just set norm=False
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)

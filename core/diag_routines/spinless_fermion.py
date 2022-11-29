@@ -395,8 +395,8 @@ def liom_ode(l,y,n,array,method='vec',comp=False,Hflow=True,norm=False):
             sol4_no = contractNO(eta4,n4,method=method,eta=False,state=state)
             sol2 += sol4_no
 
-    if np.abs(sol2[0,1,2,3])>1e-5 and np.round(sol2[0,1,2,3],5)!=np.round(sol2[3,2,1,0],5):
-            print('liom check',np.round(sol2[0,1,2,3],5)==np.round(sol2[3,2,1,0],5),sol2[0,1,2,3],sol2[3,2,1,0])
+    # if np.abs(sol2[0,1,2,3])>1e-5 and np.round(sol2[0,1,2,3],5)!=np.round(sol2[3,2,1,0],5):
+    #         print('liom check',np.round(sol2[0,1,2,3],5)==np.round(sol2[3,2,1,0],5),sol2[0,1,2,3],sol2[3,2,1,0])
 
     # Load solution into output array
     sol0[:n**2] = sol.reshape(n**2)
