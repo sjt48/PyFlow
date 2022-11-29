@@ -91,7 +91,7 @@ OR
 * Possibility to study dissipative systems by using non-Hermitian Hamiltonians?
 * Add Majorana functionality. (Done in different codebase...)
 * Timing tests for einsum/tensordot/jit and MKL/BLAS?
-* Add Cython as a method? Not good for GPUs, but useful for CPUs.
+* ~~Add Cython as a method? Not good for GPUs, but useful for CPUs.~~ **Done - to be tested thoroughly.**
 * Add old version of writing differential equations explicitly? Useful for systems not easily encoded as tensors.
 * Add momentum space flow, for translationally invariant systems or systems deep in delocalized phase. (Added, commented out until tested.)
 * Try to add spins? Their commutation relations are not friendly, but there must be some way to automate it.
