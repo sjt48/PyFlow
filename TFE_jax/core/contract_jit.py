@@ -35,6 +35,7 @@ os.environ['NUMBA_NUM_THREADS'] = str(int(cpu_count(logical=False))) # Set numbe
 import numpy as np
 from numba import jit,prange,float64
 # from numba import get_num_threads,threading_layer
+#import numpy
 
 #------------------------------------------------------------------------------
 # jit functions which return a matrix

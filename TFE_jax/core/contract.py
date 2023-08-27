@@ -26,13 +26,15 @@ This file contains all of the matrix/tensor contraction routines used to compute
 
 """
 
-import os
+import os, functools
 from psutil import cpu_count
 # Set up threading options for parallel solver
 os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of OpenMP threads
 os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False))) # Set number of MKL threads
 os.environ['NUMBA_NUM_THREADS'] = str(int(cpu_count(logical=False))) # Set number of Numba threads
+os.environ['JAX_ENABLE_X64'] = 'true'  
 import jax.numpy as jnp
+from jax.experimental.host_callback import id_print
 from .contract_vec import *
 from .contract_jit import *
 
@@ -46,25 +48,146 @@ def contract(A,B,method='jit',comp=False,eta=False,pair=None):
     # B = B.astype(np.float64)
     if A.ndim == B.ndim == 2:
         con = con22(A,B,method,comp,eta)
+    elif A.ndim == B.ndim == 4:
+        con = con44(A,B,method,comp,eta)
+
     if A.ndim != B.ndim:
-        if A.ndim == 4:
-            if B.ndim == 2:
-                if pair == None:
-                    con = con42(A,B,method,comp)
-                elif pair == 'first':
-                    con = con42_firstpair(A,B,method,comp)
-                elif pair == 'second':
-                    con = con42_secondpair(A,B,method,comp)
-        if A.ndim == 2:
-            if B.ndim == 4:
-                if pair == None:
-                    con = con24(A,B,method,comp)
-                elif pair == 'first':
-                    con = con24_firstpair(A,B,method,comp)
-                elif pair == 'second':
-                    con = con24_secondpair(A,B,method,comp)
+        if A.ndim == 4 and B.ndim == 2:
+            if pair == None:
+                con = con42(A,B,method,comp)
+            elif pair == 'first':
+                con = con42_firstpair(A,B,method,comp)
+            elif pair == 'second':
+                con = con42_secondpair(A,B,method,comp)
+
+        elif A.ndim == 2 and B.ndim == 4:
+            if pair == None:
+                con = con24(A,B,method,comp)
+            elif pair == 'first':
+                con = con24_firstpair(A,B,method,comp)
+            elif pair == 'second':
+                con = con24_secondpair(A,B,method,comp)
+
+        elif A.ndim == 2 and B.ndim == 1:
+            con = con21(A,B,method)
+        elif A.ndim == 4 and B.ndim == 1:
+            con = con41(A,B,method)
+        elif A.ndim == 1 and B.ndim == 2:
+            con = -1*con21(B,A,method)
+        elif A.ndim == 1 and B.ndim == 4:
+            con = -1*con41(B,A,method)
+        elif A.ndim == 2 and B.ndim == 3:
+            con = con23(A,B,method)
+        elif A.ndim == 3 and B.ndim == 2:
+            con = -1*con23(B,A,method)
+
+        elif A.ndim == 2 and B.ndim == 5:
+            con = con25(A,B,method)
+        elif A.ndim == 5 and B.ndim == 2:
+            con = -1*con25(B,A,method)
+        elif A.ndim == 4 and B.ndim == 3:
+            con = con43(A,B,method)
+        elif A.ndim == 3 and B.ndim == 4:
+            con = -1*con43(B,A,method)
+
+        elif A.ndim == 6 and B.ndim == 1:
+            con = con61(A,B,method)
+        elif A.ndim == 1 and B.ndim == 6:
+            con = -1*con61(B,A,method)
+
+        elif A.ndim == 6 and B.ndim == 2:
+            con = con62(A,B,method)
+        elif A.ndim == 2 and B.ndim == 6:
+            con = -1*con62(B,A,method)
+
     # print(get_num_threads())
     # print("Threading layer: %s" % threading_layer())
+
+    return con
+
+def con21(A,B,method):
+
+    if method == 'einsum':
+        con = jnp.einsum('ab,b->a',A,B,optimize=True) 
+    elif method == 'tensordot':
+        con = jnp.tensordot(A,B,axes=[1,0])
+
+    return con
+
+def con41(A,B,method='einsum'):
+
+    if method == 'einsum':
+        con =  jnp.einsum('abcd,b->acd',A,B,optimize=True) 
+        con += -jnp.einsum('abcd,d->acb',A,B,optimize=True)
+    # elif method == 'tensordot':
+    #     con =  jnp.tensordot(A,B,axes=[1,0])
+    #     con += -jnp.tensordot(A,B,axes=[3,0])
+
+    n,_,_,_ = A.shape
+    mask = no_helper3(n)
+    con = jnp.multiply(mask,con.reshape(n**3))
+    con = con.reshape(n,n,n)
+
+    return con
+
+def con23(A,B,method):
+
+    con =   jnp.einsum('ab,bcd->acd',A,B,optimize=True)
+    con +=  jnp.einsum('ab,cbd->acd',A,B,optimize=True)
+    con += -jnp.einsum('ab,cda->cdb',A,B,optimize=True)
+
+    n,_ = A.shape
+    mask = no_helper3(n)
+    con = jnp.multiply(mask,con.reshape(n**3))
+    con = con.reshape(n,n,n)
+
+    return con
+
+def con43(A,B,method):
+
+    con =  jnp.einsum('abcd,def->acebf',A,B,optimize=True)
+    con += -jnp.einsum('abcd,edf->acebf',A,B,optimize=True)
+    con += -jnp.einsum('abcd,bef->acedf',A,B,optimize=True)
+    con += jnp.einsum('abcd,ebf->acedf',A,B,optimize=True)
+    con +=  -jnp.einsum('abcd,efc->efabd',A,B,optimize=True) #
+    con +=  jnp.einsum('abcd,efa->efcbd',A,B,optimize=True)  #
+
+    return con
+
+
+def con25(A,B,method):
+
+    con =  jnp.einsum('al,lbcde->abcde',A,B,optimize=True)
+    con += -jnp.einsum('al,blcde->abcde',A,B,optimize=True)
+    con += jnp.einsum('al,bclde->abcde',A,B,optimize=True)
+
+    con += +jnp.einsum('la,bcdle->bcdae',A,B,optimize=True)
+    con += -jnp.einsum('la,bcdel->bcdae',A,B,optimize=True)
+
+    return con
+
+def con61(A,B,method):
+
+    con =  -jnp.einsum('abcdel,l->acebd',A,B,optimize=True)
+    con += jnp.einsum('abclde,l->acdbe',A,B,optimize=True)
+    con += -jnp.einsum('albcde,l->abdce',A,B,optimize=True)
+
+    return con
+
+def con62(A,B,method):
+
+    con =  jnp.einsum('abcdef,fg->abcdeg',A,B,optimize=True)
+    con += jnp.einsum('abcdef,dg->abcgef',A,B,optimize=True)
+    con += jnp.einsum('abcdef,bg->agcdef',A,B,optimize=True)
+
+    con += -jnp.einsum('abcdef,ge->abcdgf',A,B,optimize=True)
+    con += -jnp.einsum('abcdef,gc->abgdef',A,B,optimize=True)
+    con += -jnp.einsum('abcdef,ga->gbcdef',A,B,optimize=True)
+
+    n,_ = B.shape
+    mask = no_helper6(n)
+    con = jnp.multiply(mask,con.reshape(n**6))
+    con = con.reshape(n,n,n,n,n,n)
 
     return con
 
@@ -140,6 +263,27 @@ def contractNO2(A,B,method='jit',comp=False,eta=False,state=[],pair=None):
                 con = con24_NO(A,B,method=method,comp=comp,state=state,pair=pair)
     return con
 
+def con44(A,B,method='einsum',comp=False,eta=False):
+
+    C =  jnp.einsum('abcd,defg->abcefg',A,B,optimize=True)
+    C += jnp.einsum('abcd,efdg->abcgef',A,B,optimize=True)
+
+    C += -jnp.einsum('abcd,ecfg->abedfg',A,B,optimize=True)
+    C += -jnp.einsum('abcd,efgc->abgdef',A,B,optimize=True)
+
+    C += jnp.einsum('abcd,befg->aecdfg',A,B,optimize=True)
+    C += jnp.einsum('abcd,efgb->agcdef',A,B,optimize=True)
+
+    C += -jnp.einsum('abcd,eafg->ebcdfg',A,B,optimize=True)
+    C += -jnp.einsum('abcd,efga->gbcdef',A,B,optimize=True)
+
+    n,_,_,_ = B.shape
+    mask = no_helper6(n)
+    C = jnp.multiply(mask,C.reshape(n**6))
+    C = C.reshape(n,n,n,n,n,n)
+
+    return C
+
 # Contract square matrices (matrix multiplication)
 def con22(A,B,method='jit',comp=False,eta=False):
     """ Contraction function for matrices.
@@ -169,7 +313,7 @@ def con22(A,B,method='jit',comp=False,eta=False):
     """
 
     if method == 'einsum':
-        return jnp.einsum('ij,jk->ik',A,B) - jnp.einsum('ki,ij->kj',B,A)
+        return jnp.einsum('ij,jk->ik',A,B,optimize=True) - jnp.einsum('ki,ij->kj',B,A,optimize=True)
     elif method == 'tensordot':
         return jnp.tensordot(A,B,axes=1) - jnp.tensordot(B,A,axes=1)
     elif method == 'jit' and comp==False:
@@ -199,6 +343,33 @@ def con22(A,B,method='jit',comp=False,eta=False):
             con_vec_comp3(A,B,con)
         return con
     
+# @functools.lru_cache(maxsize=None)
+def no_helper(n):
+    test = np.ones((n,n,n,n),dtype=np.int8)
+    for i in range(n):
+            test[i,:,i,:] = 0
+            test[:,i,:,i] = 0
+    return jnp.array(test.reshape(n**4))
+
+def no_helper3(n):
+    test = np.ones((n,n,n),dtype=np.int8)
+    for i in range(n):
+        test[i,i,:] = 0
+    return jnp.array(test.reshape(n**3))
+
+def no_helper6(n):
+    test = np.ones((n,n,n,n,n,n),dtype=np.int8)
+    for i in range(n):
+            test[i,:,i,:,:,:] = 0
+            test[i,:,:,:,i,:] = 0
+            test[:,:,i,:,i,:] = 0
+
+            test[:,i,:,i,:,:] = 0
+            test[:,i,:,:,:,i] = 0
+            test[:,:,:,i,:,i] = 0
+
+    return jnp.array(test.reshape(n**6))
+
 # Contract rank-4 tensor with square matrix
 def con42(A,B,method='jit',comp=False):
     """ Contraction function for a rank-4 tensor and a matrix (rank-2 tensor).
@@ -229,10 +400,15 @@ def con42(A,B,method='jit',comp=False):
     """
 
     if method == 'einsum':
-        con = jnp.einsum('abcd,df->abcf',A,B) 
+        con = jnp.einsum('abcd,df->abcf',A,B,optimize=True) 
         con += -jnp.einsum('abcd,ec->abed',A,B,optimize=True)
+
         con += jnp.einsum('abcd,bf->afcd',A,B,optimize=True)
+        # con += -jnp.einsum('abcd,bf->adcf',A,B,optimize=True)
+
         con += -jnp.einsum('abcd,ea->ebcd',A,B,optimize=True)
+        # con += jnp.einsum('abcd,ea->cbed',A,B,optimize=True)
+
     elif method == 'tensordot':
         con = - jnp.moveaxis(jnp.tensordot(A,B,axes=[0,1]),[0,1,2,3],[1,2,3,0])
         con += - jnp.moveaxis(jnp.tensordot(A,B,axes=[2,1]),[0,1,2,3],[0,1,3,2])
@@ -254,6 +430,11 @@ def con42(A,B,method='jit',comp=False):
         elif A.dtype == np.complex128 and B.dtype==np.complex128:
             con_vec42_comp3(A,B,con)
     
+    n,_ = B.shape
+    mask = no_helper(n)
+    con = jnp.multiply(mask,con.reshape(n**4))
+    con = con.reshape(n,n,n,n)
+
     return con
 
 # Contract square matrix with rank-4 tensor

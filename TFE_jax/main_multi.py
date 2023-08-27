@@ -145,7 +145,7 @@ def run(p):
                 # Create dictionary of parameters to pass to functions; avoids having to have too many function args
                 params = {"n":n,"delta":delta,"J":J,"cutoff":cutoff,"dis":dis,"dsymm":dsymm,"NO_state":no_state,"lmax":lmax,"qmax":qmax,"reps":reps,"norm":norm,
                             "Hflow":Hflow,"precision":precision,"method":method, "intr":intr,"dyn":dyn,"imbalance":imbalance,"species":species,
-                                "LIOM":LIOM, "dyn_MF":dyn_MF,"logflow":logflow,"dis_type":dis_type,"x":x,"tlist":tlist,"store_flow":store_flow}
+                                "LIOM":LIOM, "dyn_MF":dyn_MF,"logflow":logflow,"dis_type":dis_type,"x":x,"tlist":tlist,"store_flow":store_flow,"dim":dim}
 
                 #-----------------------------------------------------------------
                 # Initialise Hamiltonian

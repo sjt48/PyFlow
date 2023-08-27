@@ -27,29 +27,42 @@ and numerically integrate the flow equation to obtain a diagonal Hamiltonian.
 
 """
 
-import os
+import os,functools
 from psutil import cpu_count
 # Set up threading options for parallel solver
 os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False)))       # Set number of OpenMP threads to run in parallel
 os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False)))       # Set number of MKL threads to run in parallel
 os.environ['NUMBA_NUM_THREADS'] = str(int(cpu_count(logical=False)))    # Set number of Numba threads
+os.environ['JAX_ENABLE_X64'] = 'true'  
 import jax.numpy as jnp
 from jax import jit
+from jax import make_jaxpr
+from jax.lax import fori_loop
 import numpy as np
-from diffrax import diffeqsolve, ODETerm, Dopri5
+# from diffrax import diffeqsolve, ODETerm, Dopri5
 from jax.experimental.host_callback import id_print
-from jax.lax import dynamic_slice as slice
+import jax.random as jr
+# from jax.lax import dynamic_slice as slice
 # from jax.config import config
 # config.update("jax_enable_x64", True)
 from datetime import datetime
-from ..dynamics import dyn_con,dyn_exact
+from ..dynamics import dyn_con,dyn_exact,dyn_itc
 # from numba import jit,prange
 import gc,copy
 from ..contract import contract,contractNO
 from ..utility import nstate, state_spinless, indices
 from  jax.experimental.ode import odeint as ode
+from scipy.integrate import ode as ode_np
+#import matplotlib.pyplot as plt
+from jax.numpy.linalg import norm as frn
+
 
 #------------------------------------------------------------------------------ 
+
+#def frn(mat):
+#    mat = jnp.array(mat)
+#    n = len(mat.flatten())
+#    return frn2(mat)/n
 
 # @jit(nopython=True,parallel=True,fastmath=True,cache=True)
 def cut(y,n,cutoff,indices):
@@ -166,27 +179,82 @@ def eta_con(y,n,method='jit',norm=False):
 
     return eta
 
+# @functools.lru_cache(maxsize=None)
+def ex_helper(n):
+    test = np.zeros((n,n,n,n),dtype=np.int8)
+    for i in range(n):
+        for j in range(n):
+            test[i,i,j,j] = 1
+            test[i,j,j,i] = 1
+
+    return jnp.array(test.reshape(n**4))
+
+# @functools.lru_cache(maxsize=None)
+def ex_helper2(n):
+    test = np.zeros((n,n,n,n,n,n),dtype=np.int8)
+    for i in range(n):
+        for j in range(n):
+            for k in range(n):
+                test[i,i,j,j,k,k] = 1
+                test[i,i,j,k,k,j] = 1
+                test[i,j,j,i,k,k] = 1
+                test[i,j,k,i,j,k] = 1
+                test[i,j,j,k,k,i] = 1
+                test[i,j,k,k,j,i] = 1
+
+    return jnp.array(test.reshape(n**6))
+
+# @functools.lru_cache(maxsize=None)
+def ah_helper(n):
+    test = np.zeros((n,n,n,n),dtype=np.int8)
+    for i in range(n):
+        for j in range(n):
+            for k in range(n):
+                for q in range(n):
+                    if test[i,j,k,q] == 0:
+                        test[i,j,k,q] =  1
+                        test[q,k,j,i] = -1
+
+    return jnp.array(test.reshape(n**4))
+
+# def aH(A):
+#     n,_,_,_ = A.shape
+#     mask =ah_helper(n)
+#     Ah = jnp.multiply(mask,A.reshape(n**4))
+#     return Ah.reshape(n,n,n,n)
+
 def extract_diag(H2,Hint):
 
     n,_ = H2.shape
     H2_0 = jnp.diag(jnp.diag(H2))       # Define diagonal quadratic part H0
     V0 = H2 - H2_0                      # Define off-diagonal quadratic part
 
-    Hint0 = jnp.zeros((n,n,n,n))        # Define diagonal quartic part 
+    test = ex_helper(n)
 
-    # This loop structure looks weird but it's to avoid a mysterious segfault on some systems
-    # Including both updates in the same pair of loops can lead to crashes
-
-    for i in range(n):                  # Load Hint0 with values
-        for j in range(n):
-                Hint0 = Hint0.at[i,i,j,j].set(Hint[i,i,j,j])
-    for i in range(n):
-        for j in range(n):
-                Hint0 = Hint0.at[i,j,j,i].set(Hint[i,j,j,i])
+    Hint0 = jnp.multiply(test,Hint.reshape(n**4))
+    Hint0 = Hint0.reshape(n,n,n,n)
     Vint = Hint-Hint0
 
     return H2_0,V0,Hint0,Vint
 
+def extract_diag2(H2,Hint,H6):
+
+    n,_ = H2.shape
+    H2_0 = jnp.diag(jnp.diag(H2))       # Define diagonal quadratic part H0
+    V0 = H2 - H2_0                      # Define off-diagonal quadratic part
+
+    test = ex_helper(n)
+    test2 = ex_helper2(n)
+
+    Hint0 = jnp.multiply(test,Hint.reshape(n**4))
+    Hint0 = Hint0.reshape(n,n,n,n)
+    Vint = Hint-Hint0
+
+    H6_0 = jnp.multiply(test2,H6.reshape(n**6))
+    H6_0 = H6_0.reshape(n,n,n,n,n,n)
+    V6 = H6-H6_0
+
+    return H2_0,V0,Hint0,Vint,H6_0,V6
 
 #------------------------------------------------------------------------------
 
@@ -208,6 +276,7 @@ def extract_diag(H2,Hint):
 #                 # Load new array with diagonal values
 #                 B[i,i,j,j] = A[i,i,j,j]
 #     return B,A
+
 
 def int_ode(y,l,eta=[],method='einsum',norm=False,Hflow=True):
         """ Generate the flow equation for the interacting systems.
@@ -256,6 +325,580 @@ def int_ode(y,l,eta=[],method='einsum',norm=False,Hflow=True):
         # id_print(l)
         H2 = y[0]                           # Define quadratic part of Hamiltonian
         n,_ = H2.shape
+        # H2_0 = jnp.diag(jnp.diag(H2))       # Define diagonal quadratic part H0
+        # V0 = H2 - H2_0                      # Define off-diagonal quadratic part
+
+        Hint = y[1]                         # Define quartic part of Hamiltonian
+        # Hint0 = jnp.zeros((n,n,n,n))        # Define diagonal quartic part 
+        # for i in range(n):                  # Load Hint0 with values
+        #     for j in range(n):
+        #             Hint0 = Hint0.at[i,i,j,j].set(Hint[i,i,j,j])
+        #             Hint0 = Hint0.at[i,j,j,i].set(Hint[i,j,j,i])
+        # Vint = Hint-Hint0
+        # id_print(H2)
+
+        H2_0,V0,Hint0,Vint = extract_diag(H2,Hint)
+
+        if norm == True:
+            state = state_spinless(H2)
+
+        if Hflow == True:
+            # Compute the generator eta
+            eta0 = contract(H2_0,V0,method=method,eta=True)
+            eta_int = contract(Hint0,V0,method=method,eta=True) + contract(H2_0,Vint,method=method,eta=True)
+
+            # Add normal-ordering corrections into generator eta, if norm == True
+            if norm == True:
+
+                eta_no2 = contractNO(Hint,V0,method=method,eta=True,state=state) + contractNO(H2_0,Vint,method=method,eta=True,state=state)
+                eta0 += eta_no2
+
+                eta_no4 = contractNO(Hint0,Vint,method=method,eta=True,state=state)
+                eta_int += eta_no4
+        else:
+            eta0 = (eta[:n**2]).reshape(n,n)
+            eta_int = (eta[n**2:]).reshape(n,n,n,n)
+
+        # id_print(eta0)
+   
+        # Compute the RHS of the flow equation dH/dl = [\eta,H]
+        sol = contract(eta0,H2,method=method)
+        sol2 = contract(eta_int,H2,method=method) + contract(eta0,Hint,method=method)
+
+        # Add normal-ordering corrections into flow equation, if norm == True
+        if norm == True:
+            sol_no = contractNO(eta_int,H2,method=method,eta=False,state=state) + contractNO(eta0,Hint,method=method,eta=False,state=state)
+            sol4_no = contractNO(eta_int,Hint,method=method,eta=False,state=state)
+            sol+=sol_no
+            sol2 += sol4_no
+
+        # id_print([sol,sol2])
+        return [sol,sol2]
+
+
+def int_ode_ITC(y,l,eta=[],method='einsum',norm=False,Hflow=True):
+        """ Generate the flow equation for the interacting systems.
+
+        e.g. compute the RHS of dH/dl = [\eta,H] which will be used later to integrate H(l) -> H(l + dl)
+
+        Note that with the parameter Hflow = True, the generator will be recomputed as required. Using Hflow=False,
+        the ijnput array eta will be used to specify the generator at this flow time step. The latter option will result 
+        in a huge speed increase, at the potential cost of accuracy. This is because the SciPy routine used to 
+        integrate the ODEs will sometimes add intermediate steps: recomputing eta on the fly will result in these 
+        steps being computed accurately, while fixing eta will avoid having to recompute the generator every time an 
+        interpolation step is added (leading to a speed increase), however it will mean that the generator evaluated at 
+        these intermediate steps has errors of order <dl (where dl is the flow time step). For sufficiently small dl, 
+        the benefits from the speed increase likely outweigh the decrease in accuracy.
+
+        Parameters
+        ----------
+        l : float
+            The (fictitious) flow time l which parameterises the unitary transform.
+        y : array
+            Array of size n**2 + n**4 containing all coefficients of the running Hamiltonian at flow time l.
+        n : integer
+            Linear system size.
+        eta : array, optional
+            Provide a pre-computed generator, if desired.
+        method : string, optional
+            Specify which method to use to generate the RHS of the flow equations.
+            Method choices are 'einsum', 'tensordot', 'jit' and 'vectorize'.
+            The first two are built-in NumPy methods, while the latter two are custom coded for speed.
+        norm : bool, optional
+            Specify whether to use non-perturbative normal-ordering corrections (True) or not (False).
+            This may take a lot longer to run, but typically improves accuracy. Care must be taken to 
+            ensure that use of normal-ordering is warranted and that the contractions are computed with 
+            respect to an appropriate state.
+        Hflow : bool, optional
+            Choose whether to use pre-computed generator or re-compute eta on the fly.
+
+        Returns
+        -------
+        sol0 : RHS of the flow equation for interacting system.
+
+        """
+
+        H2 = y[0]                           # Define quadratic part of Hamiltonian
+        n,_ = H2.shape
+        Hint = y[1]                         # Define quartic part of Hamiltonian
+        H2_0,V0,Hint0,Vint = extract_diag(H2,Hint)
+        n2 = y[2]
+        n4 = y[3]
+
+        if norm == True:
+            state = state_spinless(H2)
+
+        if Hflow == True:
+            # Compute the generator eta
+            eta0 = contract(H2_0,V0,method=method,eta=True)
+            eta_int = contract(Hint0,V0,method=method,eta=True) + contract(H2_0,Vint,method=method,eta=True)
+
+            # Add normal-ordering corrections into generator eta, if norm == True
+            if norm == True:
+
+                eta_no2 = contractNO(Hint,V0,method=method,eta=True,state=state) + contractNO(H2_0,Vint,method=method,eta=True,state=state)
+                eta0 += eta_no2
+
+                eta_no4 = contractNO(Hint0,Vint,method=method,eta=True,state=state)
+                eta_int += eta_no4
+        else:
+            eta0 = (eta[:n**2]).reshape(n,n)
+            eta_int = (eta[n**2:]).reshape(n,n,n,n)
+
+        # id_print(eta0)
+   
+        # Compute the RHS of the flow equation dH/dl = [\eta,H]
+        sol = contract(eta0,H2,method=method)
+        sol2 = contract(eta_int,H2,method=method) + contract(eta0,Hint,method=method)
+
+        # Compute the RHS of the flow equation dH/dl = [\eta,H]
+        sol_n2 = contract(eta0,n2,method=method)
+        sol_n4 = contract(eta_int,n2,method=method) + contract(eta0,n4,method=method)
+
+        # Add normal-ordering corrections into flow equation, if norm == True
+        if norm == True:
+            sol_no = contractNO(eta_int,H2,method=method,eta=False,state=state) + contractNO(eta0,Hint,method=method,eta=False,state=state)
+            sol4_no = contractNO(eta_int,Hint,method=method,eta=False,state=state)
+            sol+=sol_no
+            sol2 += sol4_no
+
+            sol_n2_no = contractNO(eta_int,n2,method=method,eta=False,state=state) + contractNO(eta0,n4,method=method,eta=False,state=state)
+            sol_n4_no = contractNO(eta_int,n4,method=method,eta=False,state=state)
+            sol_n2+=sol_n2_no
+            sol_n4 += sol_n4_no
+
+        # id_print([sol,sol2])
+        return [sol,sol2,sol_n2,sol_n4]
+
+def res_test(i,j,a,b,c,res_cut,epsilon=0.0):
+    rand = np.random.uniform(-0.1,0.1)
+    rand = jnp.array(rand)
+    return jnp.where(jnp.abs(a)>jnp.abs(res_cut*(b-c)),jnp.sign(i-j)*a*(1+epsilon*rand),0)
+
+def res_test_int(i,j,k,q,a,b,c,res_cut,epsilon=0.0):
+    rand = np.random.uniform(-0.1,0.1)
+    rand = jnp.array(rand)
+    return jnp.where(jnp.abs(a)>jnp.abs(res_cut*(b-c)),jnp.sign(i-j+k-q)*a*(1+epsilon*rand),0)
+
+def sign_helper(n):
+    test = np.zeros((n,n,n,n),dtype=np.int8)
+    for i in range(n):
+        for j in range(n):
+            for k in range(n):
+                for q in range(n):
+                    if i != k and j != q and (i != j or k != q):
+                        test[i,j,k,q] = np.sign(i-j+k-q)
+    return jnp.array(test).reshape(n**4)
+
+def aH(A):
+    n,_,_,_ = A.shape
+    mask = sign_helper(n)
+    eta = jnp.multiply(mask,A.reshape(n**4))
+    return eta.reshape(n,n,n,n)
+
+def int_ode_random_O4(y,l,res_cut=0.75,method='einsum',norm=False):
+    """ Generate the flow equation for the interacting systems.
+
+    e.g. compute the RHS of dH/dl = [\eta,H] which will be used later to integrate H(l) -> H(l + dl)
+
+    Note that with the parameter Hflow = True, the generator will be recomputed as required. Using Hflow=False,
+    the input array eta will be used to specify the generator at this flow time step. The latter option will result 
+    in a huge speed increase, at the potential cost of accuracy. This is because the SciPy routine used to 
+    integrate the ODEs will sometimes add intermediate steps: recomputing eta on the fly will result in these 
+    steps being computed accurately, while fixing eta will avoid having to recompute the generator every time an 
+    interpolation step is added (leading to a speed increase), however it will mean that the generator evaluated at 
+    these intermediate steps has errors of order <dl (where dl is the flow time step). For sufficiently small dl, 
+    the benefits from the speed increase likely outweigh the decrease in accuracy.
+
+    Parameters
+    ----------
+    l : float
+        The (fictitious) flow time l which parameterises the unitary transform.
+    y : array
+        Array of size n**2 + n**4 containing all coefficients of the running Hamiltonian at flow time l.
+    n : integer
+        Linear system size.
+    eta : array, optional
+        Provide a pre-computed generator, if desired.
+    method : string, optional
+        Specify which method to use to generate the RHS of the flow equations.
+        Method choices are 'einsum', 'tensordot', 'jit' and 'vectorize'.
+        The first two are built-in NumPy methods, while the latter two are custom coded for speed.
+    norm : bool, optional
+        Specify whether to use non-perturbative normal-ordering corrections (True) or not (False).
+        This may take a lot longer to run, but typically improves accuracy. Care must be taken to 
+        ensure that use of normal-ordering is warranted and that the contractions are computed with 
+        respect to an appropriate state.
+    Hflow : bool, optional
+        Choose whether to use pre-computed generator or re-compute eta on the fly.
+
+    Returns
+    -------
+    sol0 : RHS of the flow equation for interacting system.
+
+    """
+
+    H2 = y[0]                           # Define quadratic part of Hamiltonian
+    n,_ = H2.shape
+    Hint = y[1]                         # Define quartic part of Hamiltonian
+    c1 = y[2]
+    c3 = y[3]
+    #_,_,_,Vint = extract_diag(H2,Hint)
+
+    eta0 = jnp.zeros((n,n))
+    # eta_int = jnp.zeros((n,n,n,n))
+    # eta_int = aH(Vint)
+
+    for i in range(n):
+        for j in range(n):
+            if i > j:
+                result = res_test(i,j,H2[i,j],H2[i,i],H2[j,j],res_cut)
+                eta0 = eta0.at[i,j].set(result)
+                eta0 = eta0.at[j,i].set(-1*result)
+ 
+            # for k in range(n):
+            #     for q in range(n):
+            #         if i != k and j != q and (i != j or k != q):
+            #             result = res_test_int(i,j,k,q,Hint[i,j,k,q],Hint[i,i,k,k],Hint[j,j,q,q],.5)
+            #             eta_int = eta_int.at[i,j,k,q].set(result)
+                        # eta_int = eta_int.at[q,k,j,i].set(-1*result)
+    
+    # Compute the RHS of the flow equation dH/dl = [\eta,H]
+    sol = contract(eta0,H2,method=method)
+    # sol2 = contract(eta_int,H2,method=method) + contract(eta0,Hint,method=method)
+    sol2 = contract(eta0,Hint,method=method)
+
+    # Compute the RHS of the flow equation dc/dl = [\eta,c]
+    sol_c1 = contract(eta0,c1,method=method)
+    # sol_c3 = contract(eta_int,c1,method=method) + contract(eta0,c3,method=method)
+    sol_c3 = contract(eta0,c3,method=method)
+    
+    return [sol,sol2,sol_c1,sol_c3]
+
+def int_ode_random_O6(y,l,res_cut=0.75,method='einsum',norm=False):
+    """ Generate the flow equation for the interacting systems.
+
+    e.g. compute the RHS of dH/dl = [\eta,H] which will be used later to integrate H(l) -> H(l + dl)
+
+    Note that with the parameter Hflow = True, the generator will be recomputed as required. Using Hflow=False,
+    the input array eta will be used to specify the generator at this flow time step. The latter option will result 
+    in a huge speed increase, at the potential cost of accuracy. This is because the SciPy routine used to 
+    integrate the ODEs will sometimes add intermediate steps: recomputing eta on the fly will result in these 
+    steps being computed accurately, while fixing eta will avoid having to recompute the generator every time an 
+    interpolation step is added (leading to a speed increase), however it will mean that the generator evaluated at 
+    these intermediate steps has errors of order <dl (where dl is the flow time step). For sufficiently small dl, 
+    the benefits from the speed increase likely outweigh the decrease in accuracy.
+
+    Parameters
+    ----------
+    l : float
+        The (fictitious) flow time l which parameterises the unitary transform.
+    y : array
+        Array of size n**2 + n**4 containing all coefficients of the running Hamiltonian at flow time l.
+    n : integer
+        Linear system size.
+    eta : array, optional
+        Provide a pre-computed generator, if desired.
+    method : string, optional
+        Specify which method to use to generate the RHS of the flow equations.
+        Method choices are 'einsum', 'tensordot', 'jit' and 'vectorize'.
+        The first two are built-in NumPy methods, while the latter two are custom coded for speed.
+    norm : bool, optional
+        Specify whether to use non-perturbative normal-ordering corrections (True) or not (False).
+        This may take a lot longer to run, but typically improves accuracy. Care must be taken to 
+        ensure that use of normal-ordering is warranted and that the contractions are computed with 
+        respect to an appropriate state.
+    Hflow : bool, optional
+        Choose whether to use pre-computed generator or re-compute eta on the fly.
+
+    Returns
+    -------
+    sol0 : RHS of the flow equation for interacting system.
+
+    """
+
+    H2 = y[0]                           # Define quadratic part of Hamiltonian
+    n,_ = H2.shape
+    Hint = y[1]                         # Define quartic part of Hamiltonian
+    c1 = y[2]
+    c3 = y[3]
+    H6 = y[4]
+    c5 = y[5]
+
+    eta0 = jnp.zeros((n,n))
+    for i in range(n):
+        for j in range(i):
+            result = res_test(i,j,H2[i,j],H2[i,i],H2[j,j],res_cut)
+            eta0 = eta0.at[i,j].set(result)
+            eta0 = eta0.at[j,i].set(-1*result)
+    #eta_int = jnp.zeros((n,n,n,n))
+
+    # _,_,_,Vint = extract_diag(H2,Hint)
+    # eta_int = aH(Vint)
+
+    # Compute the RHS of the flow equation dH/dl = [\eta,H]
+    sol =  contract(eta0,H2,method=method)
+    sol2 = contract(eta0,Hint,method=method)  #+ contract(eta_int,H2,method=method) 
+    sol3 = contract(eta0,H6)
+
+    # Compute the RHS of the flow equation dH/dl = [\eta,H]
+    sol_c1 = contract(eta0,c1,method=method)
+    sol_c3 = contract(eta0,c3,method=method) #+ contract(eta_int,c1,method=method)
+    sol_c5 = contract(eta0,c5,method=method)
+    
+    return [sol,sol2,sol_c1,sol_c3,sol3,sol_c5]
+
+def int_ode_toda(l,y,eta=[],method='einsum',norm=False,order=4):
+    """ Generate the flow equation for the interacting systems.
+
+    e.g. compute the RHS of dH/dl = [\eta,H] which will be used later to integrate H(l) -> H(l + dl)
+
+    Note that with the parameter Hflow = True, the generator will be recomputed as required. Using Hflow=False,
+    the ijnput array eta will be used to specify the generator at this flow time step. The latter option will result 
+    in a huge speed increase, at the potential cost of accuracy. This is because the SciPy routine used to 
+    integrate the ODEs will sometimes add intermediate steps: recomputing eta on the fly will result in these 
+    steps being computed accurately, while fixing eta will avoid having to recompute the generator every time an 
+    interpolation step is added (leading to a speed increase), however it will mean that the generator evaluated at 
+    these intermediate steps has errors of order <dl (where dl is the flow time step). For sufficiently small dl, 
+    the benefits from the speed increase likely outweigh the decrease in accuracy.
+
+    Parameters
+    ----------
+    l : float
+        The (fictitious) flow time l which parameterises the unitary transform.
+    y : array
+        Array of size n**2 + n**4 containing all coefficients of the running Hamiltonian at flow time l.
+    n : integer
+        Linear system size.
+    eta : array, optional
+        Provide a pre-computed generator, if desired.
+    method : string, optional
+        Specify which method to use to generate the RHS of the flow equations.
+        Method choices are 'einsum', 'tensordot', 'jit' and 'vectorize'.
+        The first two are built-in NumPy methods, while the latter two are custom coded for speed.
+    norm : bool, optional
+        Specify whether to use non-perturbative normal-ordering corrections (True) or not (False).
+        This may take a lot longer to run, but typically improves accuracy. Care must be taken to 
+        ensure that use of normal-ordering is warranted and that the contractions are computed with 
+        respect to an appropriate state.
+    Hflow : bool, optional
+        Choose whether to use pre-computed generator or re-compute eta on the fly.
+
+    Returns
+    -------
+    sol0 : RHS of the flow equation for interacting system.
+
+    """
+
+    H2 = y                           # Define quadratic part of Hamiltonian
+    n = int(np.sqrt(len(H2)//2))
+    H2 = H2[0:n**2].reshape(n,n)
+ 
+    eta0 = np.zeros((n,n))
+    eta1 = np.zeros((n,n))
+    reslist = res(n,H2)
+
+    epsilon = 0.0
+    for r in reslist:
+        print(r)
+        eta0[r[0],r[1]] = np.sign(r[0]-r[1])*r[2] #*(1+epsilon*np.random.uniform(-0.1,0.1))
+        eta0[r[1],r[0]] = -eta0[r[0],r[1]]
+    eta0 = np.array(eta0)
+
+    # Compute the RHS of the flow equation dH/dl = [\eta,H]
+    sol = contract(eta0,H2,method=method)
+
+    output = np.zeros(2*n**2)
+    output[0:n**2] = sol.reshape(n**2)
+    output[n**2:] = eta0.reshape(n**2)
+    return output
+
+def int_ode_ladder(y,l,eta=[],method='einsum',norm=False,Hflow=True,order=4):
+    """ Generate the flow equation for the interacting systems.
+
+    e.g. compute the RHS of dH/dl = [\eta,H] which will be used later to integrate H(l) -> H(l + dl)
+
+    Note that with the parameter Hflow = True, the generator will be recomputed as required. Using Hflow=False,
+    the ijnput array eta will be used to specify the generator at this flow time step. The latter option will result 
+    in a huge speed increase, at the potential cost of accuracy. This is because the SciPy routine used to 
+    integrate the ODEs will sometimes add intermediate steps: recomputing eta on the fly will result in these 
+    steps being computed accurately, while fixing eta will avoid having to recompute the generator every time an 
+    interpolation step is added (leading to a speed increase), however it will mean that the generator evaluated at 
+    these intermediate steps has errors of order <dl (where dl is the flow time step). For sufficiently small dl, 
+    the benefits from the speed increase likely outweigh the decrease in accuracy.
+
+    Parameters
+    ----------
+    l : float
+        The (fictitious) flow time l which parameterises the unitary transform.
+    y : array
+        Array of size n**2 + n**4 containing all coefficients of the running Hamiltonian at flow time l.
+    n : integer
+        Linear system size.
+    eta : array, optional
+        Provide a pre-computed generator, if desired.
+    method : string, optional
+        Specify which method to use to generate the RHS of the flow equations.
+        Method choices are 'einsum', 'tensordot', 'jit' and 'vectorize'.
+        The first two are built-in NumPy methods, while the latter two are custom coded for speed.
+    norm : bool, optional
+        Specify whether to use non-perturbative normal-ordering corrections (True) or not (False).
+        This may take a lot longer to run, but typically improves accuracy. Care must be taken to 
+        ensure that use of normal-ordering is warranted and that the contractions are computed with 
+        respect to an appropriate state.
+    Hflow : bool, optional
+        Choose whether to use pre-computed generator or re-compute eta on the fly.
+
+    Returns
+    -------
+    sol0 : RHS of the flow equation for interacting system.
+
+    """
+    if len(y) == 6:
+        order = 4
+    elif len(y) == 8:
+        order = 6
+
+    H2 = y[0]                           # Define quadratic part of Hamiltonian
+    n,_ = H2.shape
+    Hint = y[1]                         # Define quartic part of Hamiltonian
+
+    if order == 4:
+        H2_0,V0,Hint0,Vint = extract_diag(H2,Hint)
+        c1 = y[2]
+        c3 = y[3]
+    elif order == 6:
+        H6 = y[2]
+        H2_0,V0,Hint0,Vint,H6_0,V6 = extract_diag2(H2,Hint,H6)
+        c1 = y[3]
+        c3 = y[4]
+        c5 = y[5]
+
+    if norm == True:
+        state = state_spinless(H2)
+
+    if Hflow == True:
+        # Compute the generator eta
+        eta0 = contract(H2_0,V0,method=method,eta=True)
+        eta_int = contract(Hint0,V0,method=method,eta=True) + contract(H2_0,Vint,method=method,eta=True)
+
+        # Add normal-ordering corrections into generator eta, if norm == True
+        if norm == True:
+
+            eta_no2 = contractNO(Hint,V0,method=method,eta=True,state=state) + contractNO(H2_0,Vint,method=method,eta=True,state=state)
+            eta0 += eta_no2
+
+            eta_no4 = contractNO(Hint0,Vint,method=method,eta=True,state=state)
+            eta_int += eta_no4
+
+        if order == 6:
+            eta_6 =  contract(Hint0,Vint,method=method,eta=True) 
+            eta_6 += contract(H2_0,V6)
+            eta_6 += contract(H6_0,V0)
+
+    else:
+        eta0 = (eta[:n**2]).reshape(n,n)
+        eta_int = (eta[n**2:]).reshape(n,n,n,n)
+
+    # for i in range(n):
+    #     for j in range(n):
+    #         for k in range(n):
+    #             for q in range(n):
+    #                 for l in range(n):
+    #                     for m in range(n):
+    #                             id_print(100000000000000000)
+    #                             id_print(eta_6[i,j,k,q,l,m])
+    #                             id_print(eta_6[m,l,q,k,j,i])
+
+    # Compute the RHS of the flow equation dH/dl = [\eta,H]
+    sol = contract(eta0,H2,method=method)
+    sol2 = contract(eta_int,H2,method=method) + contract(eta0,Hint,method=method)
+    if order == 6:
+        sol3 = contract(eta_int,Hint,method=method,eta=False) 
+        sol3 += contract(eta_6,H2,method=method,eta=False)
+        sol3 += contract(eta0,H6,method=method,eta=False)
+
+    # Compute the RHS of the flow equation dH/dl = [\eta,H]
+    sol_c1 = contract(eta0,c1,method=method)
+    sol_c3 = contract(eta_int,c1,method=method) + contract(eta0,c3,method=method)
+
+    if order == 6:
+        sol_c5 = contract(eta0,c5,method=method) 
+        sol_c5 = contract(eta_6,c1,method=method)
+        sol_c5 += contract(eta_int,c3,method=method)
+
+    # Add normal-ordering corrections into flow equation, if norm == True
+    if norm == True:
+        sol_no = contractNO(eta_int,H2,method=method,eta=False,state=state) + contractNO(eta0,Hint,method=method,eta=False,state=state)
+        sol4_no = contractNO(eta_int,Hint,method=method,eta=False,state=state)
+        sol+=sol_no
+        sol2 += sol4_no
+
+        sol_c1_no = contractNO(eta_int,c1,method=method,eta=False,state=state) + contractNO(eta0,c3,method=method,eta=False,state=state)
+        sol_c3_no = contractNO(eta_int,c3,method=method,eta=False,state=state)
+        sol_c1 += sol_c1_no
+        sol_c3 += sol_c3_no
+
+    if order == 4:
+        n1 = frn(eta0)*frn(H2)+frn(eta0)*frn(Hint)+frn(eta_int)*frn(H2)
+        n2 = frn(eta_int)*frn(Hint)
+    elif order == 6:
+        n1 = frn(eta0)*frn(H2)+frn(eta0)*frn(Hint)+frn(eta_int)*frn(H2)+frn(eta_int)*frn(Hint)+frn(eta_6)*frn(H2)+frn(eta0)*frn(H6)
+        n2 = frn(eta_int)*frn(H6) + frn(eta_6)*frn(Hint) + frn(eta_6)*frn(H6)
+
+    if order == 4:
+        return [sol,sol2,sol_c1,sol_c3,n1,n2]
+    elif order == 6:
+        return [sol,sol2,sol3,sol_c1,sol_c3,sol_c5,n1,n2]
+
+def int_ode2(y,l,eta=[],method='einsum',norm=False,Hflow=True):
+        """ Generate the flow equation for the interacting systems.
+
+        e.g. compute the RHS of dH/dl = [\eta,H] which will be used later to integrate H(l) -> H(l + dl)
+
+        Note that with the parameter Hflow = True, the generator will be recomputed as required. Using Hflow=False,
+        the ijnput array eta will be used to specify the generator at this flow time step. The latter option will result 
+        in a huge speed increase, at the potential cost of accuracy. This is because the SciPy routine used to 
+        integrate the ODEs will sometimes add intermediate steps: recomputing eta on the fly will result in these 
+        steps being computed accurately, while fixing eta will avoid having to recompute the generator every time an 
+        interpolation step is added (leading to a speed increase), however it will mean that the generator evaluated at 
+        these intermediate steps has errors of order <dl (where dl is the flow time step). For sufficiently small dl, 
+        the benefits from the speed increase likely outweigh the decrease in accuracy.
+
+        Parameters
+        ----------
+        l : float
+            The (fictitious) flow time l which parameterises the unitary transform.
+        y : array
+            Array of size n**2 + n**4 containing all coefficients of the running Hamiltonian at flow time l.
+        n : integer
+            Linear system size.
+        eta : array, optional
+            Provide a pre-computed generator, if desired.
+        method : string, optional
+            Specify which method to use to generate the RHS of the flow equations.
+            Method choices are 'einsum', 'tensordot', 'jit' and 'vectorize'.
+            The first two are built-in NumPy methods, while the latter two are custom coded for speed.
+        norm : bool, optional
+            Specify whether to use non-perturbative normal-ordering corrections (True) or not (False).
+            This may take a lot longer to run, but typically improves accuracy. Care must be taken to 
+            ensure that use of normal-ordering is warranted and that the contractions are computed with 
+            respect to an appropriate state.
+        Hflow : bool, optional
+            Choose whether to use pre-computed generator or re-compute eta on the fly.
+
+        Returns
+        -------
+        sol0 : RHS of the flow equation for interacting system.
+
+        """
+        # print('y shape', y.shape)
+        # Extract various components of the Hamiltonian from the ijnput array 'y'
+        # id_print(y)
+        # id_print(l)
+        H2 = y[0]                           # Define quadratic part of Hamiltonian
+        n,_,_,_ = H2.shape
+        H2 = H2[::,::,0,0]
         # H2_0 = jnp.diag(jnp.diag(H2))       # Define diagonal quadratic part H0
         # V0 = H2 - H2_0                      # Define off-diagonal quadratic part
 
@@ -883,6 +1526,18 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
         # term = ODETerm(int_ode)
         # solver = Dopri5()
 
+        sol2_test=jnp.zeros((len(dl_list),n,n,n,n))
+        sol2_test=sol2_test.at[::,::,::,0,0].set(sol2)
+
+        # print('jax list')
+        # print(make_jaxpr(int_ode)([jnp.zeros((n,n)),jnp.zeros((n,n,n,n))],0.1))
+        # print('*****************************************************')
+        # print('*****************************************************')
+        # print('*****************************************************')
+        # print('*****************************************************')
+        # print('jax array')
+        # print(make_jaxpr(int_ode2)(jnp.array([jnp.zeros((n,n,n,n)),jnp.zeros((n,n,n,n))]),0.1))
+
         while k <len(dl_list) and J0 > cutoff:
             # print(k)
             steps = np.linspace(dl_list[k-1],dl_list[k],num=increment,endpoint=True)
@@ -994,8 +1649,7 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
     HFint = jnp.zeros(n**2).reshape(n,n)
     for i in range(n):
         for j in range(n):
-            HFint = HFint.at[i,j].set(Hint2[i,i,j,j])
-            HFint = HFint.at[i,j].set(-Hint2[i,j,j,i])
+            HFint = HFint.at[i,j].set(Hint2[i,i,j,j]-Hint2[i,j,j,i])
 
     # Compute the difference in the second invariant of the flow at start and end
     # This acts as a measure of the unitarity of the transform
@@ -1116,6 +1770,455 @@ def flow_static_int(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hfl
 
     return output
     
+
+def flow_int_ITC(n,hamiltonian,dl_list,qmax,cutoff,tlist,method='jit',norm=True,Hflow=False,store_flow=False):
+    """
+    Diagonalise an initial interacting Hamiltonian, compute the forward integrals of motion and 
+    also compute the infinite-temperature autocorrelation function.
+
+    Parameters
+        ----------
+        n : integer
+            Linear system size.
+        H0 : array, float
+            Diagonal component of Hamiltonian
+        V0 : array, float
+            Off-diagonal component of Hamiltonian.
+        Hint : array, float
+            Diagonal component of Hamiltonian
+        Vint : array, float
+            Off-diagonal component of Hamiltonian.
+        dl_list : array, float
+            List of flow times to use for the numerical integration.
+        qmax : integer
+            Maximum number of flow time steps.
+        cutoff : float
+            Threshold value below which off-diagonal elements are set to zero.
+        method : string, optional
+            Specify which method to use to generate the RHS of the flow equations.
+            Method choices are 'einsum', 'tensordot', 'jit' and 'vec'.
+            The first two are built-in NumPy methods, while the latter two are custom coded for speed.
+        norm : bool, optional
+            Specify whether to use non-perturbative normal-ordering corrections (True) or not (False).
+            This may take a lot longer to run, but typically improves accuracy. Care must be taken to 
+            ensure that use of normal-ordering is warranted and that the contractions are computed with 
+            respect to an appropriate state.
+        Hflow : bool, optional
+            Choose whether to use pre-computed generator or re-compute eta on the fly.
+
+        Returns
+        -------
+        output : dict
+            Dictionary containing diagonal Hamiltonian ("H0_diag","Hint"), LIOM interaction coefficient ("LIOM Interactions"),
+            the LIOM on central site ("LIOM") and the value of the second invariant of the flow ("Invariant").
+    
+    """
+    H2,Hint = hamiltonian.H2_spinless,hamiltonian.H4_spinless
+
+    # Integration with hard-coded event handling
+    k=1
+    sol2 = H2
+    sol4 = Hint
+    J0 = 1
+
+    # Initialise a density operator in the microscopic basis on the central site
+    n2 = jnp.zeros((n,n))
+    n4 = jnp.zeros((n,n,n,n))
+    n2 = n2.at[n//2,n//2].set(1.0)
+
+    soln = ode(int_ode_ITC,[sol2,sol4,n2,n4],dl_list,rtol=1e-8,atol=1e-8)
+
+    liom_fwd2 = n2
+    liom_fwd4 = n4
+
+    # Define final diagonal quadratic Hamiltonian
+    H0_diag = soln[0][-1].reshape(n,n)
+    print(jnp.sort(jnp.diag(H0_diag)))
+    print('Max |V|: ',jnp.max(jnp.abs(H0_diag-jnp.diag(jnp.diag(H0_diag)))))
+    # Define final diagonal quartic Hamiltonian
+    Hint2 = soln[1][-1].reshape(n,n,n,n)   
+    liom_fwd2 = soln[2][-1].reshape(n,n)
+    liom_fwd4 = soln[3][-1].reshape(n,n,n,n)
+
+    dyn,corr=dyn_itc(n,tlist,np.array(liom_fwd2,dtype=np.complex128),np.array(H0_diag),np.array(liom_fwd4,dtype=np.complex128),np.array(Hint2))
+
+    print(liom_fwd2)
+
+    plt.plot(tlist,corr,'rx--')
+    # plt.show()
+    # plt.close()
+
+    output = {"H0_diag":np.array(H0_diag), "Hint":np.array(Hint2),"LIOM2_FWD":liom_fwd2,"LIOM4_FWD":liom_fwd4,"dyn": dyn, "corr":corr}
+
+    return output
+
+def res(n,H2,res_cut,cutoff=1e-8):
+    reslist = jnp.zeros(n*(n-1))
+    count = 0
+    for i in range(n):
+        for j in range(i):
+            reslist = reslist.at[count].set(res_test(i,j,H2[i,j],H2[i,i],H2[j,j],res_cut))
+            # if reslist[count] != 0:
+            #     print(i,j,H2[i,j],H2[i,j]/res_cut,np.abs(H2[i,i]-H2[j,j]))
+            count += 1
+
+    reslist = reslist[reslist > cutoff]
+    return reslist
+
+def flow_int_fl(n,hamiltonian,dl_list,qmax,cutoff,tlist,method='jit',norm=True,Hflow=False,store_flow=False,order=4,d=1.0,dim=1):
+    """
+    Diagonalise an initial interacting Hamiltonian, compute the forward integrals of motion and 
+    also compute the infinite-temperature autocorrelation function.
+
+    Parameters
+        ----------
+        n : integer
+            Linear system size.
+        H0 : array, float
+            Diagonal component of Hamiltonian
+        V0 : array, float
+            Off-diagonal component of Hamiltonian.
+        Hint : array, float
+            Diagonal component of Hamiltonian
+        Vint : array, float
+            Off-diagonal component of Hamiltonian.
+        dl_list : array, float
+            List of flow times to use for the numerical integration.
+        qmax : integer
+            Maximum number of flow time steps.
+        cutoff : float
+            Threshold value below which off-diagonal elements are set to zero.
+        method : string, optional
+            Specify which method to use to generate the RHS of the flow equations.
+            Method choices are 'einsum', 'tensordot', 'jit' and 'vec'.
+            The first two are built-in NumPy methods, while the latter two are custom coded for speed.
+        norm : bool, optional
+            Specify whether to use non-perturbative normal-ordering corrections (True) or not (False).
+            This may take a lot longer to run, but typically improves accuracy. Care must be taken to 
+            ensure that use of normal-ordering is warranted and that the contractions are computed with 
+            respect to an appropriate state.
+        Hflow : bool, optional
+            Choose whether to use pre-computed generator or re-compute eta on the fly.
+
+        Returns
+        -------
+        output : dict
+            Dictionary containing diagonal Hamiltonian ("H0_diag","Hint"), LIOM interaction coefficient ("LIOM Interactions"),
+            the LIOM on central site ("LIOM") and the value of the second invariant of the flow ("Invariant").
+    
+    """
+    H2,Hint = hamiltonian.H2_spinless,hamiltonian.H4_spinless
+
+    k=1
+    sol2 = jnp.array(H2,dtype=jnp.float64)
+    sol4 = jnp.array(Hint,dtype=jnp.float64)
+    if order == 6:
+        sol6 = jnp.zeros((n,n,n,n,n,n),dtype=jnp.float64)
+    J0 = 1
+
+    # Initialise a density operator in the microscopic basis on the central site
+    c1 = jnp.zeros((n),dtype=jnp.float64)
+    c3 = jnp.zeros((n,n,n),dtype=jnp.float64)
+    if dim == 2 and n%2 == 0:
+        c1 = c1.at[n//2+int(jnp.sqrt(n))//2].set(1.0)
+        print(c1)
+    else:
+        c1 = c1.at[n//2].set(1.0)
+    if order == 6:
+        c5 = jnp.zeros((n,n,n,n,n),dtype=jnp.float64)
+
+    random_unitary = True
+    res_cut = 0.5
+    sctime = 0.
+
+    J0list = jnp.zeros(50,dtype=jnp.float32)
+    J2list = jnp.zeros(50,dtype=jnp.float32)
+
+    if random_unitary == True:
+        count = 0
+        _,V0,_,Vint = extract_diag(sol2,sol4)
+        J00 = jnp.max(jnp.abs(V0))
+        
+        reslist = res(n,sol2,res_cut,cutoff=cutoff)
+        # print(reslist)
+        while len(reslist)>0 and J0 > J00:
+            if jnp.max(jnp.abs(sol4))>0.25:
+                print('HALT SCRAMBLING')
+                break
+            dm_list = jnp.linspace(0,1.,5,endpoint=True)
+            if order == 4:
+                soln = ode(int_ode_random_O4,[sol2,sol4,c1,c3],np.array([dm_list[0],dm_list[-1]]),res_cut,rtol=1e-8,atol=1e-8)
+                sol2,sol4,c1,c3 = soln[0][-1],soln[1][-1],soln[2][-1],soln[3][-1]
+                if jnp.max(jnp.abs(sol4))>0.25:
+                    print('POTENTIAL CONVERGENCE ERROR')
+                    break
+            elif order == 6:
+                soln = ode(int_ode_random_O6,[sol2,sol4,c1,c3,sol6,c5],np.array([dm_list[0],dm_list[-1]]),res_cut,rtol=1e-8,atol=1e-8)
+                sol2,sol4,c1,c3,sol6,c5 = soln[0][-1],soln[1][-1],soln[2][-1],soln[3][-1],soln[4][-1],soln[5][-1]
+                if jnp.max(jnp.abs(sol4))>0.25:
+                    print('POTENTIAL CONVERGENCE ERROR')
+                    break
+            count += 1
+            # if count > 0:
+            #     res_cut = 0.75
+            reslist = res(n,sol2,res_cut,cutoff=cutoff)
+
+        _,V0,_,Vint = extract_diag(sol2,sol4)
+        J0 = jnp.max(jnp.abs(V0))
+        J2 = jnp.max(jnp.abs(Vint))
+        J0list = J0list.at[k%len(J0list)].set(J0)
+        J2list = J2list.at[k%len(J2list)].set(jnp.max(jnp.abs(Vint)))
+        # print(count,J0,J2,jnp.max(jnp.abs(sol4)),jnp.max(jnp.abs(c1)))
+        print(c1)
+
+        if count > 0:
+            print('*****', k,jnp.max(jnp.abs(V0)),jnp.max(jnp.abs(Vint)),jnp.median(jnp.abs(Vint[Vint != 0.])))
+        print('Number of random unitaries applied: ', count)
+        if order == 4:
+            print('Max LIOM terms: ',jnp.max(jnp.abs(c1)),jnp.max(jnp.abs(c3)))
+        elif order == 6:
+            print('Max LIOM terms: ',jnp.max(jnp.abs(c1)),jnp.max(jnp.abs(c3)),jnp.max(jnp.abs(c5)))
+
+    #print(np.round(np.array(sol2),3))
+    #print('SOL4',np.sort(sol4.reshape(n**4))[-10::])
+
+    J0list = jnp.zeros(50)
+    J2list = jnp.zeros(50,dtype=jnp.float32)
+    scramble = 0
+    trunc_err = 0.
+    sol_norm = 0.
+    rel_err = 0.
+    n1 = 0.
+    n2 = 0.
+    sctime = 0
+    while k < len(dl_list)-1 and (J0 > cutoff or J2 > 1e-3):
+
+        # Break loop if a situation is encountered where the quadratic part has decayed, but the 
+        # quartic off-diagonal terms are unchanging. This likely reflects some sort of 2-particle
+        # degeneracy that can't be removed by the transform, and may cause the sixth-order terms 
+        # to diverge if the flow continues. (This is not physical, purely an artifact of the method.)
+
+        if k>len(J2list) and J0 < cutoff and int(jnp.round(jnp.mean(J2list)*1e4)) == int(jnp.round(J2*1e4)):
+            break
+        if J0<1e-6 and jnp.median(jnp.abs(V0[V0 != 0]))<1e-8:
+            print('V0 break',J0,jnp.max(jnp.abs(V0)),jnp.median(jnp.abs(V0[V0 != 0])))
+            break
+
+        if order == 4:
+            soln = ode(int_ode_ladder,[sol2,sol4,c1,c3,0.,0.],dl_list[k-1:k+1],rtol=1e-8,atol=1e-8)
+            sol2,sol4,c1,c3,n1,n2 = soln[0][-1],soln[1][-1],soln[2][-1],soln[3][-1],soln[4][-1],soln[5][-1]
+        elif order == 6:
+            soln = ode(int_ode_ladder,[sol2,sol4,sol6,c1,c3,c5,0.,0.],dl_list[k-1:k+1],rtol=1e-8,atol=1e-8)
+            sol2,sol4,sol6,c1,c3,c5,n1,n2 = soln[0][-1],soln[1][-1],soln[2][-1],soln[3][-1],soln[4][-1],soln[5][-1],soln[6][-1],soln[7][-1]
+
+        # print(np.where(np.abs(np.array(c3)) == np.abs(np.array(c3)).max()))
+        # i1,j1,k1 = np.where(np.abs(np.array(c3)) == np.abs(np.array(c3)).max())
+        # print(np.array(c3)[i1,j1,k1])
+        # if k%100 == 0 and (jnp.max(jnp.abs(sol4))>0.1 or jnp.max(jnp.abs(c3))>0.1):
+        #     print('POTENTIAL CONVERGENCE ERROR',k,jnp.max(jnp.abs(sol4)),jnp.max(jnp.abs(c3)))
+        #     # break
+        #     reslist = res(n,sol2,res_cut,cutoff=cutoff)
+        #     while len(reslist)>0:
+        #         print('*** SCRAMBLING STEP ***',reslist,res_cut)
+        #         print(jnp.max(jnp.abs(sol2-np.diag(np.diag(sol2)))),jnp.max(jnp.abs(sol4)),jnp.max(jnp.abs(c3)))
+        #         dm_list = jnp.linspace(0,1.,5,endpoint=True)
+        #         if order == 4:
+        #             soln2 = ode(int_ode_random_O4,[sol2,sol4,c1,c3],np.array([dm_list[0],dm_list[-1]]),res_cut,rtol=1e-8,atol=1e-8)
+        #             sol2,sol4,c1,c3 = soln2[0][-1],soln2[1][-1],soln2[2][-1],soln2[3][-1]
+        #         elif order == 6:
+        #             soln2 = ode(int_ode_random_O6,[sol2,sol4,c1,c3,sol6,c5],np.array([dm_list[0],dm_list[-1]]),res_cut,rtol=1e-8,atol=1e-8)
+        #             sol2,sol4,c1,c3,sol6,c5 = soln2[0][-1],soln2[1][-1],soln2[2][-1],soln2[3][-1],soln2[4][-1],soln2[5][-1]
+        #         reslist = res(n,sol2,res_cut,cutoff=cutoff)
+
+
+        _,V0,_,Vint = extract_diag(sol2,sol4)
+        J0 = jnp.max(jnp.abs(V0))
+        J2 = jnp.max(jnp.abs(Vint))
+        J0list = J0list.at[k%len(J0list)].set(J0)
+        J2list = J2list.at[k%len(J2list)].set(jnp.max(jnp.abs(Vint)))
+        #print(k,J0,jnp.mean(J0list),J2,jnp.max(jnp.abs(sol4)),jnp.max(jnp.abs(c3)))
+        if jnp.max(jnp.abs(sol4))>0.25 or jnp.max(jnp.abs(c3))>0.5:
+            break
+
+        # print(np.where(np.abs(np.array(V0)) == np.abs(np.array(V0)).max()))
+        # i1,j1 = np.where(np.abs(np.array(V0)) == np.abs(np.array(V0)).max())
+        # print(np.array(sol2)[i1,j1])
+        #===========================================================================================
+        # Add additional scrambling steps if flow becomes too slow.
+        # (Triggers if J0 remains unchanged for a while, and is above some cutoff.)
+        # An alternative would be to trigger if new resonances appear, but the code to scan for resonances
+        # is extremely slow, and so it's better to only call it if the flow noticably slows down
+
+        # print(k,int(jnp.round(jnp.mean(J0list)*1e4)),int(jnp.round(J0*1e4)),int(jnp.round(jnp.mean(J0list)*1e4)) == int(jnp.round(J0*1e4)))
+        #sctime = 0
+        if (k > len(dl_list)//2 and k%50==0 and int(jnp.round(jnp.mean(J0list)*1e4)) == int(jnp.round(J0*1e4)) and J0 > 1e-3) or (jnp.max(jnp.abs(c3))>0.15 and J0 > 1e-3):
+            # if k > len(dl_list)//2:
+            res_cut = 0.5
+            reslist = res(n,sol2,res_cut,cutoff=cutoff)
+            if len(reslist) == 0:
+                reslist = res(n,sol2,res_cut,cutoff=0.25*cutoff)
+                sctime += 1
+            while len(reslist)>0:
+                print('*** SCRAMBLING STEP ***',reslist,res_cut)
+                print(jnp.max(jnp.abs(sol2-np.diag(np.diag(sol2)))),jnp.max(jnp.abs(sol4)),jnp.max(jnp.abs(c3)))
+                dm_list = jnp.linspace(0,5.,5,endpoint=True)
+                if order == 4:
+                    soln2 = ode(int_ode_random_O4,[sol2,sol4,c1,c3],np.array([dm_list[0],dm_list[-1]]),res_cut,rtol=1e-8,atol=1e-8)
+                    sol2,sol4,c1,c3 = soln2[0][-1],soln2[1][-1],soln2[2][-1],soln2[3][-1]
+                elif order == 6:
+                    soln2 = ode(int_ode_random_O6,[sol2,sol4,c1,c3,sol6,c5],np.array([dm_list[0],dm_list[-1]]),res_cut,rtol=1e-8,atol=1e-8)
+                    sol2,sol4,c1,c3,sol6,c5 = soln2[0][-1],soln2[1][-1],soln2[2][-1],soln2[3][-1],soln2[4][-1],soln2[5][-1]
+                reslist = res(n,sol2,res_cut,cutoff=cutoff)
+                scramble += 1
+
+                # Breaks if flow is slow, but no more resonances can be detected for an extended period
+                # Indicates potential degeneracies that cannot be removed 
+                if sctime > 25:
+                    print('SCRAMBLE BREAK')
+                    break
+        #===========================================================================================
+        
+        trunc_err += (dl_list[k]-dl_list[k-1])*n2
+        sol_norm += (dl_list[k]-dl_list[k-1])*n1
+        rel_err += (dl_list[k]-dl_list[k-1])*(n2/n1)
+
+        k += 1
+    print(dl_list[k],k,J0,J2)
+    dl_list = dl_list[0:k]
+    print('No. of scrambling steps: ', scramble)
+    print('* TRUNCATION ERROR *',trunc_err,sol_norm,trunc_err/sol_norm)
+    if order == 4:
+        print('Max LIOM terms: ',jnp.max(jnp.abs(c1)),jnp.max(jnp.abs(c3)))
+    elif order == 6:
+        print('Max LIOM terms: ',jnp.max(jnp.abs(c1)),jnp.max(jnp.abs(c3)),jnp.max(jnp.abs(c5)))
+
+    # Define final diagonal quadratic Hamiltonian
+    H0_diag = soln[0][-1].reshape(n,n)
+    print(jnp.sort(jnp.diag(H0_diag)))
+    print('Max |V|: ',jnp.max(jnp.abs(H0_diag-jnp.diag(jnp.diag(H0_diag)))))
+
+    # Define final diagonal quartic Hamiltonian
+    Hint2 = soln[1][-1].reshape(n,n,n,n)   
+
+    #Define LIOMs
+    if order == 4:
+        liom_fwd1 = soln[2][-1].reshape(n)
+        liom_fwd3 = soln[3][-1].reshape(n,n,n)
+    elif order == 6:
+        liom_fwd1 = soln[3][-1].reshape(n)
+        liom_fwd3 = soln[4][-1].reshape(n,n,n)
+        liom_fwd5 = soln[5][-1].reshape(n,n,n,n,n)
+        Hint6 = soln[2][-1].reshape(n,n,n,n,n,n)
+
+    liom_fwd3 = np.array(liom_fwd3)
+    for i in range(n):
+        liom_fwd3[i,i,:] = np.zeros(n)
+
+    liom_fwd1 = np.array(liom_fwd1,dtype=np.float64)
+    liom_fwd3 = np.array(liom_fwd3,dtype=np.float64)
+
+    # Build LIOM number operator from creation and annihilation operators
+    # NB: All operators are real at this stage, as no time evolution has been performed
+    l2 = np.einsum('a,b->ab',liom_fwd1,np.transpose(liom_fwd1))
+
+    # Note the order of the contractions here, required to put the operators in the right order
+    # The number operators are defined as c^{\dagger} c c^{\dagger} c
+    # whereas the creation/annihilation operators are c^{\dagger} c^{\dagger} c / c^{\dagger} c c
+    l4 = -np.einsum('a,bcd->acbd',liom_fwd1,np.transpose(liom_fwd3)) - np.einsum('abc,d->acbd',liom_fwd3,np.transpose(liom_fwd1))
+    l4 += -np.einsum('abc,cde->adbe',liom_fwd3,np.transpose(liom_fwd3))
+    if n <= 36:
+        l6 = np.einsum('abc,def->afbcde',liom_fwd3,np.transpose(liom_fwd3))
+        if order == 6:
+            liom_fwd5 = np.array(liom_fwd5,dtype=np.float64)
+            l6 += -np.einsum('abcde,f->adbecf',liom_fwd5,jnp.transpose(liom_fwd1)) + -1*np.einsum('a,bcdef->adbecf',liom_fwd1,np.transpose(liom_fwd5))
+    else:
+        l6 = jnp.array([0.])
+
+    #print('MAX NUMBER OPERATOR TERMS',jnp.max(jnp.abs(l2)),jnp.max(jnp.abs(l4)),jnp.max(jnp.abs(l6)))
+    # Hermitian check: disable for performance
+    if n < 12:
+        for i in range(n):
+            for j in range(n):
+                for k in range(n):
+                    for q in range(n):
+                        if l4[i,j,k,q] != l4[q,k,j,i]:
+                            print('L4 HERMITIAN ERROR',l4[i,j,k,q],l4[q,k,j,i])
+                        if order == 6:
+                            for l in range(n):
+                                for m in range(n):
+                                    if l6[i,j,k,q,l,m] != l6[m,l,q,k,j,i]:
+                                        print('L6 HERMITIAN ERROR',l6[i,j,k,q,l,m], l6[m,l,q,k,j,i])
+    
+    H0_diag = np.array(H0_diag,dtype=np.float64)
+    Hint2 = np.array(Hint2,dtype=np.float64)
+
+    print(np.where(np.abs(np.array(l4)) == np.abs(np.array(l4)).max()))
+    i1,j1,k1,q1 = np.where(np.abs(np.array(l4)) == np.abs(np.array(l4)).max())
+    print(np.array(l4)[i1,j1,k1,q1])
+
+    for i in range(n):
+        l4[i,:,i,:] = 0
+        l4[:,i,:,i] = 0
+        if n <= 36:
+            l6[i,:,i,:,:,:] = 0
+            l6[i,:,:,:,i,:] = 0
+            l6[:,:,i,:,i,:] = 0
+            l6[:,i,:,i,:,:] = 0
+            l6[:,i,:,:,:,i] = 0
+            l6[:,:,:,i,:,i] = 0
+
+    # print('l2 diag BEFORE',np.diag(l2))
+    # print('l2 trace BEFORE', np.sum(np.diag(l2)))
+    for i in range(n):
+        for j in range(n):
+            # if i != j:
+                l4[i,i,j,j] += -l4[i,j,j,i]
+                l4[i,j,j,i] = 0.
+    # print('l2 diag AFTER',np.diag(l2))
+    # print('l2 trace AFTER', np.sum(np.diag(l2)))
+    # l2 *= 1/np.sum(np.diag(l2))
+
+    print('*****')
+    print(np.where(np.abs(np.array(l4)) == np.abs(np.array(l4)).max()))
+    i1,j1,k1,q1 = np.where(np.abs(np.array(l4)) == np.abs(np.array(l4)).max())
+    print(np.array(l4)[i1,j1,k1,q1],np.array(l4)[q1,k1,j1,i1],np.array(l4)[i1,q1,k1,j1])
+
+    HF = np.zeros((n,n))
+    Hint2_diag = np.zeros((n,n,n,n))
+    for i in range(n):
+        for j in range(n):
+            Hint2_diag[i,i,j,j] += Hint2[i,i,j,j]
+            # if i != j:
+            # If i == j, normal-ordering corrections kill this term, so letting the sum run over
+            # all values of i,j here takes care of this for us
+            Hint2_diag[i,i,j,j] += -Hint2[i,j,j,i]
+            # H0_diag[i,i] += -Hint2[i,j,j,i]
+            Hint2[i,j,j,i] = 0.
+            Hint2[i,i,j,j] = 0.
+            HF[i,j] = Hint2_diag[i,i,j,j]
+
+    print(np.round(HF,3))
+
+    Vint = Hint2.reshape(n**4)
+    print('Max off-diagonal interaction terms', np.sort(np.abs(Vint))[-10::])
+
+    lbits = []
+    for q in range(1,n):
+        lbits += [np.mean(np.abs(np.diag(HF,q)))]
+
+    #itc = dyn_itc(n,tlist,l2,H0_diag,Hint=np.zeros((n,n,n,n)),num4=np.zeros((n,n,n,n)),num6=np.zeros((n,n,n,n,n,n)),int=True)
+    itc,itc2 = dyn_itc(n,np.array(tlist,dtype=np.float64),l2,H0_diag,Hint=Hint2_diag,num4=l4,num6=l6,int=True)
+
+    output = {"H0_diag":np.array(H0_diag), "Hint":np.array(Hint2+Hint2_diag),"LIOM1_FWD":liom_fwd1,"LIOM3_FWD":liom_fwd3,"l2":l2,"l4":l4,"lbits":lbits}
+    # output["nt_list"] = nt_list
+    output["itc"] = itc
+    output["itc_nonint"] = itc2
+    output["truncation_err"] = [trunc_err,sol_norm,trunc_err/sol_norm,rel_err]
+    output["dl_list"] = dl_list
+    if order == 6 and n <= 36:
+        output["H6"] = np.array(Hint6)
+    return output
+
 def flow_static_int_fwd(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True,Hflow=False,store_flow=False):
     """
     Diagonalise an initial interacting Hamiltonian and compute the integrals of motion.
@@ -1198,7 +2301,6 @@ def flow_static_int_fwd(n,hamiltonian,dl_list,qmax,cutoff,method='jit',norm=True
     r_int.set_initial_value(init,dl_list[0])
     r_int.set_f_params(n,[],method,norm,Hflow)
 
-        
     # Numerically integrate the flow equations
     k = 1                       # Flow timestep index
     J0 = 10.                    # Seed value for largest off-diagonal term

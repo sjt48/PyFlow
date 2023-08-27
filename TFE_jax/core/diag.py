@@ -33,18 +33,7 @@ from psutil import cpu_count
 os.environ['OMP_NUM_THREADS']= str(int(cpu_count(logical=False)))       # Set number of OpenMP threads to run in parallel
 os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False)))       # Set number of MKL threads to run in parallel
 os.environ['NUMBA_NUM_THREADS'] = str(int(cpu_count(logical=False)))    # Set number of Numba threads
-# from jax.config import config
-# config.update('jax_disable_jit', True)
-# config.update("jax_enable_x64", True)
 import jax.numpy as np
-# from jax.config import config
-# from datetime import datetime
-# from .dynamics import dyn_con,dyn_exact
-# from numba import jit,prange
-# import gc
-# from .contract import contract,contractNO,contractNO2
-# from .utility import nstate, unpack_spin_hamiltonian, eta_spin, state_spinless, indices
-# from scipy.integrate import ode
 from .diag_routines.spinful_fermion import *
 from .diag_routines.spinless_fermion import *
 
@@ -68,6 +57,10 @@ def CUT(params,hamiltonian,num,num_int):
     LIOM = params["LIOM"]
     store_flow = params["store_flow"]
     no_state = params["NO_state"]
+    ITC = params["ITC"]
+    ladder = params["ladder"]
+    order = params["order"]
+    dim = params["dim"]
 
     if logflow == False:
             dl = np.linspace(0,lmax,qmax,endpoint=True)
@@ -75,7 +68,11 @@ def CUT(params,hamiltonian,num,num_int):
         print('Warning: careful choices of qmax and lmax required for log flow.')
         dl = np.logspace(np.log10(0.001), np.log10(lmax),qmax,endpoint=True,base=10)
     if hamiltonian.species == 'spinless fermion':
-        if dyn == True:
+        if ITC == True:
+            flow = flow_int_ITC(n,hamiltonian,dl,qmax,cutoff,tlist,method=method,norm=norm,Hflow=Hflow,store_flow=store_flow)
+        elif ladder == True:
+            flow = flow_int_fl(n,hamiltonian,dl,qmax,cutoff,tlist,method=method,norm=norm,Hflow=Hflow,store_flow=store_flow,order=order,dim=dim)
+        elif dyn == True:
             if intr == True:
                 if imbalance == True:
                     flow = flow_dyn_int_imb(n,hamiltonian,num,num_int,dl,qmax,cutoff,tlist,method=method,store_flow=store_flow)

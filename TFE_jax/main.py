@@ -39,7 +39,7 @@ os.environ['KMP_WARNINGS'] = 'off'                                # Silence non-
 
 # JAX options - must be set BEFORE importing the JAX library
 # os.environ['CUDA_VISIBLE_DEVIES'] = '2'                         # Set which device to use ('' is CPU)
-# os.environ['JAX_ENABLE_X64'] = 'true'                           # Enable 64-bit floats in JAX
+os.environ['JAX_ENABLE_X64'] = 'true'                           # Enable 64-bit floats in JAX
 # from jax.config import config
 # config.update('jax_disable_jit', True)                          # Disable JIT compilation in JAX for debugging
 # config.update("jax_enable_x64", True)                           # Alternate way to enable float64 in JAX
@@ -66,7 +66,7 @@ mpl.rcParams['mathtext.rm'] = 'serif'
 #------------------------------------------------------------------------------  
 # Parameters
 L = int(sys.argv[1])            # Linear system size
-dim = 1                         # Spatial dimension
+dim = 2                         # Spatial dimension
 n = L**dim                      # Total number of sites
 species = 'spinless fermion'    # Type of particle
 dsymm = 'spin'                  # Type of disorder (spinful fermions only)
@@ -75,14 +75,16 @@ Ulist = [0.1]
 J = 1.0                         # Nearest-neighbour hopping amplitude
 cutoff = J*10**(-3)             # Cutoff for the off-diagonal elements to be considered zero
 dis = [0.7+0.02*i for i in range(26)]    
-dis = [0.8]                
+dis = [5.]                
 # List of disorder strengths
-lmax = 20                       # Flow time max
-qmax = 500                     # Max number of flow time steps
+lmax = 75                       # Flow time max
+qmax = 750                      # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
 norm = False                    # Normal-ordering, can be true or false
 no_state = 'SDW'                # State to use for normal-ordering, can be CDW or SDW
                                 # For vacuum normal-ordering, just set norm=False
+ladder = False                  # TEST FEATURE: compute LIOMs using creation/annihilation operators
+ITC = False                     # Infinite temp correlation function (TEST PARAMETER)
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
                                 # Storing H(l) allows SciPy ODE integration to add extra flow time steps
                                 # Storing eta(l) reduces number of tensor contractions, at cost of accuracy
@@ -153,9 +155,9 @@ if __name__ == '__main__':
                 for delta in Ulist:
 
                     # Create dictionary of parameters to pass to functions; avoids having to have too many function args
-                    params = {"n":n,"delta":delta,"J":J,"cutoff":cutoff,"dis":dis,"dsymm":dsymm,"NO_state":no_state,"lmax":lmax,"qmax":qmax,"reps":reps,"norm":norm,
-                                "Hflow":Hflow,"method":method, "intr":intr,"dyn":dyn,"imbalance":imbalance,"species":species,
-                                    "LIOM":LIOM, "dyn_MF":dyn_MF,"logflow":logflow,"dis_type":dis_type,"x":x,"tlist":tlist,"store_flow":store_flow}
+                    params = {"n":n,"delta":delta,"J":J,"cutoff":cutoff,"dis":dis,"dsymm":dsymm,"NO_state":no_state,"lmax":lmax,"qmax":qmax,
+                                "reps":reps,"norm":norm,"Hflow":Hflow,"method":method, "intr":intr,"dyn":dyn,"imbalance":imbalance,"species":species,
+                                    "LIOM":LIOM, "dyn_MF":dyn_MF,"logflow":logflow,"dis_type":dis_type,"x":x,"tlist":tlist,"store_flow":store_flow,"ITC":ITC,"ladder":ladder}
 
                     #-----------------------------------------------------------------
                     # Initialise Hamiltonian
@@ -165,12 +167,14 @@ if __name__ == '__main__':
                     elif species == 'spinful fermion':
                         ham.build(n,dim,d,J,x,delta_onsite=delta,delta_up=0.,delta_down=0.,dsymm=dsymm)
 
+                    print(ham.H2_spinless)
+                    print((ham.H2_spinless).shape)
                     # Initialise the number operator on the central lattice site
                     num = jnp.zeros((n,n))
                     num = num.at[n//2,n//2].set(1.0)
                     
                     # Initialise higher-order parts of number operator (empty)
-                    num_int=jnp.zeros((n,n,n,n),dtype=jnp.float32)
+                    num_int=jnp.zeros((n,n,n,n),dtype=jnp.float64)
                     
                     #-----------------------------------------------------------------
 
@@ -245,6 +249,9 @@ if __name__ == '__main__':
                         plt.legend()
                         plt.show()
                         plt.close()
+
+                    print(flow["LIOM2"])
+                    print(flow["LIOM2_FWD"])
 
                     #==============================================================
                     # Export data   

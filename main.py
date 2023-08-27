@@ -58,8 +58,8 @@ mpl.rcParams['mathtext.rm'] = 'serif'
 L = int(sys.argv[1])            # Linear system size
 dim = 1                         # Spatial dimension
 n = L**dim                      # Total number of sites
-species = 'spinful fermion'    # Type of particle
-dsymm = 'charge'                  # Type of disorder (spinful fermions only)
+species = 'spinful fermion'     # Type of particle
+dsymm = 'charge'                # Type of disorder (spinful fermions only)
 Ulist = [0.1]
 # List of interaction strengths
 J = 1.0                         # Nearest-neighbour hopping amplitude
@@ -70,9 +70,11 @@ dis = [5.0]
 lmax = 150                      # Flow time max
 qmax = 750                      # Max number of flow time steps
 reps = 1                        # Number of disorder realisations
-norm = True                    # Normal-ordering, can be true or false
+norm = True                     # Normal-ordering, can be true or false
 no_state = 'SDW'                # State to use for normal-ordering, can be CDW or SDW
                                 # For vacuum normal-ordering, just set norm=False
+ladder = False                   # TEST FEATURE: compute LIOMs using creation/annihilation operators
+ITC = False                     # Infinite temp correlation function (TEST PARAMETER)
 Hflow = True                    # Whether to store the flowing Hamiltonian (true) or generator (false)
                                 # Storing H(l) allows SciPy ODE integration to add extra flow time steps
                                 # Storing eta(l) reduces number of tensor contractions, at cost of accuracy

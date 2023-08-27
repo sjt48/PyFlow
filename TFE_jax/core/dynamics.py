@@ -35,8 +35,12 @@ os.environ['MKL_NUM_THREADS']= str(int(cpu_count())) # set number of MKL threads
 import numpy as np
 from .contract import contract
 import gc, copy
-from numba import jit,complex128,prange
+# from math import factorial
+from quspin.basis import spinless_fermion_basis_1d
+from numba import jit,prange,int16
 from scipy.integrate import ode
+from .utility import nstate
+from .dyn_cython import *
 
 # =============================================================================
 
@@ -267,6 +271,322 @@ def dyn_exact(n,num,y,tlist):
         t0 += 1
                 
     return num_t_list
+
+# @jit(nopython=False)
+def tstep(n,t,H,Hint,sol0,n2,matb,n4,n6=0.,O6=False,int=True):
+
+    # If non-interacting, time evolve matrix:
+    if int == False:
+        for i in range(n):
+            for j in range(i,n):  
+                n2[i,j] *= np.cos((H[i,i]-H[j,j])*t)
+                n2[j,i] *= np.cos((H[i,i]-H[j,j])*t)
+        sol0[:n**2] = n2.reshape(n**2)
+
+    # If interacting, time evolve matrix and tensor(s):   
+    else:
+        test = np.zeros((n,n,n,n),dtype=np.int32)
+        test2 = np.zeros((n,n,n,n,n,n),dtype=np.int32)
+        # matb = copy.deepcopy(n2)
+        for i in range(n):
+            for j in range(n):
+                phase = (H[i,i]-H[j,j])
+                n2[i,j] *= np.exp(1j*phase*t)
+                # n2[i,j] *= np.cos(phase*t)
+
+        for i in range(n):
+            for j in range(n):       
+                for k in range(n):
+                    for q in range(n):
+                        if test[i,j,k,q] == 0:
+                            phase = (H[i,i]+H[k,k]-H[j,j]-H[q,q])
+                            n4[i,j,k,q] *= np.exp(1j*phase*t)
+                            n4[q,k,j,i] *= np.exp(-1j*phase*t)
+                            test[q,k,j,i] = 1
+                            test[i,j,k,q] = 1
+
+        for i in range(n):
+            for j in range(n):       
+                for k in range(n):
+                    if np.round(H[j,j],4) != np.round(H[k,k],4):
+                        n4[i,i,j,k] += 1*(Hint[i,i,j,j])*matb[j,k]*(np.exp(1j*(H[j,j]-H[k,k])*t))/(H[j,j]-H[k,k])
+                        n4[i,i,k,j] += -1*(Hint[i,i,j,j])*matb[k,j]*(np.exp(1j*(H[k,k]-H[j,j])*t))/(H[k,k]-H[j,j])
+                    elif np.round(H[j,j],4) == np.round(H[k,k],4):
+                        n4[i,i,j,k] +=   1j*(Hint[i,i,j,j])*matb[j,k]*t
+                        n4[i,i,k,j] +=  -1j*(Hint[i,i,j,j])*matb[k,j]*t
+
+                    if np.round(H[i,i],4) != np.round(H[j,j],4):
+                        n4[i,j,k,k] +=  1*(Hint[i,i,k,k])*matb[i,j]*(np.exp(1j*(H[i,i]-H[j,j])*t))/(H[i,i]-H[j,j])
+                        n4[j,i,k,k] += -1*(Hint[i,i,k,k])*matb[j,i]*(np.exp(1j*(H[j,j]-H[i,i])*t))/(H[j,j]-H[i,i])
+                    elif np.round(H[i,i],4) != np.round(H[j,j],4):
+                        n4[i,j,k,k] +=   1j*(Hint[i,i,k,k])*matb[i,j]*t
+                        n4[j,i,k,k] +=  -1j*(Hint[i,i,k,k])*matb[j,i]*t
+
+        # Leading-order term in dynamics of 6th order term
+        if O6 == True:
+            for i in range(n):
+                for j in range(n):       
+                    for k in range(n):
+                        for q in range(n):
+                            for m in range(n):
+                                for l in range(n):
+                                    if test2[i,j,k,q,m,l] == 0:
+                                        phase = (H[i,i]+H[k,k]+H[m,m]-H[j,j]-H[q,q]-H[l,l])
+                                        n6[i,j,k,q,m,l] *= np.exp(1j*phase*t)
+                                        n6[l,m,q,k,j,i] *= np.exp(-1j*phase*t)
+                                        test2[i,j,k,q,m,l] = 1
+                                        test2[l,m,q,k,j,i] = 1
+
+        # HERMITIAN TEST
+        if n < 10:
+            for i in range(n):
+                for j in range(n):
+                    for k in range(n):
+                        for q in range(n):
+                            if np.round(n4[i,j,k,q],4) != np.round(np.conjugate(n4[q,k,j,i]),4):
+                                print('HERMITIAN ERROR',np.round(n4[i,j,k,q],6),np.round(np.conjugate(n4[q,k,j,i]),6))
+
+    # Load time-evolved operator into solution array
+    sol0[:n**2] = n2.reshape(n**2)
+    sol0[n**2:n**4+n**2] = n4.reshape(n**4)
+    if O6 == True:
+        sol0[n**4+n**2:] = n6.reshape(n**6)
+
+    return sol0
+
+def dyn_itc(n,tlist,num2,H,Hint=[0],num4=[0],num6=[0],int=True):
+    """ Function to compute the 'exact' time evolution, using an analytical solution of the Heisenberg equation.
+    
+        Parameters
+        ----------
+        n : int
+            Linear system size.
+        num : array
+            Operator to be time-evolved.
+        y : array
+            Diagonal Hamiltonian used to generate the dynamics.
+        tlist : array
+            List of timesteps for the dynamical evolution.
+        method : string, optional
+            Specify which method to use to generate the RHS of the Heisenberg equation.
+            Method choices are 'einsum', 'tensordot', 'jit' and 'vectorize'.
+            The first two are built-in NumPy methods, while the latter two are custom coded for speed.
+
+    """
+    # print(num2.shape,H.shape,Hint.shape,num4.shape)
+    # Initialise list for time-evolved operator
+    # if int == True:
+    #     num_t_list = np.zeros((len(tlist),n**2+n**4+n**6),dtype=np.complex128)
+    # elif int == False:
+    #     num_t_list = np.zeros((len(tlist),n**2),dtype=np.complex128)
+    # Prepare first element of list with the initial operator (t=0)
+    # num_t_list[0,0:n**2] = num2.reshape(n**2)
+    # if int == True:
+    #     num_t_list[0,n**2:n**4+n**2] = num4.reshape(n**4)
+    #     if np.max(np.abs(num6)) != 0:
+    #         num_t_list[0,n**4+n**2::] = num6.reshape(n**6)
+
+    t0 = 0
+    # Compute the time-evolved operator for every time t in input array tlist
+    cython = True
+    # for t in tlist:
+    #     if cython == False:
+    #         if np.max(np.abs(num6)) == 0:
+    #             sol0 = tstep(n,t,H,Hint,np.zeros(n**2+n**4+n**6,dtype=np.complex128),np.array(num2,dtype=np.complex128),np.array(num2,dtype=np.complex128),np.array(num4,dtype=np.complex128))
+    #         else:
+    #             sol0 = tstep(n,t,H,Hint,np.zeros(n**2+n**4+n**6,dtype=np.complex128),np.array(num2,dtype=np.complex128),np.array(num2,dtype=np.complex128),np.array(num4,dtype=np.complex128),n6=np.array(num6,dtype=np.complex128),O6=True)
+    #     elif cython == True:
+    #         sol0 = np.zeros((n**2+n**4+n**6),dtype=np.complex64)
+    #         n2t,n4t,n6t = cy_tstep(n,t,H,Hint,np.array(num2,dtype=np.complex128),np.array(num2,dtype=np.complex128), np.array(num4,dtype=np.complex128), np.array(num6,dtype=np.complex128), np.zeros((n,n,n,n),dtype=np.int32), np.zeros((n,n,n,n,n,n),dtype=np.int32))
+    #         n2t,n4t,n6t = np.array(n2t),np.array(n4t),np.array(n6t)
+    #         if t0 == 0:
+    #             print(np.sum(np.diag(n2t)))
+
+    #         # Normal-ordering requires that no creation or annihilation operators are repeated
+    #         # We can set them safely to zero here, as when we un-normal-order these terms, the
+    #         # terms containing repeated operators will be precisely cancelled out by the n/o corrections
+    #         for i in range(n):
+    #             n4t[i,:,i,:] = np.zeros((n,n))
+    #             n4t[:,i,:,i] = np.zeros((n,n))
+
+    #             n6t[i,:,i,:,:,:] = np.zeros((n,n,n,n))
+    #             n6t[i,:,:,:,i,:] = np.zeros((n,n,n,n))
+    #             n6t[:,:,i,:,i,:] = np.zeros((n,n,n,n))
+    #             n6t[:,i,:,i,:,:] = np.zeros((n,n,n,n))
+    #             n6t[:,i,:,:,:,i] = np.zeros((n,n,n,n))
+    #             n6t[:,:,:,i,:,i] = np.zeros((n,n,n,n))
+
+    #         sol0[:n**2] = n2t.reshape(n**2)
+    #         sol0[n**2:n**4+n**2] = n4t.reshape(n**4)
+    #         sol0[n**4+n**2:] = n6t.reshape(n**6)
+    #         # print(sol0[0:n**4])
+    #     # Load time-evolved operator at time t into output array num_t_list
+    #     num_t_list[t0] = sol0
+    #     t0 += 1
+
+    if n <= 12:
+        basis = spinless_fermion_basis_1d(n,Nf=n//2)
+        no_states = min(basis.Ns,256)
+    elif n <=64:
+        no_states = 256
+    else:
+        no_states = 64
+    # for i in range(n):
+    #     for j in range(n):
+    #         num4[i,i,j,j] += -num4[i,j,j,i]
+    #         num4[i,j,j,i] = 0.
+
+    print('No. states: ',no_states)
+    statelist = np.zeros((no_states,n))
+    itc = np.zeros(len(tlist),dtype=complex)
+    itc2 = np.zeros((no_states,len(tlist)),dtype=complex)
+    avg_test = 0.
+    for ns in range(no_states):
+        flag = False
+        while flag == False:
+            state = np.array(nstate(n,'random_half'))
+            if not any((state == x).all() for x in np.array(statelist)):
+                statelist[ns] = state
+                avg_test += state[n//2]
+                flag = True
+
+    n2_0 = np.array(num2,dtype=np.complex128)
+    # matb = np.deepcopy(n2_0,order='C')
+    n4_0 = np.array(num4,dtype=np.complex128)
+    if n <= 36:
+        n6_0 = np.array(num6,dtype=np.complex128)
+    for time in range(len(tlist)):
+        # In Python (with Numba JIT)
+        # itc[ns,time] += trace(n,num_t_list[time],num_t_list[0],state)
+        # if cython == False:
+        #     if np.max(np.abs(num6)) == 0:
+        #         sol0 = tstep(n,tlist[time],H,Hint,np.zeros(n**2+n**4+n**6,dtype=np.complex128),np.array(num2,dtype=np.complex128),np.array(num2,dtype=np.complex128),np.array(num4,dtype=np.complex128))
+        #     else:
+        #         sol0 = tstep(n,tlist[time],H,Hint,np.zeros(n**2+n**4+n**6,dtype=np.complex128),np.array(num2,dtype=np.complex128),np.array(num2,dtype=np.complex128),np.array(num4,dtype=np.complex128),n6=np.array(num6,dtype=np.complex128),O6=True)
+        # elif cython == True:
+        #     sol0 = np.zeros((n**2+n**4+n**6),dtype=np.complex64)
+        #     n2t,n4t,n6t = cy_tstep(n,tlist[time],H,Hint,np.array(num2,dtype=np.complex128),np.array(num2,dtype=np.complex128), np.array(num4,dtype=np.complex128), np.array(num6,dtype=np.complex128), np.zeros((n,n,n,n),dtype=np.int32), np.zeros((n,n,n,n,n,n),dtype=np.int32))
+        #     n2t,n4t,n6t = np.array(n2t),np.array(n4t),np.array(n6t)
+
+        # Normal-ordering imposes that terms with repeated creation or annihilation operators are zero
+        # We can set them safely to zero here, as when we un-normal-order these terms, the
+        # terms containing repeated operators will be precisely cancelled out by the n/o corrections
+        # for i in range(n):
+        #     n4t[i,:,i,:] = np.zeros((n,n))
+        #     n4t[:,i,:,i] = np.zeros((n,n))
+        #     n6t[i,:,i,:,:,:] = np.zeros((n,n,n,n))
+        #     n6t[i,:,:,:,i,:] = np.zeros((n,n,n,n))
+        #     n6t[:,:,i,:,i,:] = np.zeros((n,n,n,n))
+        #     n6t[:,i,:,i,:,:] = np.zeros((n,n,n,n))
+        #     n6t[:,i,:,:,:,i] = np.zeros((n,n,n,n))
+        #     n6t[:,:,:,i,:,i] = np.zeros((n,n,n,n))
+
+        # Zero each of the arrays for testing purposes (helps to isolate bugs)
+        # Make sure the below three lines are commented for any 'real' simulations
+        # num2 = np.zeros((n,n))
+        # num4 = np.zeros((n,n,n,n))
+        # num6 = np.zeros((n,n,n,n,n,n))
+        
+        # n2t = np.copy(n2_0,order='C')
+        # n4t = np.copy(n4_0,order='C')
+        # n6t = np.copy(n6_0,order='C')
+
+        # Using Cython module (dyn_cython.pyx: must be compiled before first use)
+        if n <= 36:
+            #itc[:,time] = cytrace(n,tlist[time],H,Hint,n2_0,n4_0,n6_0,statelist,np.zeros(no_states,dtype=np.complex128))
+            itc[time] = cytrace2(n,tlist[time],H,Hint,n2_0,n4_0,n6_0,statelist)
+        else:
+            itc[time] = cytrace3(n,tlist[time],H,Hint,n2_0,n4_0,statelist)
+        itc2[:,time] = cytrace_nonint(n,tlist[time],H,n2_0,statelist,np.zeros(no_states,dtype=np.complex128))
+        # itc[time] *= 1.0/no_states
+
+    # print('itc',itc[0:10])
+    
+    print('itc mean',itc[0:5])
+    #print('itc var',itc[0:5])
+    #print('itc med',itc[0:5])
+    itc = itc.real
+    # import matplotlib.pyplot as plt
+    # if np.max(np.abs(num6)) == 0:
+    #     plt.plot(tlist,np.mean(itc,axis=0),'x--',label=r'Old')
+    # else:
+    #     plt.plot(tlist,np.mean(itc,axis=0),'o--',linewidth=2,label=r'Avg')
+    #     # plt.plot(tlist,np.mean(itc,axis=0)+(0.25-np.mean(itc,axis=0)[0]),'o-.',linewidth=2,label=r'Avg2')
+    #     plt.plot(tlist,0.25*np.mean(itc,axis=0)/np.mean(itc,axis=0)[0],'r--',linewidth=2,label=r'Norm')
+        # plt.plot(tlist,np.median(itc,axis=0),'x--',linewidth=2,label=r'Med')
+    # for ns in range(no_states):
+    #     plt.plot(tlist,itc[ns],'k-',alpha=0.01)
+
+
+    return itc.real,itc2.real
+
+@jit(nopython=True,parallel=True,fastmath=True)
+def trace(n,sol_a,sol_b,state,int=True):
+    n2a = sol_a[:n**2].reshape(n,n)
+    n2b = sol_b[:n**2].reshape(n,n)
+
+    if int == True:
+        n4a = sol_a[n**2:].reshape(n,n,n,n)
+        n4b = sol_b[n**2:].reshape(n,n,n,n)
+
+    corr = 0
+
+    # Product of quadratic terms
+    for i in range(n):
+        for j in range(n):
+            corr += n2a[i,i]*n2b[j,j]*state[i]*state[j]
+            if i != j:
+                corr += n2a[i,j]*n2b[j,i]*state[i]*(1-state[j])
+
+    if int == True:
+        # Product of quadaratic and quartic terms
+        for i in prange(n):
+            for j in range(n):
+                for k in range(n):
+                    # Colour codes refer to highlighted notes
+                    # Contributions should come in pairs, 2x4 and 4x2
+
+                    # BLUE CONTRIBUTIONS
+                    corr += (n2a[i,i]*n4b[j,j,k,k] + n4a[i,i,j,j]*n2b[k,k])*state[i]*state[j]*state[k]
+
+                    # GREEN CONTRIBUTIONS
+                    # First one
+                    if j != k:
+                        corr += (n2a[i,i]*n4b[j,k,k,j])*state[i]*state[j]*(1-state[k])
+                    if i != j:
+                        corr += (n4a[i,j,j,i]*n2b[k,k])*state[i]*(1-state[j])*state[k]
+
+                    # Second one
+                    if i != j:
+                        corr += (n2a[i,j]*n4b[j,i,k,k])*state[i]*(1-state[j])*state[k]
+
+
+                        corr += (n4a[i,j,k,k]*n2b[j,i])*state[i]*(1-state[j])*state[k]
+                        if j == k:
+                            corr += (n4a[i,j,k,k]*n2b[j,i])*state[i]*(1-state[j])
+                        if i == k:
+                            corr += -1*(n4a[i,j,k,k]*n2b[j,i])*state[i]*(1-state[j])
+
+                    # Third one
+                    if i != j:
+                        corr += n2a[i,j]*n4b[k,k,j,i]*state[i]*(1-state[j])*state[k]
+                        if j == k:
+                            corr += n2a[i,j]*n4b[k,k,j,i]*state[i]*(1-state[j])
+                        if i == k:
+                            corr += -1*n2a[i,j]*n4b[k,k,j,i]*state[i]*(1-state[j])
+
+                    if j != k:
+                        corr += n4a[i,i,j,k]*n2b[k,j]*state[i]*state[j]*(1-state[k])
+
+                    # YELLOW CONTRIBUTIONS
+                    if i != j != k:
+                        corr += n2a[i,j]*n4b[k,i,j,k]*state[i]*(1-state[j])*state[k]
+                        corr += n2a[i,j]*n4b[j,k,k,i]*state[i]*(1-state[j])*(1-state[k])
+
+                        corr += n4a[i,j,k,i]*n2b[k,j]*state[i]*(1-state[j])*state[k]
+                        corr += n4a[i,j,j,k]*n2b[k,i]*state[i]*(1-state[j])*(1-state[k])
+
+    return corr.real
 
 # @jit(nopython=True,parallel=True,fastmath=True)
 def dyn_mf(n,num,y,tlist,state=[],method='jit'):

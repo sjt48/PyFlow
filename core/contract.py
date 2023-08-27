@@ -66,7 +66,7 @@ def contract(A,B,method='jit',comp=False,eta=False,pair=None):
                     con = con24_secondpair(A,B,method,comp)
     # print(get_num_threads())
     # print("Threading layer: %s" % threading_layer())
-    return np.array(con)
+    return con
 
 # Normal-ordering contraction function
 def contractNO(A,B,method='jit',comp=False,eta=False,state=[],upstate=[],downstate=[],pair=None):
@@ -139,12 +139,12 @@ def contractNO(A,B,method='jit',comp=False,eta=False,state=[],upstate=[],downsta
         elif A.ndim == B.ndim == 4 and pair=='mixed-up':
             con = np.zeros(A.shape,dtype=np.float64)
             con = cycon_44_NO_up_mixed(A,B,state,con)
-            con = np.array(con)
+            # con = np.array(con)
             con *= -1
         elif A.ndim == B.ndim == 4 and pair=='mixed-down':
             con = np.zeros(A.shape,dtype=np.float64)
             con = cycon_44_NO_down_mixed(A,B,state,con)
-            con = np.array(con)
+            # con = np.array(con)
             con *= -1
         elif A.ndim == B.ndim == 4 and pair=='mixed':
             con = np.zeros(A.shape,dtype=np.float64)
@@ -159,7 +159,7 @@ def contractNO(A,B,method='jit',comp=False,eta=False,state=[],upstate=[],downsta
         elif A.ndim == 2:
             if B.ndim == 4:
                 con = con24_NO(A,B,method=method,comp=comp,state=state,pair=pair)
-    return np.array(con)
+    return con
 
 def contractNO2(A,B,method='jit',comp=False,eta=False,state=[],pair=None):
     """ General normal-ordering function: gets shape and calls appropriate contraction function. """
@@ -171,7 +171,7 @@ def contractNO2(A,B,method='jit',comp=False,eta=False,state=[],pair=None):
         elif A.ndim == 2:
             if B.ndim == 4:
                 con = con24_NO(A,B,method=method,comp=comp,state=state,pair=pair)
-    return np.array(con)
+    return con
 
 # Contract square matrices (matrix multiplication)
 def con22(A,B,method='jit',comp=False,eta=False):
@@ -238,7 +238,7 @@ def con22(A,B,method='jit',comp=False,eta=False):
         con = np.zeros(A.shape)
         con = cycon22(A,B,con)
         
-        return np.array(con)
+        return con
     
 # Contract rank-4 tensor with square matrix
 def con42(A,B,method='jit',comp=False,eta=False):
@@ -303,7 +303,7 @@ def con42(A,B,method='jit',comp=False,eta=False):
         con = np.zeros(A.shape,dtype=np.float64)
         con = cycon_42(A,B,con)
 
-    return np.array(con)
+    return con
 
 # Contract square matrix with rank-4 tensor
 def con24(A,B,method='jit',comp=False,eta=False):
@@ -379,7 +379,7 @@ def con42_NO(A,B,method='jit',comp=False,state=[],pair=None):
         elif pair == 'second':
             con = cycon_42_NO_secondpair(A,B,state,C)
 
-    return np.array(con)
+    return con
 
 # Double square matrix with rank-4 tensor
 def con24_NO(A,B,method='jit',comp=False,eta=False,state=[],pair=None):
@@ -431,7 +431,7 @@ def con44_NO(A,B,method='jit',comp=False,eta=False,state=[]):
         con = np.zeros(A.shape,dtype=np.float64)
         con = cycon_44_NO(A,B,state,con)
 
-    return np.array(con)
+    return con
 
 # Contract rank-4 tensor with square matrix
 def con42_firstpair(A,B,method='jit',comp=False,eta=False):
@@ -457,7 +457,7 @@ def con42_firstpair(A,B,method='jit',comp=False,eta=False):
     elif method == 'cython':
         con = np.zeros(A.shape,dtype=np.float64)
         con = cycon_42_firstpair(A,B,con)
-    return np.array(con)
+    return con
 
 # Contract rank-4 tensor with square matrix
 def con42_secondpair(A,B,method='jit',comp=False,eta=False):
@@ -482,7 +482,7 @@ def con42_secondpair(A,B,method='jit',comp=False,eta=False):
     elif method == 'cython':
         con = np.zeros(A.shape,dtype=np.float64)
         con = cycon_42_secondpair(A,B,con)
-    return np.array(con)
+    return con
 
 
 def con24_firstpair(A,B,method='jit',comp=False,eta=False):

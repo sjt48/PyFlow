@@ -28,6 +28,7 @@ This file contains all of the matrix/tensor contraction routines used to compute
 cimport cython
 import numpy as np
 cimport numpy as np
+# from cython.parallel import prange
 DTYPE = np.float64
        
 #------------------------------------------------------------------------------
@@ -37,18 +38,14 @@ DTYPE = np.float64
 @cython.cdivision(True)
 # @guvectorize([(float64[:,:],float64[:,:],float64[:,:])],'(n,n),(n,n)->(n,n)',target='cpu',nopython=True)
 def cycon22(double[:,:] A,double[:,:] B, double[:,:]C):
-
     cdef int i,j,k,m
-    # m,_=A.shape
     m = len(A[0])
     for i in range(m):
         for j in range(m):
-            # C[i,j] = 0.
             for k in range(m):
                 C[i,j] += A[i,k]*B[k,j] - B[i,k]*A[k,j]
-            # C[j,i] = C[i,j]
 
-    return C
+    return np.asarray(C,dtype=np.float64)
 
 @cython.boundscheck(False)  
 @cython.wraparound(False)  
@@ -56,23 +53,17 @@ def cycon22(double[:,:] A,double[:,:] B, double[:,:]C):
 # @guvectorize([(float64[:,:,:,:],float64[:,:],float64[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
 def cycon_42(double[:,:,:,:] A,double[:,:] B,double[:,:,:,:] C):
     cdef int i,j,k,q,m,l
-    # m,_,_,_=A.shape
     m = len(A[0,0,0])
     for i in range(m):
         for j in range(m):
             for k in range(m):
                 for q in range(m):
-
                         for l in range(m):
-
                             C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
-
                             C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
-
                             C[i,j,k,q] += A[i,l,k,q]*B[l,j]
-                            
                             C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
-    return C
+    return np.asarray(C,dtype=np.float64)
 
 
 @cython.boundscheck(False)  
@@ -81,35 +72,32 @@ def cycon_42(double[:,:,:,:] A,double[:,:] B,double[:,:,:,:] C):
 # @guvectorize([(float64[:,:,:,:],float64[:,:],float64[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
 def cycon_42_firstpair(double[:,:,:,:] A,double[:,:] B,double[:,:,:,:] C):
     cdef int i,j,k,q,m,l
-    # m,_,_,_=A.shape
     m = len(A[0,0,0])
     for i in range(m):
         for j in range(m):
             for k in range(m):
                 for q in range(m):
-                    # C[i,j,k,q] = 0.
                     for l in range(m):
                         C[i,j,k,q] += A[i,l,k,q]*B[l,j]
                         C[i,j,k,q] += -A[l,j,k,q]*B[i,l] 
-    return C
+    return np.asarray(C,dtype=np.float64)
 
 @cython.boundscheck(False)  
 @cython.wraparound(False)  
 @cython.cdivision(True)
 # @guvectorize([(float64[:,:,:,:],float64[:,:],float64[:,:,:,:])],'(n,n,n,n),(n,n)->(n,n,n,n)',target='cpu',nopython=True)
 def cycon_42_secondpair(double[:,:,:,:] A, double[:,:] B, double[:,:,:,:] C):
-    cdef int i,j,k,q,m
+    cdef int i,j,k,q,m,l
     # m,_,_,_=A.shape
     m = len(A[0,0,0])
     for i in range(m):
         for j in range(m):
             for k in range(m):
                 for q in range(m):
-                    C[i,j,k,q] = 0.
                     for l in range(m):
                         C[i,j,k,q] += A[i,j,k,l]*B[l,q] 
                         C[i,j,k,q] += -A[i,j,l,q]*B[k,l]
-    return C
+    return np.asarray(C,dtype=np.float64)
 
 @cython.boundscheck(False)  
 @cython.wraparound(False)  
@@ -118,12 +106,9 @@ def cycon_42_secondpair(double[:,:,:,:] A, double[:,:] B, double[:,:,:,:] C):
 def cycon_42_NO(double[:,:,:,:] A, double[:,:] B, double[:] state, double[:,:] C):
     """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
     cdef int i,j,k,q,m
-    # m,_=B.shape
     m = len(B[0])
-    # C = np.zeros(B.shape,dtype=np.float64)
     for i in range(m):
         for j in range(m):
-            # C[i,j] = 0.
             for k in range(m):
                 for q in range(m):
                     if state[k] != state[q]:
@@ -131,7 +116,7 @@ def cycon_42_NO(double[:,:,:,:] A, double[:,:] B, double[:] state, double[:,:] C
                         C[i,j] += A[k,q,i,j]*B[q,k]*(state[k]-state[q])
                         C[i,j] += -A[k,j,i,q]*B[q,k]*(state[k]-state[q])
                         C[i,j] += A[i,q,k,j]*B[q,k]*(state[k]-state[q])
-    return C
+    return np.asarray(C,dtype=np.float64)
 
 @cython.boundscheck(False)  
 @cython.wraparound(False)  
@@ -140,17 +125,14 @@ def cycon_42_NO(double[:,:,:,:] A, double[:,:] B, double[:] state, double[:,:] C
 def cycon_42_NO_secondpair(double[:,:,:,:] A, double[:,:] B, double[:] state, double[:,:] C):
     """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
     cdef int i,j,k,q,m
-    # m,_=B.shape
     m = len(B[0])
     for i in range(m):
         for j in range(m):
-            # C[i,j] = 0.
             for k in range(m):
                 for q in range(m):
                     if state[k] != state[q]:
                         C[i,j] += A[i,j,k,q]*B[q,k]*(state[k]-state[q])
-        # C[j,i] = C[i,j]
-    return C
+    return np.asarray(C,dtype=np.float64)
 
 @cython.boundscheck(False)  
 @cython.wraparound(False)  
@@ -159,17 +141,14 @@ def cycon_42_NO_secondpair(double[:,:,:,:] A, double[:,:] B, double[:] state, do
 def cycon_42_NO_firstpair(double[:,:,:,:] A, double[:,:] B, double[:] state, double[:,:] C):
     """ 2-point contractions of a rank-4 tensor with a square matrix. Computes upper half only and then symmetrises. """
     cdef int i,j,k,q,m
-    # m,_=B.shape
     m = len(B[0])
     for i in range(m):
         for j in range(m):
-            # C[i,j] = 0.
             for k in range(m):
                 for q in range(m):
                     if state[k] != state[q]:
                         C[i,j] += A[k,q,i,j]*B[q,k]*(state[k]-state[q])
-        # C[j,i] = C[i,j]
-    return C
+    return np.asarray(C,dtype=np.float64)
 
 @cython.boundscheck(False)  
 @cython.wraparound(False)  
@@ -177,14 +156,12 @@ def cycon_42_NO_firstpair(double[:,:,:,:] A, double[:,:] B, double[:] state, dou
 # @guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
 def cycon_44_NO(double[:,:,:,:] A,double[:,:,:,:] B,double[:] state,double[:,:,:,:] C):
     cdef int i,j,k,q,l,m,m0
-    # m0,_,_,_=A.shape
     m0 = len(A[0,0,0])
     for i in range(m0):
         for j in range(m0):
             for k in range(m0):
                 for q in range(m0):
                         # Indices to be summed over
-                        # C[i,j,k,q] = 0.
                         for l in range(m0):
                             for m in range(m0):
                                 if state[l] != state[m]:
@@ -219,7 +196,7 @@ def cycon_44_NO(double[:,:,:,:] A,double[:,:,:,:] B,double[:] state,double[:,:,:
                                 C[i,j,k,q] +=  0.25*A[l,q,m,j]*(B[k,m,i,l]+B[k,l,i,m])*(state[l]+state[m]) #--
                                 C[i,j,k,q] +=  0.25*A[k,l,i,m]*(B[m,q,l,j]+B[l,q,m,j])*(state[l]+state[m]) #--
 
-    return C
+    return np.asarray(C,dtype=np.float64)
 
 @cython.boundscheck(False)  
 @cython.wraparound(False)  
@@ -227,7 +204,6 @@ def cycon_44_NO(double[:,:,:,:] A,double[:,:,:,:] B,double[:] state,double[:,:,:
 # @guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
 def cycon_44_NO_up_mixed(double[:,:,:,:] A,double[:,:,:,:] B,double[:] state,double[:,:,:,:] C):
     cdef int i,j,k,q,l,m,m0
-    # m0,_,_,_=A.shape
     m0 = len(A[0,0,0])
     for i in range(m0):
         for j in range(m0):
@@ -256,7 +232,7 @@ def cycon_44_NO_up_mixed(double[:,:,:,:] A,double[:,:,:,:] B,double[:] state,dou
                                     C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[m,l,i,j])*(state[l]-state[m]) #+
                                     C[i,j,k,q] += -0.25*A[l,q,k,m]*(B[m,l,i,j])*(state[l]-state[m]) #-
                                     C[i,j,k,q] += -0.25*A[k,l,m,q]*(B[l,m,i,j])*(state[l]-state[m]) #-
-    return C
+    return np.asarray(C,dtype=np.float64)
 
 @cython.boundscheck(False)  
 @cython.wraparound(False)  
@@ -264,7 +240,6 @@ def cycon_44_NO_up_mixed(double[:,:,:,:] A,double[:,:,:,:] B,double[:] state,dou
 # @guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
 def cycon_44_NO_down_mixed(double[:,:,:,:] A,double[:,:,:,:] B,double[:] state,double[:,:,:,:] C):
     cdef int i,j,k,q,l,m,m0
-    # m0,_,_,_=A.shape
     m0 = len(A[0,0,0])
     for i in range(m0):
         for j in range(m0):
@@ -293,7 +268,7 @@ def cycon_44_NO_down_mixed(double[:,:,:,:] A,double[:,:,:,:] B,double[:] state,d
                                     C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[i,j,m,l])*(state[l]-state[m]) #+
                                     C[i,j,k,q] += -0.25*A[l,q,k,m]*(B[i,j,m,l])*(state[l]-state[m]) #-
                                     C[i,j,k,q] += -0.25*A[k,l,m,q]*(B[i,j,l,m])*(state[l]-state[m]) #-
-    return C
+    return np.asarray(C,dtype=np.float64)
 
 @cython.boundscheck(False)  
 @cython.wraparound(False)  
@@ -301,7 +276,6 @@ def cycon_44_NO_down_mixed(double[:,:,:,:] A,double[:,:,:,:] B,double[:] state,d
 # @guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n),(n)->(n,n,n,n)',target='cpu',nopython=True)
 def cycon_44_NO_mixed(double[:,:,:,:] A,double[:,:,:,:] B,double[:] upstate,double[:] downstate,double[:,:,:,:] C):
     cdef int i,j,k,q,l,m,m0
-    # m0,_,_,_=A.shape
     m0 = len(A[0,0,0])
     for i in range(m0):
         for j in range(m0):
@@ -314,7 +288,7 @@ def cycon_44_NO_mixed(double[:,:,:,:] A,double[:,:,:,:] B,double[:] upstate,doub
                                 C[i,j,k,q] += A[i,l,m,q]*B[l,j,k,m]*(-upstate[l]+downstate[m])
                                 C[i,j,k,q] +=  -A[l,j,m,q]*(B[i,l,k,m])*(upstate[l]+downstate[m]) #--
                                 C[i,j,k,q] +=  A[i,l,k,m]*(B[l,j,m,q])*(upstate[l]+downstate[m]) #--
-    return C
+    return np.asarray(C,dtype=np.float64)
 
 @cython.boundscheck(False)  
 @cython.wraparound(False)  
@@ -322,7 +296,6 @@ def cycon_44_NO_mixed(double[:,:,:,:] A,double[:,:,:,:] B,double[:] upstate,doub
 # @guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
 def cycon_44_NO_mixed_mixed_up(double[:,:,:,:] A,double[:,:,:,:] B,double[:] state,double[:,:,:,:] C):
     cdef int i,j,k,q,l,m,m0
-    # m0,_,_,_=A.shape
     m0 = len(A[0,0,0])
     for i in range(m0):
         for j in range(m0):
@@ -336,7 +309,7 @@ def cycon_44_NO_mixed_mixed_up(double[:,:,:,:] A,double[:,:,:,:] B,double[:] sta
                                     C[i,j,k,q] += -0.25*A[i,q,l,m]*B[k,j,m,l]*(state[l]-state[m])
                                     C[i,j,k,q] += -0.25*A[k,j,l,m]*(B[i,q,m,l])*(state[l]-state[m]) 
                                     C[i,j,k,q] += 0.25*A[k,q,l,m]*(B[i,j,m,l])*(state[l]-state[m])
-    return C
+    return np.asarray(C,dtype=np.float64)
 
 @cython.boundscheck(False)  
 @cython.wraparound(False)  
@@ -344,7 +317,6 @@ def cycon_44_NO_mixed_mixed_up(double[:,:,:,:] A,double[:,:,:,:] B,double[:] sta
 # @guvectorize([(float64[:,:,:,:],float64[:,:,:,:],float64[:],float64[:,:,:,:])],'(n,n,n,n),(n,n,n,n),(n)->(n,n,n,n)',target='cpu',nopython=True)
 def cycon_44_NO_mixed_mixed_down(double[:,:,:,:] A,double[:,:,:,:] B,double[:] state,double[:,:,:,:] C):
     cdef int i,j,k,q,l,m,m0
-    # m0,_,_,_=A.shape
     m0 = len(A[0,0,0])
     for i in range(m0):
         for j in range(m0):
@@ -358,4 +330,4 @@ def cycon_44_NO_mixed_mixed_down(double[:,:,:,:] A,double[:,:,:,:] B,double[:] s
                                     C[i,j,k,q] += -0.25*A[l,m,i,q]*(B[m,l,k,j])*(state[l]-state[m])
                                     C[i,j,k,q] += -0.25*A[l,m,k,j]*(B[m,l,i,q])*(state[l]-state[m])
                                     C[i,j,k,q] += 0.25*A[l,m,k,q]*(B[m,l,i,j])*(state[l]-state[m])
-    return C
+    return np.asarray(C,dtype=np.float64)

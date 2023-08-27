@@ -44,7 +44,7 @@ def Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dim=1):
 
     #-----------------------------------------------------------------
     # Non-interacting matrices
-    H0 = np.zeros((n,n),dtype=np.float32)
+    H0 = np.zeros((n,n),dtype=np.float64)
 
     if isinstance(d,float) == False:
         H0 = np.diag(d)
@@ -58,6 +58,12 @@ def Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dim=1):
         randomlist = [2.4979359120556666, -4.477621238657079, -4.448810326437316, -3.6115452666436543, -1.2802110535766298, -3.336862075297363, -0.3370611440832194, -3.8232260796601523, -0.5134617674857918, 1.32895294857477]
         for i in range(n):
             H0[i,i] = randomlist[i%n]
+    elif dis_type == 'test2':
+        # H0 = np.diag([0.63305823,0.49472645,1.02878404,-0.1982988,-2.38908197,2.40333365,-1.705861,-0.67025341,0.72327997,-0.36466963,-1.48150466,0.95687038])
+        # H0 = np.diag([ 0.00220783,0.17725875,-0.17469319,-0.34102253,-0.22480943,0.21774356,0.0138178,0.09863276,0.28596514,0.37551004,-0.3836448,0.47296222])
+        # H0 = np.diag([0.53947236,-1.87679578,2.96251111,1.26385442,2.87516597,1.81604499,-2.5698877,2.68828105,-0.14110541,2.52083621,-2.47714679,2.79505097])
+        # H0 = np.diag([0.20794954,-0.34591258,0.25465915,-0.37131532,0.47769051,0.26771804,-0.22449367,-0.17061238,0.05344497,0.04503425,0.47542292,-0.48663382])
+        H0 = np.diag([-0.20509672,-0.48258169,0.07354666,0.4035225,-0.38249293,-0.02020861,0.29574013,-0.32896991,-0.05816845,-0.30851041,-0.35800805,-0.03625906])
     elif dis_type == 'linear':
         for i in range(n):
             # Initialise Hamiltonian with linearly increasing on-site terms
@@ -69,14 +75,30 @@ def Hinit(n,d,J,dis_type,x=0,pwrhop=False,alpha=0,Fourier=False,dim=1):
     elif dis_type == 'prime':
         for i in range(n):
             # Initialise Hamiltonian with square root prime numbers as on-site terms
-            H0[i,i] = d*np.sqrt(prime(i+1))
+            H0[i,i] = np.sqrt(prime(i+1))
+        bw = np.max(np.diag(H0))-np.min(np.diag(H0))
+        H0 *= 1/bw
+        H0 *= d
+        
     elif dis_type == 'QPgolden':
         phase = np.random.uniform(-np.pi,np.pi)
+        phase2 = np.random.uniform(-np.pi,np.pi)
         print('phase = ', phase)
         phi = (1.+np.sqrt(5.))/2.
-        for i in range(n):
-            # Initialise Hamiltonian with quasiperiodic on-site terms
-            H0[i,i] = d*np.cos(2*np.pi*(1./phi)*i + phase)
+        if dim == 1:
+            for i in range(n):
+                # Initialise Hamiltonian with quasiperiodic on-site terms
+                H0[i,i] = d*np.cos(2*np.pi*(1./phi)*i + phase)
+        elif dim == 2:
+            phi2 = 1+np.sqrt(2)
+            L = int(np.sqrt(n))
+            temp = np.zeros((L,L))
+            for i in range(L):
+                for j in range(L):
+                    #temp[i,j] = d*(np.cos(2*np.pi*(i+j)/phi + phase) + np.cos(2*np.pi*(i-j)/phi + phase))
+                    temp[i,j] = d*(np.cos(2*np.pi*(i)/phi + phase) + np.cos(2*np.pi*(j)/phi2 + phase2))
+            H0 = np.diag(temp.reshape(n))
+
     elif dis_type == 'QPsilver':
         phase = np.random.uniform(-np.pi,np.pi)
         print('phase = ', phase)

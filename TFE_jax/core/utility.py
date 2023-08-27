@@ -28,30 +28,55 @@ This file contains various helper functions.
 
 import os, functools
 import numpy as np
+from numba import jit
 from .contract import contract,contractNO 
+from time import sleep
+from .dyn_cython import cy_levels
 
-def namevar(dis_type,dsymm,no_state,dyn,norm,n,LIOM,species):
+def namevar(dis_type,dim,dsymm,no_state,dyn,norm,n,LIOM,species,order):
     if norm == True:
         nm = 'NO/%s' %(no_state)
     else:
         nm = 'PT'
     if species == 'spinful fermion':
-        spec = 'spin_fermion/%s' %(dsymm)
+        spec = '/scratch/st1607fu/TFE/spin_fermion/%s' %(dsymm)
     elif species == 'spinless fermion':
-        spec = 'fermion'
-     # Make directory to store data
+        spec = '/scratch/st1607fu/TFE/fermion'
+    # Make directory to store data
+    # Add random wait to make sure code running in parallel doesn't run into problems here
+    # (If n>1 threads try to create the folder at the same time, the code will crash.)
+    sleep(np.random.uniform(0,10))
     if dyn == False:
-        if not os.path.exists('%s/data/%s/%s/%s/%s/dataN%s' %(spec,dis_type,nm,LIOM,'static',n)):
-            os.makedirs('%s/data/%s/%s/%s/%s/dataN%s' %(spec,dis_type,nm,LIOM,'static',n))
-        namevar = '%s/data/%s/%s/%s/%s/dataN%s' %(spec,dis_type,nm,LIOM,'static',n) 
+        if not os.path.exists('%s/d%s/data/%s/%s/%s/O%s/%s/dataN%s' %(spec,dim,dis_type,nm,LIOM,order,'static',n)):
+            os.makedirs('%s/d%s/data/%s/%s/%s/O%s/%s/dataN%s' %(spec,dim,dis_type,nm,LIOM,order,'static',n))
+        namevar = '%s/d%s/data/%s/%s/%s/O%s/%s/dataN%s' %(spec,dim,dis_type,nm,LIOM,order,'static',n) 
     elif dyn == True:
-        if not os.path.exists('%s/data/%s/%s/%s/%s/dataN%s' %(spec,dis_type,nm,LIOM,'dyn',n)):
-            os.makedirs('%s/data/%s/%s/%s/%s/dataN%s' %(spec,dis_type,nm,LIOM,'dyn',n))
-        namevar = '%s/data/%s/%s/%s/%s/dataN%s' %(spec,dis_type,nm,LIOM,'dyn',n)
+        if not os.path.exists('%s/d%s/data/%s/%s/%s/O%s/%s/dataN%s' %(spec,dim,dis_type,nm,LIOM,order,'dyn',n)):
+            os.makedirs('%s/d%s/data/%s/%s/%s/O%s/%s/dataN%s' %(spec,dim,dis_type,nm,LIOM,order,'dyn',n))
+        namevar = '%s/d%s/data/%s/%s/%s/O%s/%s/dataN%s' %(spec,dim,dis_type,nm,LIOM,order,'dyn',n)
     
     return namevar
 
-
+def namevar3(dis_type,dim,dsymm,no_state,dyn,norm,n,LIOM,species,order):
+    if norm == True:
+        nm = 'NO/%s' %(no_state)
+    else:
+        nm = 'PT'
+    if species == 'spinful fermion':
+        spec = '/scratch/st1607fu/proc/spin_fermion/%s' %(dsymm)
+    elif species == 'spinless fermion':
+        spec = '/scratch/st1607fu/proc/fermion'
+     # Make directory to store data
+    if dyn == False:
+        if not os.path.exists('%s/d%s/data/%s/%s/%s/O%s/%s/dataN%s' %(spec,dim,dis_type,nm,LIOM,order,'static',n)):
+            os.makedirs('%s/d%s/data/%s/%s/%s/O%s/%s/dataN%s' %(spec,dim,dis_type,nm,LIOM,order,'static',n))
+        namevar = '%s/d%s/data/%s/%s/%s/O%s/%s/dataN%s' %(spec,dim,dis_type,nm,LIOM,order,'static',n) 
+    elif dyn == True:
+        if not os.path.exists('%s/d%s/data/%s/%s/%s/O%s/%s/dataN%s' %(spec,dim,dis_type,nm,LIOM,order,'dyn',n)):
+            os.makedirs('%s/d%s/data/%s/%s/%s/O%s/%s/dataN%s' %(spec,dim,dis_type,nm,LIOM,order,'dyn',n))
+        namevar = '%s/d%s/data/%s/%s/%s/O%s/%s/dataN%s' %(spec,dim,dis_type,nm,LIOM,order,'dyn',n)
+    
+    return namevar
 #------------------------------------------------------------------------------
 # Generate the state vector used for normal-ordering
 def nstate(n,a):
@@ -81,7 +106,13 @@ def nstate(n,a):
     elif a == 'random':
         state0 = np.random.choice([0.,1.0],n)
     elif a == 'random_half':
-        state0 = np.array([1. for i in range(n//2)]+[0.0 for i in range(n//2)])
+        if n%2 == 0:
+            state0 = np.array([1. for i in range(n//2)]+[0.0 for i in range(n//2)])
+        else:
+            state0 = np.array([1. for i in range(n//2+1)]+[0.0 for i in range(n//2)])
+        np.random.shuffle(state0)
+    elif a == 'random_single':
+        state0 = np.array([1.]+[0.0 for i in range(n-1)])
         np.random.shuffle(state0)
     else:
         state0 = np.array([a for i in range(n)])
@@ -241,28 +272,65 @@ def eta_spin(y,state='CDW',norm=False,method='vec',no_state='CDW'):
 
 
 #------------------------------------------------------------------------------
-        
-def flow_levels(n,array,intr):
+
+def flow_levels_old(n,array,intr,order=4):
     """ Function to compute the many-body eigenvalues from the Hamiltonian returned by the TFE method. """
     H0 = array["H0_diag"]
     if intr == True:
         Hint = array["Hint"]
     flevels = np.zeros(2**n)
+    try:
+        H6 = array["H6"]
+    except:
+        None
 
     for i in range(2**n):
         lev0 = bin(i)[2::].rjust(n,'0') # Generate the many-body states
         # Compute the energies of each state from the fixed point Hamiltonian
-        # if lev0.count('1')==n//2:
-        for j in range(n):
-            flevels[i] += H0[j,j]*int(lev0[j])
-            if intr == True:
-                for q in range(n):
-                    if q !=j:
-                        # flevels[i] += Hint[j,j,q,q]*int(lev0[j])
-                        flevels[i] += Hint[j,j,q,q]*int(lev0[j])*int(lev0[q]) 
-                        flevels[i] += -Hint[j,q,q,j]*int(lev0[j])*int(lev0[q]) 
+        if lev0.count('1')==n//2:
+            for j in range(n):
+                flevels[i] += H0[j,j]*int(lev0[j])
+                if intr == True:
+                    for q in range(n):
+                        if q !=j:
+                            # flevels[i] += Hint[j,j,q,q]*int(lev0[j])
+                            flevels[i] += Hint[j,j,q,q]*int(lev0[j])*int(lev0[q]) 
+                        #if q !=j:
+                            flevels[i] += Hint[j,q,q,j]*int(lev0[j])*(1-int(lev0[q]))
+                            flevels[i] += -Hint[j,q,q,j]*int(lev0[j])
+                        if order == 6:
+                            for k in range(n):
+                                flevels[i] += H6[j,j,q,q,k,k]*int(lev0[j])*int(lev0[q])*int(lev0[k])
+                                if j != q:
+                                    flevels[i] += H6[q,j,j,q,k,k]*(1-int(lev0[j]))*int(lev0[q])*int(lev0[k])
+                                if j != k and q != j and q != k:
+                                    flevels[i] += H6[j,k,q,q,k,j]*int(lev0[j])*int(lev0[q])*(1-int(lev0[k]))
+                                if q != k:
+                                    flevels[i] += H6[j,j,q,k,k,q]*int(lev0[j])*int(lev0[q])*(1-int(lev0[k]))
 
-    # flevels=flevels[flevels != 0]
+    flevels=flevels[flevels != 0]
+    return np.sort(flevels)
+
+
+def flow_levels(n,array,intr,order=4):
+    """ Function to compute the many-body eigenvalues from the Hamiltonian returned by the TFE method. """
+    H0 = array["H0_diag"]
+    if intr == True:
+        Hint = array["Hint"]
+    if order == 6:
+        H6 = array["H6"]
+    else:
+        H6 = np.zeros(1).reshape(1,1,1,1,1,1)
+
+    flevels = np.zeros(2**n)
+    for i in range(2**n):
+        lev = bin(i)[2::].rjust(n,'0') # Generate the many-body states
+        # Compute the energies of each state from the fixed point Hamiltonian
+        if lev.count('1')==n//2:
+            lev0 = np.array([int(i) for i in lev],dtype=np.int32)
+            flevels[i] = cy_levels(n,H0,Hint,lev0,order=order,H6=H6)
+
+    flevels=flevels[flevels != 0]
     return np.sort(flevels)
 
 def flow_levels_spin(n,flow,intr=True):

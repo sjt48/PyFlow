@@ -27,8 +27,9 @@ benchmark the results of the flow equation approach.
 
 """
 
-import os
+import os,copy
 from psutil import cpu_count
+#import matplotlib.pyplot as plt
 # Import ED code from QuSpin
 from quspin.operators import hamiltonian 
 from quspin.tools.measurements import ED_state_vs_time
@@ -39,7 +40,7 @@ os.environ['MKL_NUM_THREADS']= str(int(cpu_count(logical=False))) # set number o
 import numpy as np
 
 
-def ED(n,ham,times,dyn,imbalance):
+def ED(n,ham,times,dyn,imbalance,dim=1):
     """ Exact diagonalisation function, using the QuSpin package.
     
         See the QuSpin documentation for further details on the algorithms and notation used.
@@ -91,7 +92,7 @@ def ED(n,ham,times,dyn,imbalance):
 
         dynamic=[]
         no_checks={"check_herm":False,"check_pcon":False,"check_symm":False}
-        basis = spinless_fermion_basis_1d(n)
+        basis = spinless_fermion_basis_1d(n,Nf=n//2)
 
         H = hamiltonian(static,dynamic,basis=basis,dtype=np.float64,**no_checks)
         E1,V1 = H.eigh()
@@ -142,6 +143,100 @@ def ED(n,ham,times,dyn,imbalance):
         H = hamiltonian(static,dynamic,basis=basis,dtype=np.float64,**no_checks)
         E1,V1 = H.eigh()
 
+        #-------------------------------------
+
+    sz_list = [[1.0,n//2]]
+    if dim == 2 and n%2==0:
+        sz_list = [[1.0,n//2+int(np.sqrt(n))//2]]
+    Sz_static = [["z",sz_list]]
+    Sz = hamiltonian(Sz_static,dynamic,basis=basis,dtype=np.float64,**no_checks)
+
+    # inf_corr_list = np.zeros(len(times),dtype=complex)
+    # if basis.Ns < 100:
+    #     print('Number of basis states: ',basis.Ns)
+    #     no_states = basis.Ns
+    #     ind_list = range(basis.Ns)
+    # else:
+    #     no_states = 100
+    #     ind_list = np.random.randint(0,basis.Ns,no_states)
+
+    # Szd = Sz.todense()
+    # H0 = H.todense()
+
+    # t = 0.
+    # epsilon = 1e-2
+    # tc = 0
+    # H0_2 = H0@H0
+    # H0_3 = H0_2@H0
+    # H0_4 = H0_3@H0
+    # U00 = np.diag(np.ones(basis.Ns))+(-1j*epsilon)*H0 + (-1j*epsilon)**2*H0_2/2 + (-1j*epsilon)**3*H0_3/6 + (-1j*epsilon)**4*H0_4/24
+    # while t < times[-1] and tc<len(times):
+    #     measure = False
+    #     if tc > 0:
+    #         delta_t = times[tc]-t
+    #         if delta_t > epsilon:
+    #             dt = epsilon
+    #             measure = False
+    #             U0 = U00
+    #         else:
+    #             measure = True
+    #             dt = delta_t
+    #             U0 = np.diag(np.ones(basis.Ns))+(-1j*dt)*H0 + (-1j*dt)**2*H0_2/2 + (-1j*dt)**3*H0_3/6 + (-1j*dt)**4*H0_4/24
+    #     else:
+    #         dt = times[0]
+    #         measure = True
+    #         U0 = np.diag(np.ones(basis.Ns))+(-1j*dt)*H0 + (-1j*dt)**2*H0_2/2 + (-1j*dt)**3*H0_3/6 + (-1j*dt)**4*H0_4/24
+    #     if tc == 0:
+    #         U = U0
+    #     else:
+    #         U = U@U0
+
+    #     if measure == True:
+    #         Szt = (np.conjugate(U))@Szd@U
+    #         for index in ind_list:
+    #             psi = np.zeros(basis.Ns)
+    #             psi[index] = 1.0
+    #             operator = [["n",[n//2],1.0]]
+    #             psi2 = basis.inplace_Op(psi,operator,np.complex128)
+    #             Sz_dense = Szt
+    #             corr = psi2@Sz_dense@psi
+    #             inf_corr_list[tc] += corr[0]
+    #         tc += 1
+    #     t += dt
+    # inf_corr_list *= 1/no_states
+
+    # print(inf_corr_list[:10])
+    # plt.plot(times,inf_corr_list.real,'r--',linewidth=3)
+
+    inf_corr_list = np.zeros(len(times),dtype=complex)
+
+    pure_state = []
+    temp = np.random.normal(0,np.sqrt(0.5),basis.Ns)+1j*np.random.normal(0,np.sqrt(0.5),basis.Ns)
+    print('NORM',np.dot(np.conjugate(temp),temp))
+    temp *= 1/np.sqrt(np.dot(np.conjugate(temp),temp))
+    print('NORM',np.dot(np.conjugate(temp),temp))
+    pure_state += [temp]
+
+    if dim == 1:
+        location = n//2
+    elif dim == 2 and n%2==0:
+        location = n//2 + int(np.sqrt(n))//2
+    else:
+        location = n//2
+
+    for i in [location]:
+        operator = [["z",[i],1.0]]
+        psi1 = copy.deepcopy(pure_state[0])
+        psi1_t = ED_state_vs_time(psi1,E1,V1,times,iterate=False)
+        psi2 = copy.deepcopy(pure_state[0])
+        psi2_op = basis.inplace_Op(psi2,operator,np.complex128)
+        psi2_op_t = ED_state_vs_time(psi2_op,E1,V1,times,iterate=False)
+        psi2_op_t2 = basis.inplace_Op(psi2_op_t,operator,np.complex128)
+        inf_corr_list = np.einsum("ij,ij->j",psi1_t.conj(),psi2_op_t2)/np.einsum("ij,ij->j",psi1_t.conj(),psi1_t)
+
+    print(inf_corr_list[:10])
+    #plt.plot(times,inf_corr_list.real,'k-')
+
     if dyn == True:
         st = "".join("10" for i in range(n//2))
         iDH = basis.index(st)
@@ -166,4 +261,4 @@ def ED(n,ham,times,dyn,imbalance):
         return [E1,n_t]
     
     else:
-        return [E1,0]
+        return [E1,inf_corr_list.real]
